@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug rabbitmq-nio",
+            "program": "${workspaceFolder:rabbitmq-nio}/.build/debug/rabbitmq-nio",
+            "args": [],
+            "cwd": "${workspaceFolder:rabbitmq-nio}",
+            "preLaunchTask": "swift: Build Debug rabbitmq-nio"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release rabbitmq-nio",
+            "program": "${workspaceFolder:rabbitmq-nio}/.build/release/rabbitmq-nio",
+            "args": [],
+            "cwd": "${workspaceFolder:rabbitmq-nio}",
+            "preLaunchTask": "swift: Build Release rabbitmq-nio"
+        }
+    ]
+}
