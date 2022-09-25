@@ -1,43 +1,36 @@
 import NIOCore
 
-enum ConnectionError: Error {
-    case frameDecode 
-}
-
 public typealias ChannelId = UInt16
 
+public typealias Table = [String:Any]
 
 protocol PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Self
 }
 
 protocol PayloadEncodable {
-    static func encode(from buffer: inout ByteBuffer) throws
+    static func encode(to buffer: inout ByteBuffer) throws
 }
-
 
 public enum Frame: PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Frame {
         guard let rawType = buffer.readInteger(as: UInt8.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.frame
         }
 
         guard let channelId = buffer.readInteger(as: ChannelId.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.frame
         }
 
         guard let size = buffer.readInteger(as: UInt32.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.frame
         }
 
-        let type = Type(rawValue: rawType)
-
-
-        switch type {
+        switch Type(rawValue: rawType) {
         case .method:
             return .method(channelId, try! Method.decode(from: &buffer))
         default:
-            throw ConnectionError.frameDecode 
+            throw DecodeError.frame
         }
     }
 
@@ -58,20 +51,17 @@ public enum Frame: PayloadDecodable {
     }
 }
 
-
 public enum Method: PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Method {
         guard let rawID = buffer.readInteger(as: UInt16.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.method
         }
-
-        let id = ID(rawValue: rawID)
-
-        switch id {
+    
+        switch ID(rawValue: rawID) {
             case .connection:
                 return .connection(try! Connection.decode(from: &buffer))
             default:
-                throw ConnectionError.frameDecode 
+                throw DecodeError.method
         }
     }
 
@@ -95,16 +85,14 @@ public enum Method: PayloadDecodable {
 public enum Connection: PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Connection {
         guard let rawID = buffer.readInteger(as: UInt16.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.connection
         }
-
-        let id = ID(rawValue: rawID)
-
-        switch id {
+    
+        switch ID(rawValue: rawID) {
             case .start:
                 return .start(try! ConnectionStart.decode(from: &buffer))
             default:
-                throw ConnectionError.frameDecode 
+                throw DecodeError.connection 
         }
     }
 
@@ -141,25 +129,37 @@ public enum Connection: PayloadDecodable {
 public struct ConnectionStart: PayloadDecodable {
     static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> ConnectionStart {
         guard let versionMajor = buffer.readInteger(as: UInt8.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.connectionStart
         }
 
         guard let versionMinor = buffer.readInteger(as: UInt8.self) else {
-            throw ConnectionError.frameDecode
+            throw DecodeError.connectionStart
         }
-        
-        return ConnectionStart(versionMajor: versionMajor, versionMinor: versionMinor)
+
+        guard let (serverProperties, _) = readDictionary(from: &buffer) else {
+            throw DecodeError.table
+        }
+
+        guard let (mechanisms, _) = readLongStr(from: &buffer) else {
+            throw DecodeError.connectionStart
+        }
+
+        guard  let (locales, _) = readLongStr(from: &buffer)  else {
+            throw DecodeError.connectionStart
+        }
+
+        return ConnectionStart(versionMajor: versionMajor, versionMinor: versionMinor, serverProperties: serverProperties, mechanisms: mechanisms, locales: locales)
     }
 
     var versionMajor: UInt8
     var versionMinor: UInt8
-    // var serverProperties: [String: AnyObject]
-    // var mechanisms: String
-    // var locales: String
+    var serverProperties: Table
+    var mechanisms: String
+    var locales: String
 }
 
 public struct ConnnectionStartOk {
-    var clientProperties: [String: AnyObject]
+    var clientProperties: Table
     var mechanism: String
     var response: String
     var locale: String

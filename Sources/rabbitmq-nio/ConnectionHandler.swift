@@ -1,7 +1,7 @@
 
 import NIOCore
 
-public struct AMQPConnection: BufferHandler {
+public struct ConnectionHandler: BufferHandler {
     func sendActive(buffer: inout NIOCore.ByteBuffer) throws {
         buffer.writeBytes(PROTOCOL_START_0_9_1)
     }

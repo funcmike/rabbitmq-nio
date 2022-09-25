@@ -74,7 +74,7 @@ func setupEventloop(arguments: [String]) {
         // Enable SO_REUSEADDR.
         .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
         .channelInitializer { channel in
-            channel.pipeline.addHandler(TCPHandler(handler: AMQPConnection()))
+            channel.pipeline.addHandler(TCPHandler(handler: ConnectionHandler()))
         }
     defer {
         try! group.syncShutdownGracefully()
