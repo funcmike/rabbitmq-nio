@@ -51,12 +51,14 @@ internal init(sendBytes: Int = 0, receiveBuffer: ByteBuffer = ByteBuffer(), hand
         
         try! handler.sendResponse(buffer: &receiveBuffer)
     
-        if self.sendBytes == 0 {
-            let string = String(buffer: receiveBuffer)
+        // if self.sendBytes == 0 {
+        //     let string = String(buffer: receiveBuffer)
 
-            print("Received: '\(string)' back from the server, closing channel.")
-            context.close(promise: nil)
-        }
+        //     print("Received: '\(string)' back from the server, closing channel.")
+        //     context.close(promise: nil)
+        // }
+
+        context.writeAndFlush(self.wrapOutboundOut(receiveBuffer), promise: nil)
     }
 
     public func errorCaught(context: ChannelHandlerContext, error: Error) {

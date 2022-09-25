@@ -12,12 +12,12 @@ internal extension ByteBuffer {
     }
 
     @usableFromInline
-    mutating func psqlWriteFloat(_ float: Float) {
+    mutating func writeFloat(_ float: Float) {
         self.writeInteger(float.bitPattern)
     }
 
     @usableFromInline
-    mutating func psqlWriteDouble(_ double: Double) {
+    mutating func writeDouble(_ double: Double) {
         self.writeInteger(double.bitPattern)
     }
 }
