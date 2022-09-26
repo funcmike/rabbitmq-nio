@@ -208,11 +208,11 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
 }
 
 public struct ConnectionStart: PayloadDecodable {
-    var versionMajor: UInt8
-    var versionMinor: UInt8
-    var serverProperties: Table
-    var mechanisms: String
-    var locales: String
+    let versionMajor: UInt8
+    let versionMinor: UInt8
+    let serverProperties: Table
+    let mechanisms: String
+    let locales: String
 
     static func decode(from buffer: inout ByteBuffer) throws -> ConnectionStart {
         guard let versionMajor = buffer.readInteger(as: UInt8.self) else {
@@ -258,10 +258,10 @@ public struct ConnectionStart: PayloadDecodable {
 }
 
 public struct ConnnectionStartOk: PayloadDecodable, PayloadEncodable {
-    var clientProperties: Table
-    var mechanism: String
-    var response: String
-    var locale: String
+    let clientProperties: Table
+    let mechanism: String
+    let response: String
+    let locale: String
 
     static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> ConnnectionStartOk {
         let clientProperties: Table
