@@ -4,8 +4,7 @@ import Foundation
 
 public struct Empty {}
 
-func readShortStr(from buffer: inout ByteBuffer) -> (String, Int)?
-{
+func readShortStr(from buffer: inout ByteBuffer) -> (String, Int)? {
     guard let size = buffer.readInteger(as: UInt8.self) else {
         return nil
     }    
@@ -17,8 +16,7 @@ func readShortStr(from buffer: inout ByteBuffer) -> (String, Int)?
     return  (value, 1 + Int(size))
 }
 
-func writeShortStr(value: String, into buffer: inout ByteBuffer)
-{
+func writeShortStr(value: String, into buffer: inout ByteBuffer) {
     let startIndex: Int = buffer.writerIndex
 
     buffer.writeInteger(UInt8(0)) // placeholder for size
@@ -28,8 +26,7 @@ func writeShortStr(value: String, into buffer: inout ByteBuffer)
     buffer.setInteger(size, at: startIndex)
 }
 
-func readLongStr(from buffer: inout ByteBuffer) -> (String, Int)?
-{
+func readLongStr(from buffer: inout ByteBuffer) -> (String, Int)? {
     guard let size: UInt32 = buffer.readInteger(as: UInt32.self) else {
         return nil
     }
@@ -41,8 +38,7 @@ func readLongStr(from buffer: inout ByteBuffer) -> (String, Int)?
     return (value, 4 + Int(size))
 }
 
-func writeLongStr(value: String, into buffer: inout ByteBuffer)
-{
+func writeLongStr(value: String, into buffer: inout ByteBuffer) {
     let startIndex: Int = buffer.writerIndex
 
     buffer.writeInteger(UInt32(0))  // placeholde for size
@@ -83,8 +79,7 @@ func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], In
     return (result, 4 + bytesRead)
 }
 
-func writeDictionary(values: [String:Any], into buffer: inout ByteBuffer) throws
-{
+func writeDictionary(values: [String:Any], into buffer: inout ByteBuffer) throws {
     let startIndex: Int = buffer.writerIndex
 
     buffer.writeInteger(UInt32(0)) // placeholder for size
@@ -128,8 +123,7 @@ func readArray(from buffer: inout ByteBuffer) throws -> ([Any], Int) {
     return (result, 4 + bytesRead)
 }
 
-func writeArray(values: [Any], into buffer: inout ByteBuffer) throws
-{
+func writeArray(values: [Any], into buffer: inout ByteBuffer) throws {
     let startIndex = buffer.writerIndex
 
     buffer.writeInteger(UInt32(0)) // placeholder for size
@@ -267,8 +261,7 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
     }
 }
 
-func writeFieldValue(value: Any, into buffer: inout ByteBuffer) throws
-{
+func writeFieldValue(value: Any, into buffer: inout ByteBuffer) throws {
     switch value {
         case let v as Bool where v == true:
             buffer.writeInteger(Character("t").asciiValue!)
