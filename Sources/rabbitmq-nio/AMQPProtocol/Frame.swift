@@ -13,47 +13,6 @@ protocol PayloadEncodable {
 }
 
 public enum Frame: PayloadDecodable, PayloadEncodable {
-    func encode(into buffer: inout ByteBuffer) throws {
-        switch self {
-            case .method(let channelId, let method):
-                buffer.writeInteger(`Type`.method.rawValue)
-
-                buffer.writeInteger(channelId)
-                
-                let startIndex = buffer.writerIndex
-
-                buffer.writeInteger(UInt32(0)) // placeholder for size
-                                
-                try! method.encode(into: &buffer)
-
-                let size = UInt32(buffer.writerIndex - startIndex - 4)
-
-                buffer.setInteger(size, at: startIndex)
-        }
-    }
-
-    static func decode(from buffer: inout ByteBuffer) throws -> Frame {
-        guard let rawType = buffer.readInteger(as: UInt8.self) else {
-            throw DecodeError.frame(.type(Value: nil))
-        }
-
-        guard let channelId = buffer.readInteger(as: ChannelId.self) else {
-            throw DecodeError.frame(.channelId)
-        }
-
-        // TODO(funcmike): use this later for Body frame
-        guard let size = buffer.readInteger(as: UInt32.self) else {
-            throw DecodeError.frame(.size)
-        }
-
-        switch Type(rawValue: rawType) {
-        case .method:
-            return .method(channelId, try! Method.decode(from: &buffer))
-        default:
-            throw DecodeError.frame(.type(Value: rawType))
-        }
-    }
-
     case method(ChannelId, Method)
 
     enum `Type` {
@@ -76,31 +35,50 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             }
         }
     }
+
+    static func decode(from buffer: inout ByteBuffer) throws -> Frame {
+        guard let rawType = buffer.readInteger(as: UInt8.self) else {
+            throw DecodeError.value(type: UInt8.self)
+        }
+
+        guard let channelId = buffer.readInteger(as: ChannelId.self) else {
+            throw DecodeError.value(type: ChannelId.self)
+        }
+
+        // TODO(funcmike): use this later for Body frame
+        guard let size = buffer.readInteger(as: UInt32.self) else {
+            throw DecodeError.value(type: UInt32.self)
+        }
+
+        switch Type(rawValue: rawType) {
+        case .method:
+            return .method(channelId, try! Method.decode(from: &buffer))
+        default:
+            throw DecodeError.unsupported(value: rawType)
+        }
+    }
+
+    func encode(into buffer: inout ByteBuffer) throws {
+        switch self {
+            case .method(let channelId, let method):
+                buffer.writeInteger(`Type`.method.rawValue)
+
+                buffer.writeInteger(channelId)
+                
+                let startIndex = buffer.writerIndex
+
+                buffer.writeInteger(UInt32(0)) // placeholder for size
+                                
+                try! method.encode(into: &buffer)
+
+                let size = UInt32(buffer.writerIndex - startIndex - 4)
+
+                buffer.setInteger(size, at: startIndex)
+        }
+    }
 }
 
 public enum Method: PayloadDecodable, PayloadEncodable {
-    func encode(into buffer: inout ByteBuffer) throws {
-        switch self {
-            case .connection(let connection):
-                buffer.writeInteger(ID.connection.rawValue)
-                try! connection.encode(into: &buffer)
-                return
-        }
-    }
-
-    static func decode(from buffer: inout ByteBuffer) throws -> Method {
-        guard let rawID = buffer.readInteger(as: UInt16.self) else {
-            throw DecodeError.frame(.method(.id(Value: nil)))
-        }
-    
-        switch ID(rawValue: rawID) {
-            case .connection:
-                return .connection(try! Connection.decode(from: &buffer))
-            default:
-                throw DecodeError.frame(.method(.id(Value: rawID)))
-        }
-    }
-
     case connection(Connection)
 
     enum ID {
@@ -123,34 +101,31 @@ public enum Method: PayloadDecodable, PayloadEncodable {
             }
         }
     }
-}
 
-public enum Connection: PayloadDecodable, PayloadEncodable {
-    func encode(into buffer: inout ByteBuffer) throws {
-        switch self {
-            case .startOk(let connectionStart):
-                buffer.writeInteger(ID.startOk.rawValue)
-                try! connectionStart.encode(into: &buffer)
-            default:
-                return TODO("implement start")
-        }
-    }
-
-    static func decode(from buffer: inout ByteBuffer) throws -> Connection {
+    static func decode(from buffer: inout ByteBuffer) throws -> Method {
         guard let rawID = buffer.readInteger(as: UInt16.self) else {
-                throw DecodeError.frame(.method(.connection(.id(Value: nil))))
+            throw DecodeError.value(type: UInt16.self)
         }
     
         switch ID(rawValue: rawID) {
-            case .start:
-                return .start(try! ConnectionStart.decode(from: &buffer))
-            case .startOk:
-                return .startOk(try! ConnnectionStartOk.decode(from: &buffer))
+            case .connection:
+                return .connection(try! Connection.decode(from: &buffer))
             default:
-                throw DecodeError.frame(.method(.connection(.id(Value: rawID))))
+                throw DecodeError.unsupported(value: rawID)
         }
     }
 
+    func encode(into buffer: inout ByteBuffer) throws {
+        switch self {
+            case .connection(let connection):
+                buffer.writeInteger(ID.connection.rawValue)
+                try! connection.encode(into: &buffer)
+                return
+        }
+    }
+}
+
+public enum Connection: PayloadDecodable, PayloadEncodable {
     case start(ConnectionStart)
     case startOk(ConnnectionStartOk)
     case tune
@@ -188,16 +163,64 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             }
         }
     }
+
+    static func decode(from buffer: inout ByteBuffer) throws -> Connection {
+        guard let rawID = buffer.readInteger(as: UInt16.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+    
+        switch ID(rawValue: rawID) {
+            case .start:
+                return .start(try! ConnectionStart.decode(from: &buffer))
+            case .startOk:
+                return .startOk(try! ConnnectionStartOk.decode(from: &buffer))
+            default:
+                throw DecodeError.unsupported(value: rawID)
+        }
+    }
+
+    func encode(into buffer: inout ByteBuffer) throws {
+        switch self {
+            case .start(let connectionStart):
+                buffer.writeInteger(ID.start.rawValue)
+                try! connectionStart.encode(into: &buffer)
+            case .startOk(let connectionStartOk):
+                buffer.writeInteger(ID.startOk.rawValue)
+                try! connectionStartOk.encode(into: &buffer)
+            case .tune: 
+                return TODO("implement tune")
+            case .tuneOk: 
+                return TODO("implement tuneOk") 
+            case .open: 
+                return TODO("implement open")
+            case .openOk: 
+                return TODO("implement openOk")
+            case .close:
+                return TODO("implement close")
+            case .closeOk: 
+                return TODO("implement closeOk")
+            case .blocked:
+                return TODO("implement blocked")
+            case .unblocked: 
+                return TODO("implement unblocked") 
+        }
+    }
 }
 
 public struct ConnectionStart: PayloadDecodable {
+    var versionMajor: UInt8
+    var versionMinor: UInt8
+    var serverProperties: Table
+    var mechanisms: String
+    var locales: String
+
     static func decode(from buffer: inout ByteBuffer) throws -> ConnectionStart {
         guard let versionMajor = buffer.readInteger(as: UInt8.self) else {
-            throw DecodeError.frame(.method(.connection(.connectionStart(.versionMajor))))
+            throw DecodeError.value(type: UInt8.self)
         }
 
         guard let versionMinor = buffer.readInteger(as: UInt8.self) else {
-            throw DecodeError.frame(.method(.connection(.connectionStart(.versionMinor))))
+            throw DecodeError.value(type: UInt8.self)
         }
 
         let serverProperties: Table
@@ -205,25 +228,33 @@ public struct ConnectionStart: PayloadDecodable {
         do {
             (serverProperties, _) = try readDictionary(from: &buffer)
         } catch let error as DecodeError {
-               throw DecodeError.frame(.method(.connection(.connectionStart(.serverProperties(Inner: error)))))
+            throw DecodeError.value(type: Table.self, inner: error)
         }
 
         guard let (mechanisms, _) = readLongStr(from: &buffer) else {
-            throw DecodeError.frame(.method(.connection(.connectionStart(.mechanisms))))
+            throw DecodeError.value(type: String.self)
         }
 
         guard  let (locales, _) = readLongStr(from: &buffer)  else {
-            throw DecodeError.frame(.method(.connection(.connectionStart(.locales))))
+            throw DecodeError.value(type: String.self)
         }
 
         return ConnectionStart(versionMajor: versionMajor, versionMinor: versionMinor, serverProperties: serverProperties, mechanisms: mechanisms, locales: locales)
     }
 
-    var versionMajor: UInt8
-    var versionMinor: UInt8
-    var serverProperties: Table
-    var mechanisms: String
-    var locales: String
+    func encode(into buffer: inout ByteBuffer) throws {
+        buffer.writeInteger(versionMajor)
+        buffer.writeInteger(versionMinor)
+
+        do {
+            try writeDictionary(values: serverProperties, into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.value(type: Table.self, inner: error)
+        }
+        
+        writeLongStr(value: mechanisms, into: &buffer)
+        writeLongStr(value: locales, into: &buffer)
+    }
 }
 
 public struct ConnnectionStartOk: PayloadDecodable, PayloadEncodable {
@@ -233,31 +264,36 @@ public struct ConnnectionStartOk: PayloadDecodable, PayloadEncodable {
     var locale: String
 
     static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> ConnnectionStartOk {
-        let clientProperties: Table 
+        let clientProperties: Table
+ 
         do {
             (clientProperties, _) = try readDictionary(from: &buffer)
         } catch let error as DecodeError {
-            throw DecodeError.frame(.method(.connection(.connectionStartOk(.clientProperties(Inner: error)))))
+            throw DecodeError.value(type: Table.self, inner: error)
         }
 
         guard let (mechanism, _) = readShortStr(from: &buffer) else {
-            throw DecodeError.frame(.method(.connection(.connectionStartOk(.mechanism))))
+            throw DecodeError.value(type: String.self)
         }
 
         guard  let (response, _) = readLongStr(from: &buffer)  else {
-            throw DecodeError.frame(.method(.connection(.connectionStartOk(.response))))
+            throw DecodeError.value(type: String.self)
         }
 
         guard  let (locale, _) = readShortStr(from: &buffer)  else {
-            throw DecodeError.frame(.method(.connection(.connectionStartOk(.locale))))
+            throw DecodeError.value(type: String.self)
         }
 
         return ConnnectionStartOk(clientProperties: clientProperties, mechanism: mechanism, response: response, locale: locale)
     }
 
-
     func encode(into buffer: inout ByteBuffer) throws {
-        try! writeDictionary(values: clientProperties, into: &buffer)
+        do {
+            try writeDictionary(values: clientProperties, into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.value(type: Table.self, inner: error)
+        }
+
         writeShortStr(value: mechanism, into: &buffer)
         writeLongStr(value: response, into: &buffer)
         writeShortStr(value: locale, into: &buffer)

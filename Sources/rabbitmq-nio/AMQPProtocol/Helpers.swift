@@ -55,7 +55,7 @@ func writeLongStr(value: String, into buffer: inout ByteBuffer)
 
 func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], Int)  {
     guard let size = buffer.readInteger(as: UInt32.self) else {
-        throw DecodeError.table(.size)
+        throw DecodeError.dictionary(.size)
     }
 
     var result: [String:Any] = [:]
@@ -64,7 +64,7 @@ func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], In
 
     while bytesRead < size {
         guard let (key, keySize) = readShortStr(from: &buffer) else {
-            throw DecodeError.table(.key)
+            throw DecodeError.dictionary(.key)
         }
 
         bytesRead += keySize
@@ -76,7 +76,7 @@ func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], In
 
             result[key] = value
         } catch let error as DecodeError {
-            throw DecodeError.table(.value(Key: key, Inner: error))
+            throw DecodeError.dictionary(.value(key: key, inner: error))
         }
     }
     
@@ -92,7 +92,11 @@ func writeDictionary(values: [String:Any], into buffer: inout ByteBuffer) throws
     for (key, value) in values {
         writeShortStr(value: key, into: &buffer)
     
-        try! writeFieldValue(value: value, into: &buffer)
+        do {
+            try writeFieldValue(value: value, into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.dictionary(.value(key: key, inner: error))
+        }
     }
 
     let size = UInt32(buffer.writerIndex - startIndex - 4)
@@ -116,10 +120,8 @@ func readArray(from buffer: inout ByteBuffer) throws -> ([Any], Int) {
             bytesRead += valueSize
 
             result.append(value)
-        }
-        catch let error as DecodeError
-        {
-            throw DecodeError.array(.value(Inner: error))
+        } catch let error as DecodeError {
+            throw DecodeError.array(.value(inner: error))
         }
     }
 
@@ -133,7 +135,11 @@ func writeArray(values: [Any], into buffer: inout ByteBuffer) throws
     buffer.writeInteger(UInt32(0)) // placeholder for size
 
     for (value) in values {
-        try! writeFieldValue(value: value, into: &buffer)
+        do {
+            try writeFieldValue(value: value, into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.array(.value(inner: error))
+        }
     }
 
     let size = UInt32(buffer.writerIndex - startIndex - 4)
@@ -160,94 +166,104 @@ func writeDecimal(value: Decimal, into buffer: inout ByteBuffer) throws {
 
 
 func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
-    guard let type = buffer.readInteger(as: UInt8.self) else {
-        throw DecodeError.field(.type)
+    guard let rawtype = buffer.readInteger(as: UInt8.self) else {
+        throw DecodeError.value(type: UInt8.self)
     }
 
+    let type = Character(UnicodeScalar(rawtype))
+
     switch type {
-        case Character("t").asciiValue:
-            guard let value = buffer.readInteger(as: UInt8.self) else {
-                throw DecodeError.field(.value(Type: type))
+        case "t":
+            guard let value: UInt8 = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self, amqpType: "t")
             }
             return (value == 1, 1+1)
-        case Character("b").asciiValue:
+        case "b":
             guard let value = buffer.readInteger(as: Int8.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: Int8.self, amqpType: "b")
             }
             return (value, 1+1)
-        case Character("B").asciiValue:
+        case "B":
             guard let value = buffer.readInteger(as: UInt8.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: UInt8.self, amqpType: "B")
             }
             return (value, 1+1)
-        case Character("s").asciiValue:
+        case "s":
             guard let value = buffer.readInteger(as: Int16.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: Int16.self, amqpType: "s")
             }
             return (value, 1+2)
-        case Character("u").asciiValue:
+        case "u":
             guard let value = buffer.readInteger(as: UInt16.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: UInt16.self, amqpType: "u")
             }
             return (value, 1+2)
-        case Character("I").asciiValue:
+        case "I":
             guard let value = buffer.readInteger(as: Int32.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: Int32.self, amqpType: "I")
             }
             return (value, 1+4)
-        case Character("i").asciiValue:
+        case "i":
             guard let value = buffer.readInteger(as: UInt32.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: UInt32.self, amqpType: "i")
             }
             return (value, 1+4)
-        case Character("l").asciiValue:
+        case "l":
             guard let value = buffer.readInteger(as: Int64.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: Int64.self, amqpType: "l")
             }
             return (value, 1+8)
-        case Character("f").asciiValue:
-            guard let value = buffer.psqlReadFloat() else {
-                throw DecodeError.field(.value(Type: type))
+        case "f":
+            guard let value = buffer.readFloat() else {
+                throw DecodeError.value(type: Float.self, amqpType: "f")
             }
             return (value, 1+4)
-        case Character("d").asciiValue:
-            guard let value = buffer.psqlReadDouble() else {
-                throw DecodeError.field(.value(Type: type))
+        case "d":
+            guard let value = buffer.readDouble() else {
+                throw DecodeError.value(type: Double.self, amqpType: "d")
             }
             return (value, 1+8)
-        case Character("S").asciiValue:
+        case "S":
             guard let (value, valueSize) = readLongStr(from: &buffer) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: String.self, amqpType: "S")
             }
             return (value, 1 + valueSize)
-        case Character("x").asciiValue:
+        case "x":
             guard let size = buffer.readInteger(as: UInt32.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: UInt32.self, amqpType: "x")
             }
             guard let value = buffer.readBytes(length: Int(size)) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: [UInt8].self, amqpType: "x")
             }            
             return (value, 1+Int(size));
-        case Character("A").asciiValue:
-            let (value, valueSize) = try! readArray(from: &buffer)
-            return (value, 1 + valueSize)
-        case Character("T").asciiValue:
+        case "A":
+            do {
+                let (value, valueSize) = try readArray(from: &buffer)
+                return (value, 1 + valueSize)
+            } catch let error as DecodeError {
+                throw DecodeError.value(type: [Any].self, amqpType: "A", inner: error)
+            }
+        case "T":
             guard let timestamp = buffer.readInteger(as: Int64.self) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: Int64.self, amqpType: "T")
             }
             return (Date(timeIntervalSince1970: TimeInterval(timestamp)), 1+8)
-        case Character("F").asciiValue:
-            let (value, valueSize) = try! readDictionary(from: &buffer)
-            return  (value, 1 + valueSize)
-        case Character("D").asciiValue:
+        case "F":
+            do {
+                let (value, valueSize) = try readDictionary(from: &buffer)
+                return  (value, 1 + valueSize)
+            } catch let error as DecodeError {
+                throw DecodeError.value(type: [String: Any].self, amqpType: "F", inner: error)
+            }
+        case "D":
             guard let (value, valueSize) = readDecimal(from: &buffer) else {
-                throw DecodeError.field(.value(Type: type))
+                throw DecodeError.value(type: Decimal.self, amqpType: "D")
             }
             return (value, 1 + valueSize)
-        case Character("V").asciiValue:
+        case "V":
             return (Empty(), 1)
         default:
-            throw DecodeError.field(.unsupported(Type: type))
+            throw DecodeError.unsupported(amqpType: type)
     }
 }
 
@@ -308,6 +324,6 @@ func writeFieldValue(value: Any, into buffer: inout ByteBuffer) throws
         case is Empty:
             buffer.writeInteger(Character("V").asciiValue!)
         default:
-            throw EncodeError.field(.unsupported(Value: value))
+            throw EncodeError.unsupported(value: value)
     }
 }

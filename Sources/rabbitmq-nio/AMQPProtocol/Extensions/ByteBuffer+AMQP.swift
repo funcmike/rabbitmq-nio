@@ -2,12 +2,12 @@ import NIOCore
 
 internal extension ByteBuffer {
     @usableFromInline
-    mutating func psqlReadFloat() -> Float? {
+    mutating func readFloat() -> Float? {
         return self.readInteger(as: UInt32.self).map { Float(bitPattern: $0) }
     }
 
     @usableFromInline
-    mutating func psqlReadDouble() -> Double? {
+    mutating func readDouble() -> Double? {
         return self.readInteger(as: UInt64.self).map { Double(bitPattern: $0) }
     }
 
