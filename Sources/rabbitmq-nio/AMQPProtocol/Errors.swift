@@ -17,8 +17,6 @@ enum DecodeError: Error {
     }
 }
 
-
-
 enum EncodeError: Error {
     case value(type: Any.Type, inner: Error? = nil)
     case dictionary(DictionaryError)
