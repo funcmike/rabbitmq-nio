@@ -19,17 +19,14 @@ protocol BufferHandler {
     func sendResponse(buffer _: inout ByteBuffer) throws
 }
 
-private final class TCPHandler: ChannelInboundHandler {
-internal init(sendBytes: Int = 0, receiveBuffer: ByteBuffer = ByteBuffer(), handler: BufferHandler) {
-    self.sendBytes = sendBytes
-    self.receiveBuffer = receiveBuffer
-    self.handler = handler
-}
+private final class TCPHandler: ChannelInboundHandler  {
+    internal init(handler: BufferHandler) {
+        self.handler = handler
+    }
 
     public typealias InboundIn = ByteBuffer
     public typealias OutboundOut = ByteBuffer
-    private var sendBytes = 0
-    private var receiveBuffer: ByteBuffer = ByteBuffer()
+    //public  typealias OutboundIn = ByteBuffer
     let handler: BufferHandler
     
     public func channelActive(context: ChannelHandlerContext) {
@@ -40,25 +37,19 @@ internal init(sendBytes: Int = 0, receiveBuffer: ByteBuffer = ByteBuffer(), hand
         
         try! handler.sendActive(buffer: &buffer)
         
-        self.sendBytes = buffer.readableBytes
         context.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
     }
 
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        var unwrappedInboundData = self.unwrapInboundIn(data)
-        self.sendBytes -= unwrappedInboundData.readableBytes
-        receiveBuffer.writeBuffer(&unwrappedInboundData)
+        print("got response")
         
-        try! handler.sendResponse(buffer: &receiveBuffer)
-    
-        // if self.sendBytes == 0 {
-        //     let string = String(buffer: receiveBuffer)
+        var unwrappedInboundData = self.unwrapInboundIn(data)
+        
+        try! handler.sendResponse(buffer: &unwrappedInboundData)
 
-        //     print("Received: '\(string)' back from the server, closing channel.")
-        //     context.close(promise: nil)
-        // }
+        context.writeAndFlush(self.wrapOutboundOut(unwrappedInboundData), promise: nil)
 
-        context.writeAndFlush(self.wrapOutboundOut(receiveBuffer), promise: nil)
+        print("send response")
     }
 
     public func errorCaught(context: ChannelHandlerContext, error: Error) {
@@ -68,6 +59,20 @@ internal init(sendBytes: Int = 0, receiveBuffer: ByteBuffer = ByteBuffer(), hand
         // reduce allocations.
         context.close(promise: nil)
     }
+
+    // func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+    //     print("write write")
+    //     let message = self.unwrapOutboundIn(data)
+        
+    //     //let buffer = context.channel.allocator.buffer(buffer: message)
+
+    //     context.write(self.wrapOutboundOut(message), promise: promise)
+    // }
+
+    // // Flush it out. This can make use of gathering writes if multiple buffers are pending
+    // public func channelReadComplete(context: ChannelHandlerContext) {
+    //     context.flush()
+    // }
 }
 
 func setupEventloop(arguments: [String]) {
