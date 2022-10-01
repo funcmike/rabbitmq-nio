@@ -189,6 +189,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
     case exchange(Exchange)
     case queue(Queue)
     case basic(Basic)
+    case confirm(Confirm)
 
     enum ID {
         case connection
@@ -271,6 +272,9 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         case .basic(let basic):
             buffer.writeInteger(ID.basic.rawValue)
             try! basic.encode(into: &buffer)
+        case .confirm(let confirm):
+            buffer.writeInteger(ID.confirm.rawValue)
+            try! confirm.encode(into: &buffer)
         }
     }
 }
@@ -2297,6 +2301,65 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             }
 
             buffer.writeInteger(bits)
+        }
+    }
+}
+
+public enum Confirm: PayloadDecodable, PayloadEncodable {
+    case select(noWait: Bool)
+    case selectOk
+
+
+    public enum ID {
+        case select
+        case selectOk
+
+        init?(rawValue: UInt16) {
+            switch rawValue {
+            case 10:
+                self = .select
+            case 11:
+                self = .selectOk
+            default:
+                return nil
+            }
+        }
+
+        var rawValue: UInt16 {
+            switch self {
+            case .select:
+                return 10
+            case .selectOk:
+                return 11
+            }
+        }
+    }
+
+    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        guard let rawID = buffer.readInteger(as: UInt16.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+
+        switch ID(rawValue: rawID) {
+        case .select:
+            guard let noWait = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }        
+            return .select(noWait: noWait == 1)    
+        case .selectOk:
+            return .selectOk
+        default:
+            throw DecodeError.unsupported(value: rawID)
+        }
+    }
+
+    func encode(into buffer: inout ByteBuffer) throws {
+        switch self {
+        case .select(let noWait):
+            buffer.writeInteger(ID.select.rawValue)
+            buffer.writeInteger(noWait ? UInt8(1): UInt8(0))
+        case .selectOk:
+            buffer.writeInteger(ID.selectOk.rawValue)
         }
     }
 }
