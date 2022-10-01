@@ -62,6 +62,8 @@ public struct ConnectionHandler: BufferHandler {
                     buffer.clear()
                 case .queue(_):
                     buffer.clear() 
+                case .basic(_):
+                    buffer.clear()
                 }
             case .heartbeat(let channelID):
                 let heartbeat: Frame = Frame.heartbeat(channelID)
