@@ -55,9 +55,18 @@ public struct ConnectionHandler: BufferHandler {
                                 return
                                
                         default: 
-                                return
+                                buffer.clear()
                         }
                 }
+            case .heartbeat(let channelID):
+                let heartbeat: Frame = Frame.heartbeat(channelID)
+
+                buffer.clear()
+                
+                try! heartbeat.encode(into: &buffer)
+            default:
+                buffer.clear()
+                return
 
         }
         
