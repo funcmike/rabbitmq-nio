@@ -14,52 +14,54 @@ public struct ConnectionHandler: BufferHandler {
         switch frame {
             case .method(let channelId, let method):
                 switch method {
-                    case .connection(let connection):
-                        switch connection {
-                            case .start:
-                                    let clientProperties: Table = [
-                                        "connection_name": "test",
-                                        "product": "rabbitmq-nio",
-                                        "platform": "Swift",
-                                        "version":  "0.1",
-                                        "capabilities": [
-                                            "publisher_confirms":           true,
-                                            "exchange_exchange_bindings":   true,
-                                            "basic.nack":                   true,
-                                            "per_consumer_qos":             true,
-                                            "authentication_failure_close": true,
-                                            "consumer_cancel_notify":       true,
-                                            "connection.blocked":           true,
-                                        ]
-                                    ]
+                case .connection(let connection):
+                    switch connection {
+                    case .start:
+                            let clientProperties: Table = [
+                                "connection_name": "test",
+                                "product": "rabbitmq-nio",
+                                "platform": "Swift",
+                                "version":  "0.1",
+                                "capabilities": [
+                                    "publisher_confirms":           true,
+                                    "exchange_exchange_bindings":   true,
+                                    "basic.nack":                   true,
+                                    "per_consumer_qos":             true,
+                                    "authentication_failure_close": true,
+                                    "consumer_cancel_notify":       true,
+                                    "connection.blocked":           true,
+                                ]
+                            ]
 
-                                    let response: Frame = Frame.method(channelId, Method.connection(Connection.startOk(Connection.StartOk(
-                                        clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}vxos\u{0000}vxos", locale: "en_US"))))
+                            let response: Frame = Frame.method(channelId, Method.connection(Connection.startOk(Connection.StartOk(
+                                clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}vxos\u{0000}vxos", locale: "en_US"))))
 
 
-                                    buffer.clear()
+                            buffer.clear()
 
-                                    try! response.encode(into: &buffer)
-                            case .tune(let tune):
-                                    let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(Connection.TuneOk(channelMax: tune.channelMax, frameMax: tune.frameMax, heartbeat: tune.heartbeat))))
+                            try! response.encode(into: &buffer)
+                    case .tune(let tune):
+                            let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(Connection.TuneOk(channelMax: tune.channelMax, frameMax: tune.frameMax, heartbeat: tune.heartbeat))))
 
-                                    buffer.clear()
+                            buffer.clear()
 
-                                    try! tuneOk.encode(into: &buffer)
+                            try! tuneOk.encode(into: &buffer)
 
-                                    let open: Frame = Frame.method(0, Method.connection(Connection.open(Connection.Open(vhost: "/"))))
+                            let open: Frame = Frame.method(0, Method.connection(Connection.open(Connection.Open(vhost: "/"))))
 
-                                    try! open.encode(into: &buffer)
-                            case .openOk:
-                                print("connected")
-                                return
-                               
-                        default: 
-                                buffer.clear()
-                        }
-                case .channel(_): 
-                    buffer.clear()
+                            try! open.encode(into: &buffer)
+                    case .openOk:
+                        print("connected")
+                        return
+                            
+                default: 
+                        buffer.clear()
                 }
+            case .channel(_): 
+                buffer.clear()
+            case .exchange(_):
+                buffer.clear()
+            }
             case .heartbeat(let channelID):
                 let heartbeat: Frame = Frame.heartbeat(channelID)
 

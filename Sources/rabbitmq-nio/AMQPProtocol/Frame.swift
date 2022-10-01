@@ -42,14 +42,14 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
         var rawValue: UInt8 {
             switch self {
-                case .method:
-                    return 1
-                case .header:
-                    return 2
-                case .body:
-                    return 3
-                case .heartbeat:
-                    return 8
+            case .method:
+                return 1
+            case .header:
+                return 2
+            case .body:
+                return 3
+            case .heartbeat:
+                return 8
             }
         }
     }
@@ -100,44 +100,44 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
     func encode(into buffer: inout ByteBuffer) throws {
         switch self {
-            case .method(let channelID, let method):
-                buffer.writeInteger(`Type`.method.rawValue)
-                buffer.writeInteger(channelID)
-                
-                let startIndex: Int = buffer.writerIndex
-                buffer.writeInteger(UInt32(0)) // placeholder for size
-                                
-                try! method.encode(into: &buffer)
+        case .method(let channelID, let method):
+            buffer.writeInteger(`Type`.method.rawValue)
+            buffer.writeInteger(channelID)
+            
+            let startIndex: Int = buffer.writerIndex
+            buffer.writeInteger(UInt32(0)) // placeholder for size
+                            
+            try! method.encode(into: &buffer)
 
-                let size = UInt32(buffer.writerIndex - startIndex - 4)
-                buffer.setInteger(size, at: startIndex)
+            let size = UInt32(buffer.writerIndex - startIndex - 4)
+            buffer.setInteger(size, at: startIndex)
 
-                buffer.writeInteger(UInt8(206)) // endMarker
-            case .header(let channelID, let header):
-                buffer.writeInteger(`Type`.header.rawValue)
-                buffer.writeInteger(channelID)
+            buffer.writeInteger(UInt8(206)) // endMarker
+        case .header(let channelID, let header):
+            buffer.writeInteger(`Type`.header.rawValue)
+            buffer.writeInteger(channelID)
 
-                let startIndex: Int = buffer.writerIndex
-                buffer.writeInteger(UInt32(0)) // placeholder for size
-                                
-                try! header.encode(into: &buffer)
+            let startIndex: Int = buffer.writerIndex
+            buffer.writeInteger(UInt32(0)) // placeholder for size
+                            
+            try! header.encode(into: &buffer)
 
-                let size = UInt32(buffer.writerIndex - startIndex - 4)
-                buffer.setInteger(size, at: startIndex)
+            let size = UInt32(buffer.writerIndex - startIndex - 4)
+            buffer.setInteger(size, at: startIndex)
 
-                buffer.writeInteger(UInt8(206)) // endMarker
-            case .body(let channelID, let body):
-                buffer.writeInteger(`Type`.body.rawValue)
-                buffer.writeInteger(channelID)
-                buffer.writeInteger(body.count)
-                buffer.writeBytes(body)
-                buffer.writeInteger(UInt8(206)) // endMarker
-            case .heartbeat(let channelID):
-                buffer.writeInteger(`Type`.heartbeat.rawValue)
-                buffer.writeInteger(channelID)
-                buffer.writeInteger(UInt32(0))
-                buffer.writeInteger(UInt8(206)) // endMarker
-            }
+            buffer.writeInteger(UInt8(206)) // endMarker
+        case .body(let channelID, let body):
+            buffer.writeInteger(`Type`.body.rawValue)
+            buffer.writeInteger(channelID)
+            buffer.writeInteger(body.count)
+            buffer.writeBytes(body)
+            buffer.writeInteger(UInt8(206)) // endMarker
+        case .heartbeat(let channelID):
+            buffer.writeInteger(`Type`.heartbeat.rawValue)
+            buffer.writeInteger(channelID)
+            buffer.writeInteger(UInt32(0))
+            buffer.writeInteger(UInt8(206)) // endMarker
+        }
     }
 
     public struct Header: PayloadDecodable, PayloadEncodable {
@@ -187,6 +187,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 public enum Method: PayloadDecodable, PayloadEncodable {
     case connection(Connection)
     case channel(Channel)
+    case exchange(Exchange)
 
     enum ID {
         case connection
@@ -221,20 +222,20 @@ public enum Method: PayloadDecodable, PayloadEncodable {
 
         var rawValue: UInt16 {
             switch self {
-                case .connection:
-                    return 10
-                case .channel:
-                    return 20
-                case .exchange:
-                    return 40
-                case .queue:
-                    return 50
-                case .basic:
-                    return 60
-                case .confirm:
-                    return 85
-                case .tx:
-                    return 90
+            case .connection:
+                return 10
+            case .channel:
+                return 20
+            case .exchange:
+                return 40
+            case .queue:
+                return 50
+            case .basic:
+                return 60
+            case .confirm:
+                return 85
+            case .tx:
+                return 90
             }
         }
     }
@@ -254,12 +255,15 @@ public enum Method: PayloadDecodable, PayloadEncodable {
 
     func encode(into buffer: inout ByteBuffer) throws {
         switch self {
-            case .connection(let connection):
-                buffer.writeInteger(ID.connection.rawValue)
-                try! connection.encode(into: &buffer)
-            case .channel(let channel):
-                buffer.writeInteger(ID.channel.rawValue)
-                try! channel.encode(into: &buffer)
+        case .connection(let connection):
+            buffer.writeInteger(ID.connection.rawValue)
+            try! connection.encode(into: &buffer)
+        case .channel(let channel):
+            buffer.writeInteger(ID.channel.rawValue)
+            try! channel.encode(into: &buffer)
+        case .exchange(let exchange):
+            buffer.writeInteger(ID.exchange.rawValue)
+            try! exchange.encode(into: &buffer)
         }
     }
 }
@@ -319,27 +323,27 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
 
         var rawValue: UInt16 {
             switch self {
-                case .start:
-                    return 10
-                case .startOk:
-                    return 11
-                case .tune:
-                    return 30
-                case .tuneOk:
-                    return 31
-                case .open:
-                    return 40
-                case .openOk:
-                    return 41
-                case .blocked: 
-                    return 50
-                case .unblocked: 
-                    return 51
-                case .close: 
-                    return 60
-                case .closeOk: 
-                    return 61
-                }
+            case .start:
+                return 10
+            case .startOk:
+                return 11
+            case .tune:
+                return 30
+            case .tuneOk:
+                return 31
+            case .open:
+                return 40
+            case .openOk:
+                return 41
+            case .blocked: 
+                return 50
+            case .unblocked: 
+                return 51
+            case .close: 
+                return 60
+            case .closeOk: 
+                return 61
+            }
         }
     }
 
@@ -349,61 +353,61 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
         }
     
         switch ID(rawValue: rawID) {
-            case .start:
-                return .start(try! Start.decode(from: &buffer))
-            case .startOk:
-                return .startOk(try! StartOk.decode(from: &buffer))
-            case .tune:
-                return .tune(try! Tune.decode(from: &buffer))
-            case .tuneOk:
-                return .tuneOk(try! TuneOk.decode(from: &buffer))
-            case .open:
-                return .open(try! Open.decode(from: &buffer))
-            case .openOk:
-                return .openOk(try! OpenOk.decode(from: &buffer))
-            case .close:
-                return .close(try! Close.decode(from: &buffer))
-            case .closeOk:
-                return .closeOk
-            case .blocked:
-                return .blocked(try! Blocked.decode(from: &buffer))
-            case .unblocked:
-                return .unblocked
-            default:
-                throw DecodeError.unsupported(value: rawID)
+        case .start:
+            return .start(try! Start.decode(from: &buffer))
+        case .startOk:
+            return .startOk(try! StartOk.decode(from: &buffer))
+        case .tune:
+            return .tune(try! Tune.decode(from: &buffer))
+        case .tuneOk:
+            return .tuneOk(try! TuneOk.decode(from: &buffer))
+        case .open:
+            return .open(try! Open.decode(from: &buffer))
+        case .openOk:
+            return .openOk(try! OpenOk.decode(from: &buffer))
+        case .close:
+            return .close(try! Close.decode(from: &buffer))
+        case .closeOk:
+            return .closeOk
+        case .blocked:
+            return .blocked(try! Blocked.decode(from: &buffer))
+        case .unblocked:
+            return .unblocked
+        default:
+            throw DecodeError.unsupported(value: rawID)
         }
     }
 
     func encode(into buffer: inout ByteBuffer) throws {
         switch self {
-            case .start(let connectionStart):
-                buffer.writeInteger(ID.start.rawValue)
-                try! connectionStart.encode(into: &buffer)
-            case .startOk(let connectionStartOk):
-                buffer.writeInteger(ID.startOk.rawValue)
-                try! connectionStartOk.encode(into: &buffer)
-            case .tune(let tune):
-                buffer.writeInteger(ID.tune.rawValue)
-                try! tune.encode(into: &buffer)
-            case .tuneOk(let tuneOk):
-                buffer.writeInteger(ID.tuneOk.rawValue)
-                try! tuneOk.encode(into: &buffer)
-            case .open(let open): 
-                buffer.writeInteger(ID.open.rawValue)
-                try! open.encode(into: &buffer)
-            case .openOk(let openOk): 
-                buffer.writeInteger(ID.openOk.rawValue)
-                try! openOk.encode(into: &buffer)
-            case .close(let close):
-                buffer.writeInteger(ID.close.rawValue)
-                try! close.encode(into: &buffer)
-            case .closeOk: 
-                buffer.writeInteger(ID.closeOk.rawValue)
-            case .blocked(let blocked):
-                buffer.writeInteger(ID.blocked.rawValue)
-                try! blocked.encode(into: &buffer)
-            case .unblocked:
-                buffer.writeInteger(ID.unblocked.rawValue)
+        case .start(let connectionStart):
+            buffer.writeInteger(ID.start.rawValue)
+            try! connectionStart.encode(into: &buffer)
+        case .startOk(let connectionStartOk):
+            buffer.writeInteger(ID.startOk.rawValue)
+            try! connectionStartOk.encode(into: &buffer)
+        case .tune(let tune):
+            buffer.writeInteger(ID.tune.rawValue)
+            try! tune.encode(into: &buffer)
+        case .tuneOk(let tuneOk):
+            buffer.writeInteger(ID.tuneOk.rawValue)
+            try! tuneOk.encode(into: &buffer)
+        case .open(let open): 
+            buffer.writeInteger(ID.open.rawValue)
+            try! open.encode(into: &buffer)
+        case .openOk(let openOk): 
+            buffer.writeInteger(ID.openOk.rawValue)
+            try! openOk.encode(into: &buffer)
+        case .close(let close):
+            buffer.writeInteger(ID.close.rawValue)
+            try! close.encode(into: &buffer)
+        case .closeOk: 
+            buffer.writeInteger(ID.closeOk.rawValue)
+        case .blocked(let blocked):
+            buffer.writeInteger(ID.blocked.rawValue)
+            try! blocked.encode(into: &buffer)
+        case .unblocked:
+            buffer.writeInteger(ID.unblocked.rawValue)
         }
     }
 
@@ -719,37 +723,37 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
         init?(rawValue: UInt16)
         {
             switch rawValue {
-                case 10:
-                    self = .open
-                case 11:
-                    self = .openOk
-                case 20:
-                    self = .flow
-                case 21:
-                    self = .flowOk
-                case 40:
-                    self = .close
-                case 41:
-                    self = .closeOk
-                default:
-                    return nil
+            case 10:
+                self = .open
+            case 11:
+                self = .openOk
+            case 20:
+                self = .flow
+            case 21:
+                self = .flowOk
+            case 40:
+                self = .close
+            case 41:
+                self = .closeOk
+            default:
+                return nil
             }
         }
 
         var rawValue: UInt16 {
             switch self {
-                case .open:
-                    return 10
-                case .openOk:
-                    return 11
-                case .flow:
-                    return 20
-                case .flowOk:
-                    return 21
-                case .close:
-                    return 40
-                case .closeOk:
-                    return 41
+            case .open:
+                return 10
+            case .openOk:
+                return 11
+            case .flow:
+                return 20
+            case .flowOk:
+                return 21
+            case .close:
+                return 40
+            case .closeOk:
+                return 41
             }
         }
     }
@@ -758,55 +762,56 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
         guard let rawID = buffer.readInteger(as: UInt16.self) else {
             throw DecodeError.value(type: UInt16.self)
         }
+
         switch ID(rawValue: rawID) {
-            case .open:
-                guard let (reserved1, _) = readShortStr(from: &buffer) else {
-                    throw DecodeError.value(type: String.self)
-                }
-                return .open(reserved1: reserved1)
-            case .openOk:
-                guard let (reserved1, _) = readLongStr(from: &buffer) else {
-                    throw DecodeError.value(type: String.self)
-                }
-                return .open(reserved1: reserved1)                
-            case .flow:
-                guard let active = buffer.readInteger(as: UInt8.self) else {
-                    throw DecodeError.value(type: UInt8.self)
-                }
-                return .flow(active: active == 1)               
-            case .flowOk:
-                guard let active = buffer.readInteger(as: UInt8.self) else {
-                    throw DecodeError.value(type: UInt8.self)
-                }
-                return .flowOk(active: active == 1)       
-            case .close: 
-                return .close(try! Close.decode(from: &buffer))
-            case .closeOk:
-                return .closeOk
-            default:
-                throw DecodeError.unsupported(value: rawID)
+        case .open:
+            guard let (reserved1, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+            return .open(reserved1: reserved1)
+        case .openOk:
+            guard let (reserved1, _) = readLongStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+            return .open(reserved1: reserved1)                
+        case .flow:
+            guard let active = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }
+            return .flow(active: active == 1)               
+        case .flowOk:
+            guard let active = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }
+            return .flowOk(active: active == 1)       
+        case .close: 
+            return .close(try! Close.decode(from: &buffer))
+        case .closeOk:
+            return .closeOk
+        default:
+            throw DecodeError.unsupported(value: rawID)
         }
     }
 
     func encode(into buffer: inout ByteBuffer) throws {
         switch self {
-            case .open(let reserved1):
-                buffer.writeInteger(ID.open.rawValue)
-                writeShortStr(value: reserved1, into: &buffer) 
-            case .openOk(let reserved1):
-                buffer.writeInteger(ID.openOk.rawValue)
-                writeLongStr(value: reserved1, into: &buffer) 
-            case .flow(let active):
-                buffer.writeInteger(ID.flow.rawValue)
-                buffer.writeInteger(active ? UInt8(1) : UInt8(0))
-            case .flowOk(let active):
-                buffer.writeInteger(ID.flowOk.rawValue)
-                buffer.writeInteger(active ? UInt8(1) : UInt8(0))
-            case .close(let close):
-                buffer.writeInteger(ID.close.rawValue)
-                try! close.encode(into: &buffer)
-            case .closeOk:
-                buffer.writeInteger(ID.closeOk.rawValue)
+        case .open(let reserved1):
+            buffer.writeInteger(ID.open.rawValue)
+            writeShortStr(value: reserved1, into: &buffer) 
+        case .openOk(let reserved1):
+            buffer.writeInteger(ID.openOk.rawValue)
+            writeLongStr(value: reserved1, into: &buffer) 
+        case .flow(let active):
+            buffer.writeInteger(ID.flow.rawValue)
+            buffer.writeInteger(active ? UInt8(1) : UInt8(0))
+        case .flowOk(let active):
+            buffer.writeInteger(ID.flowOk.rawValue)
+            buffer.writeInteger(active ? UInt8(1) : UInt8(0))
+        case .close(let close):
+            buffer.writeInteger(ID.close.rawValue)
+            try! close.encode(into: &buffer)
+        case .closeOk:
+            buffer.writeInteger(ID.closeOk.rawValue)
         }
     }
 
@@ -841,6 +846,365 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             writeShortStr(value: replyText, into: &buffer)
             buffer.writeInteger(classID)
             buffer.writeInteger(methodID)
+        }
+    }
+}
+
+public enum Exchange: PayloadDecodable, PayloadEncodable{
+    case declare(Declare)
+    case declareOk
+    case delete(Delete)
+    case deleteOk
+    case bind(Bind)
+    case bindOk
+    case unbind(Unbind)
+    case unbindOk
+
+    public enum ID {
+        case declare
+        case declareOk
+        case delete
+        case deleteOk
+        case bind
+        case bindOk
+        case unbind
+        case unbindOk
+
+        init?(rawValue: UInt16)
+        {
+            switch rawValue {
+            case 10:
+                self = .declare
+            case 11:
+                self = .declareOk
+            case 20:
+                self = .delete
+            case 21:
+                self = .deleteOk
+            case 30:
+                self = .bind
+            case 31:
+                self = .bindOk
+            case 40:
+                self = .unbind
+            case 51:
+                self = .unbindOk
+            default:
+                return nil
+            }
+        }
+
+        var rawValue: UInt16 {
+            switch self {
+            case .declare:
+                return 10
+            case .declareOk:
+                return 11
+            case .delete:
+                return 20
+            case .deleteOk:
+                return 21
+            case .bind:
+                return 30
+            case .bindOk:
+                return 31
+            case .unbind:
+                return 40
+            case .unbindOk:
+                return 51
+            }
+        }
+    }
+
+    static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> Self {
+        guard let rawID = buffer.readInteger(as: UInt16.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+        
+        switch ID(rawValue: rawID) {
+        case .declare:
+            return .declare(try! Declare.decode(from: &buffer))
+        case .declareOk:
+            return .declareOk
+        case .delete:
+            return .delete(try! Delete.decode(from: &buffer))
+        case .deleteOk:
+            return .deleteOk
+        case .bind:
+            return .bind(try! Bind.decode(from: &buffer))
+        case .bindOk:
+            return .bindOk
+        case .unbind:
+            return .unbind(try! Unbind.decode(from: &buffer))
+        case .unbindOk:
+            return .unbindOk
+        default:
+            throw DecodeError.unsupported(value: rawID)
+        }
+    }
+
+    func encode(into buffer: inout NIOCore.ByteBuffer) throws {
+        switch self {
+        case .declare(let declare):
+            buffer.writeInteger(ID.declare.rawValue)
+            try! declare.encode(into: &buffer)
+        case .declareOk:
+            buffer.writeInteger(ID.declare.rawValue)
+        case .delete(let deleteOk):
+            buffer.writeInteger(ID.deleteOk.rawValue)
+            try! deleteOk.encode(into: &buffer)
+        case .deleteOk:
+            buffer.writeInteger(ID.deleteOk.rawValue)
+        case .bind(let bind):
+            buffer.writeInteger(ID.bind.rawValue)
+            try! bind.encode(into: &buffer)
+        case .bindOk:
+            buffer.writeInteger(ID.bindOk.rawValue)
+        case .unbind(let unbind):
+            buffer.writeInteger(ID.unbind.rawValue)
+            try! unbind.encode(into: &buffer)
+        case .unbindOk:
+            buffer.writeInteger(ID.unbindOk.rawValue)
+        }
+    }
+
+    public struct Declare: PayloadDecodable, PayloadEncodable {
+        let reserved1: UInt16
+        let exchangeName: String
+        let exchangeType: String
+        let passive: Bool
+        let durable: Bool
+        let autoDelete: Bool
+        let `internal`: Bool
+        let noWait: Bool
+        let arguments: Table
+
+        static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> Self {
+            guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
+                throw DecodeError.value(type: UInt16.self)
+            }
+
+            guard let (exchangeName, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let (exchangeType, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let bits = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }
+            
+            let passive = bits.isBitSet(pos: 0)
+            let durable = bits.isBitSet(pos: 1)
+            let autoDelete = bits.isBitSet(pos: 2)
+            let `internal` = bits.isBitSet(pos: 3)
+            let noWait = bits.isBitSet(pos: 4)
+
+            let arguments: Table
+            do {
+                (arguments, _) = try readDictionary(from: &buffer)
+            }
+            catch let error as DecodeError {
+                throw DecodeError.value(type: Table.self, inner: error)                
+            }
+
+            return Declare(reserved1: reserved1, exchangeName: exchangeName, exchangeType: exchangeType, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: noWait, arguments: arguments)
+        }
+
+        func encode(into buffer: inout NIOCore.ByteBuffer) throws {
+            buffer.writeInteger(reserved1)
+            writeShortStr(value: exchangeName, into: &buffer)
+            writeShortStr(value: exchangeType, into: &buffer)
+
+            var bits = UInt8(0)
+            
+            if passive {
+                bits = bits | (1 << 0)
+            }
+
+            if durable {
+                bits = bits | (1 << 1)
+            }
+
+            if autoDelete {
+                bits = bits | (1 << 2)
+            }
+
+            if `internal` {
+                bits = bits | (1 << 3)
+            }
+
+            if `noWait` {
+                bits = bits | (1 << 4)
+            }
+
+            buffer.writeInteger(bits)
+            
+            do
+            {
+                try writeDictionary(values: arguments, into: &buffer)
+            } catch let error as EncodeError {
+                throw EncodeError.value(type: Table.self, inner: error)
+            }
+        }
+    }
+
+    public struct Delete: PayloadDecodable, PayloadEncodable {
+        let reserved1: UInt16
+        let exchangeName: String
+        let ifUnused : Bool
+        let noWait: Bool
+
+        static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> Self {
+            guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
+                throw DecodeError.value(type: UInt16.self)
+            }
+
+            guard let (exchangeName, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let bits = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }
+            
+            let ifUnused = bits.isBitSet(pos: 0)
+            let noWait = bits.isBitSet(pos: 1)
+
+            return Delete(reserved1: reserved1, exchangeName: exchangeName, ifUnused: ifUnused, noWait: noWait)
+        }
+
+        func encode(into buffer: inout NIOCore.ByteBuffer) throws {
+            buffer.writeInteger(reserved1)
+            writeShortStr(value: exchangeName, into: &buffer)
+
+            var bits = UInt8(0)
+            
+            if ifUnused {
+                bits = bits | (1 << 0)
+            }
+
+            if noWait {
+                bits = bits | (1 << 1)
+            }
+
+            buffer.writeInteger(bits)
+        }
+    }
+
+    public struct Bind: PayloadDecodable, PayloadEncodable {
+        let reserved1: UInt16
+        let destination: String
+        let source: String
+        let routingKey: String
+        let noWait: Bool
+        let arguments: Table
+
+        static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> Self {
+            guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
+                throw DecodeError.value(type: UInt16.self)
+            }
+
+            guard let (destination, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let (source, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let (routingKey, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let bits = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }
+            
+            let noWait = bits.isBitSet(pos: 0)
+
+            let arguments: Table
+            do {
+                (arguments, _) = try readDictionary(from: &buffer)
+            }
+            catch let error as DecodeError {
+                throw DecodeError.value(type: Table.self, inner: error)                
+            }
+
+            return Bind(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
+        }
+
+        func encode(into buffer: inout NIOCore.ByteBuffer) throws {
+            buffer.writeInteger(reserved1)
+            writeShortStr(value: destination, into: &buffer)
+            writeShortStr(value: routingKey, into: &buffer)
+            buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
+
+            do
+            {
+                try writeDictionary(values: arguments, into: &buffer)
+            } catch let error as EncodeError {
+                throw EncodeError.value(type: Table.self, inner: error)
+            }
+        }
+    }
+
+    public struct Unbind: PayloadDecodable, PayloadEncodable {
+        let reserved1: UInt16
+        let destination: String
+        let source: String
+        let routingKey: String
+        let noWait: Bool
+        let arguments: Table
+
+        static func decode(from buffer: inout NIOCore.ByteBuffer) throws -> Self {
+            guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
+                throw DecodeError.value(type: UInt16.self)
+            }
+
+            guard let (destination, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let (source, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let (routingKey, _) = readShortStr(from: &buffer) else {
+                throw DecodeError.value(type: String.self)
+            }
+
+            guard let bits = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }
+            
+            let noWait = bits.isBitSet(pos: 0)
+
+            let arguments: Table
+            do {
+                (arguments, _) = try readDictionary(from: &buffer)
+            }
+            catch let error as DecodeError {
+                throw DecodeError.value(type: Table.self, inner: error)                
+            }
+
+            return Unbind(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
+        }
+
+        func encode(into buffer: inout NIOCore.ByteBuffer) throws {
+            buffer.writeInteger(reserved1)
+            writeShortStr(value: destination, into: &buffer)
+            writeShortStr(value: routingKey, into: &buffer)
+            buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
+
+            do
+            {
+                try writeDictionary(values: arguments, into: &buffer)
+            } catch let error as EncodeError {
+                throw EncodeError.value(type: Table.self, inner: error)
+            }
         }
     }
 }
