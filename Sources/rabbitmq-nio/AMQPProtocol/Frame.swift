@@ -190,6 +190,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
     case queue(Queue)
     case basic(Basic)
     case confirm(Confirm)
+    case tx(Tx)
 
     enum ID {
         case connection
@@ -250,6 +251,18 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         switch ID(rawValue: rawID) {
             case .connection:
                 return .connection(try! Connection.decode(from: &buffer))
+            case .channel:
+                return .channel(try! Channel.decode(from: &buffer))
+            case .exchange:
+                return .exchange(try! Exchange.decode(from: &buffer))
+            case .queue:
+                return .queue(try! Queue.decode(from: &buffer))
+            case .basic:
+                return .basic(try! Basic.decode(from: &buffer))
+            case .confirm:
+                return .confirm(try! Confirm.decode(from: &buffer))
+            case .tx:
+                return .tx(try! Tx.decode(from: &buffer))
             default:
                 throw DecodeError.unsupported(value: rawID)
         }
@@ -275,6 +288,9 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         case .confirm(let confirm):
             buffer.writeInteger(ID.confirm.rawValue)
             try! confirm.encode(into: &buffer)
+        case .tx(let tx): 
+            buffer.writeInteger(ID.confirm.rawValue)
+            try! tx.encode(into: &buffer)
         }
     }
 }
@@ -2360,6 +2376,101 @@ public enum Confirm: PayloadDecodable, PayloadEncodable {
             buffer.writeInteger(noWait ? UInt8(1): UInt8(0))
         case .selectOk:
             buffer.writeInteger(ID.selectOk.rawValue)
+        }
+    }
+}
+
+public enum Tx: PayloadDecodable, PayloadEncodable {
+    case select
+    case selectOk
+    case commit
+    case commitOk
+    case rollback
+    case rollbackOk
+
+
+    public enum ID {
+        case select
+        case selectOk
+        case commit
+        case commitOk
+        case rollback
+        case rollbackOk
+
+        init?(rawValue: UInt16) {
+            switch rawValue {
+            case 10:
+                self = .select
+            case 11:
+                self = .selectOk
+            case 20:
+                self = .commit
+            case 21:
+                self = .commitOk
+            case 30:
+                self = .rollback
+            case 31:
+                self = .rollbackOk
+            default:
+                return nil
+            }
+        }
+
+        var rawValue: UInt16 {
+            switch self {
+            case .select:
+                return 10
+            case .selectOk:
+                return 11
+            case .commit:
+                return 20
+            case .commitOk:
+                return 21
+            case .rollback:
+                return 30
+            case .rollbackOk:
+                return 31
+            }
+        }
+    }
+
+    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        guard let rawID = buffer.readInteger(as: UInt16.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+
+        switch ID(rawValue: rawID) {
+        case .select:     
+            return .select  
+        case .selectOk:
+            return .selectOk
+        case .commit:
+            return .commit
+        case .commitOk:
+            return .commitOk
+        case .rollback:
+            return .rollback
+        case .rollbackOk:
+            return .rollbackOk
+        default:
+            throw DecodeError.unsupported(value: rawID)
+        }
+    }
+
+    func encode(into buffer: inout ByteBuffer) throws {
+        switch self {
+        case .select:
+            buffer.writeInteger(ID.select.rawValue)
+        case .selectOk:
+            buffer.writeInteger(ID.selectOk.rawValue)
+        case .commit:
+            buffer.writeInteger(ID.commit.rawValue)
+        case .commitOk:
+            buffer.writeInteger(ID.commitOk.rawValue)
+        case .rollback: 
+            buffer.writeInteger(ID.rollback.rawValue)
+        case .rollbackOk:
+            buffer.writeInteger(ID.rollbackOk.rawValue)
         }
     }
 }
