@@ -33,7 +33,7 @@ public struct ConnectionHandler: BufferHandler {
                                         ]
                                     ]
 
-                                    let response: Frame = Frame.method(channelId, Method.connection(Connection.startOk(ConnnectionStartOk(
+                                    let response: Frame = Frame.method(channelId, Method.connection(Connection.startOk(Connection.StartOk(
                                         clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}vxos\u{0000}vxos", locale: "en_US"))))
 
 
@@ -41,13 +41,13 @@ public struct ConnectionHandler: BufferHandler {
 
                                     try! response.encode(into: &buffer)
                             case .tune(let tune):
-                                    let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(TuneOk(channelMax: tune.channelMax, frameMax: tune.frameMax, heartbeat: tune.heartbeat))))
+                                    let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(Connection.TuneOk(channelMax: tune.channelMax, frameMax: tune.frameMax, heartbeat: tune.heartbeat))))
 
                                     buffer.clear()
 
                                     try! tuneOk.encode(into: &buffer)
 
-                                    let open: Frame = Frame.method(0, Method.connection(Connection.open(Open(vhost: "/"))))
+                                    let open: Frame = Frame.method(0, Method.connection(Connection.open(Connection.Open(vhost: "/"))))
 
                                     try! open.encode(into: &buffer)
                             case .openOk:
@@ -57,6 +57,8 @@ public struct ConnectionHandler: BufferHandler {
                         default: 
                                 buffer.clear()
                         }
+                case .channel(_): 
+                    buffer.clear()
                 }
             case .heartbeat(let channelID):
                 let heartbeat: Frame = Frame.heartbeat(channelID)

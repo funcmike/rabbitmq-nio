@@ -114,7 +114,7 @@ func setupEventloop(arguments: [String]) {
         connectTarget = .ip(host: defaultHost, port: defaultPort)
     }
 
-    let channel = try! { () -> Channel in
+    let channel = try! { () -> NIOCore.Channel in
         switch connectTarget {
         case .ip(let host, let port):
             return try bootstrap.connect(host: host, port: port).wait()
