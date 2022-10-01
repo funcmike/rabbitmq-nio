@@ -2,7 +2,7 @@ enum DecodeError: Error {
     case value(type: Any.Type, amqpType: Character? = nil, inner: Error? = nil)
     case dictionary(DictionaryError)
     case array(ArrayError)
-    case unsupported(value: Any)
+    case unsupported(value: Any, message: String? = nil)
     case unsupported(amqpType: Character)
 
     enum DictionaryError {

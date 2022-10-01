@@ -1,4 +1,3 @@
-
 import NIOCore
 import Foundation
 
@@ -307,7 +306,7 @@ func writeFieldValue(value: Any, into buffer: inout ByteBuffer) throws {
             try! writeArray(values: v, into: &buffer)
         case let v as Date:
             buffer.writeInteger(Character("T").asciiValue!)
-            buffer.writeInteger(Int64(v.timeIntervalSince1970*1000))
+            buffer.writeInteger(v.toUnixEpoch())
         case let v as Table:
             buffer.writeInteger(Character("F").asciiValue!)
             try! writeDictionary(values: v, into: &buffer)
