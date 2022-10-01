@@ -14,11 +14,13 @@ protocol PayloadEncodable {
 
 public enum Frame: PayloadDecodable, PayloadEncodable {
     case method(ChannelID, Method)
-    case heartbeat(ChannelID)
+    case header(ChannelID, Header)
     case body(ChannelID, body: [UInt8])
+    case heartbeat(ChannelID)
 
     enum `Type` {
         case method
+        case header
         case body
         case heartbeat
 
@@ -27,6 +29,8 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             switch rawValue {
             case 1:
                 self = .method
+            case 2:
+                self = .header
             case 3:
                 self = .body
             case 8:
@@ -40,6 +44,8 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             switch self {
                 case .method:
                     return 1
+                case .header:
+                    return 2
                 case .body:
                     return 3
                 case .heartbeat:
@@ -67,13 +73,16 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         switch Type(rawValue: rawType) {
         case .method:
             frame = Self.method(channelId, try! Method.decode(from: &buffer))
-        case .heartbeat:
-            frame = Self.heartbeat(channelId)
+        case .header:
+            frame = Self.header(channelId, try! Header.decode(from: &buffer))
         case .body:
             guard let body = buffer.readBytes(length: Int(size)) else {
                 throw DecodeError.value(type: [UInt8].self)
             }
+
             frame = Self.body(channelId, body: body)
+        case .heartbeat:
+            frame = Self.heartbeat(channelId)
         default:
             throw DecodeError.unsupported(value: rawType)
         }
@@ -95,10 +104,23 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 buffer.writeInteger(`Type`.method.rawValue)
                 buffer.writeInteger(channelID)
                 
-                let startIndex = buffer.writerIndex
+                let startIndex: Int = buffer.writerIndex
                 buffer.writeInteger(UInt32(0)) // placeholder for size
                                 
                 try! method.encode(into: &buffer)
+
+                let size = UInt32(buffer.writerIndex - startIndex - 4)
+                buffer.setInteger(size, at: startIndex)
+
+                buffer.writeInteger(UInt8(206)) // endMarker
+            case .header(let channelID, let header):
+                buffer.writeInteger(`Type`.header.rawValue)
+                buffer.writeInteger(channelID)
+
+                let startIndex: Int = buffer.writerIndex
+                buffer.writeInteger(UInt32(0)) // placeholder for size
+                                
+                try! header.encode(into: &buffer)
 
                 let size = UInt32(buffer.writerIndex - startIndex - 4)
                 buffer.setInteger(size, at: startIndex)
@@ -306,6 +328,49 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
                 try! blocked.encode(into: &buffer)
             case .unblocked:
                 buffer.writeInteger(ID.unblocked.rawValue)
+        }
+    }
+}
+
+public struct Header: PayloadDecodable, PayloadEncodable {
+    let classID: UInt16
+    let weight: UInt16
+    let bodySize: UInt64
+    let properties: Properties
+
+    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        guard let classID = buffer.readInteger(as: UInt16.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+
+        guard let weight = buffer.readInteger(as: UInt16.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+
+        guard let bodySize = buffer.readInteger(as: UInt64.self) else {
+            throw DecodeError.value(type: UInt16.self)
+        }
+        
+        let properties: Properties
+
+        do {
+            properties = try Properties.decode(from: &buffer)
+        } catch let error as DecodeError {
+            throw DecodeError.value(type: Properties.self, inner: error)
+        }
+
+        return Header(classID: classID, weight: weight, bodySize: bodySize, properties: properties)
+    }
+
+    func encode(into buffer: inout ByteBuffer) throws {
+        buffer.writeInteger(classID)
+        buffer.writeInteger(weight)
+        buffer.writeInteger(bodySize)
+
+        do {
+            try properties.encode(into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.value(type: Properties.self, inner: error)
         }
     }
 }
