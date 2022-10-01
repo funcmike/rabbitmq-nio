@@ -52,16 +52,17 @@ public struct ConnectionHandler: BufferHandler {
                             try! open.encode(into: &buffer)
                     case .openOk:
                         print("connected")
-                        return
-                            
-                default: 
+                        return        
+                    default: 
                         buffer.clear()
+                    }
+                case .channel(_): 
+                    buffer.clear()
+                case .exchange(_):
+                    buffer.clear()
+                case .queue(_):
+                    buffer.clear() 
                 }
-            case .channel(_): 
-                buffer.clear()
-            case .exchange(_):
-                buffer.clear()
-            }
             case .heartbeat(let channelID):
                 let heartbeat: Frame = Frame.heartbeat(channelID)
 
