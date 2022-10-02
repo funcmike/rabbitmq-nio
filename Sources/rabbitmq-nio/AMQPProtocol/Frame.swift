@@ -250,7 +250,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
                 return .confirm(try Confirm.decode(from: &buffer))
             case .tx:
                 return .tx(try Tx.decode(from: &buffer))
-            default:
+            case nil:
                 throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -389,7 +389,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return .blocked(reason: reason)
         case .unblocked:
             return .unblocked
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -717,7 +717,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             return .close(try Close.decode(from: &buffer))
         case .closeOk:
             return .closeOk
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -865,7 +865,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
             return .unbind(try Unbind.decode(from: &buffer))
         case .unbindOk:
             return .unbindOk
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -1184,7 +1184,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return .unbind(try Unbind.decode(from: &buffer))
         case .unbindOk:
             return .unbindOk
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -1639,7 +1639,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return .recoverOk
         case .nack:
             return .nack(try Nack.decode(from: &buffer))
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -2100,7 +2100,7 @@ public enum Confirm: PayloadDecodable, PayloadEncodable {
             return .select(noWait: noWait == 1)    
         case .selectOk:
             return .selectOk
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
@@ -2188,7 +2188,7 @@ public enum Tx: PayloadDecodable, PayloadEncodable {
             return .rollback
         case .rollbackOk:
             return .rollbackOk
-        default:
+        case nil:
             throw DecodeError.unsupported(value: rawID)
         }
     }
