@@ -2,8 +2,6 @@ import NIOCore
 
 public typealias ChannelID = UInt16
 
-public typealias Table = [String:Any]
-
 protocol PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Self
 }
