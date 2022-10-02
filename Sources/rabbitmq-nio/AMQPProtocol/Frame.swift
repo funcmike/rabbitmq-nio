@@ -1,7 +1,5 @@
 import NIOCore
 
-public typealias ChannelID = UInt16
-
 protocol PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Self
 }
@@ -11,6 +9,8 @@ protocol PayloadEncodable {
 }
 
 public enum Frame: PayloadDecodable, PayloadEncodable {
+    public typealias ChannelID = UInt16
+
     case method(ChannelID, Method)
     case header(ChannelID, Header)
     case body(ChannelID, body: [UInt8])
