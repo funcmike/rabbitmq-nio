@@ -22,7 +22,7 @@ func writeShortStr(value: String, into buffer: inout ByteBuffer) throws {
 
     let size = buffer.writeString(value)
 
-    guard size > UINT8_MAX else {
+    guard size <= UINT8_MAX else {
         throw EncodeError.unsupported(value: value, message: "Short string too long, max \(UINT8_MAX)")
     }
 
@@ -48,7 +48,7 @@ func writeLongStr(value: String, into buffer: inout ByteBuffer) throws {
 
     let size = buffer.writeString(value)
 
-    guard size > UINT32_MAX else {
+    guard size <= UINT32_MAX else {
        throw EncodeError.unsupported(value: value, message: "long string too long, max \(UINT32_MAX)")
     }
 

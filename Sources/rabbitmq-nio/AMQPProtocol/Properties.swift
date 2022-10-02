@@ -41,7 +41,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         var invalid = true || flags & 1 << 0 > 0
         invalid = invalid || flags & 2 << 0 > 0
 
-        guard invalid else {
+        guard !invalid else {
             throw DecodeError.unsupported(value: flags, message: "invalid property flags")
         }
 
