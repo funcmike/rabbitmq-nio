@@ -93,7 +93,6 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             guard let body = buffer.readBytes(length: Int(size)) else {
                 throw DecodeError.value(type: [UInt8].self)
             }
-
             frame = Self.body(channelId, body: body)
         case .heartbeat:
             frame = Self.heartbeat(channelId)
@@ -124,8 +123,6 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
-
-            buffer.writeInteger(UInt8(206)) // endMarker
         case .header(let channelID, let header):
             buffer.writeInteger(channelID)
 
@@ -136,18 +133,16 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
-
-            buffer.writeInteger(UInt8(206)) // endMarker
         case .body(let channelID, let body):
             buffer.writeInteger(channelID)
             buffer.writeInteger(body.count)
             buffer.writeBytes(body)
-            buffer.writeInteger(UInt8(206)) // endMarker
         case .heartbeat(let channelID):
             buffer.writeInteger(channelID)
             buffer.writeInteger(UInt32(0))
-            buffer.writeInteger(UInt8(206)) // endMarker
         }
+
+        buffer.writeInteger(UInt8(206)) // endMarker
     }
 
     public struct Header: PayloadDecodable, PayloadEncodable {
