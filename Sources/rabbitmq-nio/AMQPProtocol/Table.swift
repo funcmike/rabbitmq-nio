@@ -168,7 +168,7 @@ func readTable(from buffer: inout ByteBuffer)  throws ->  (Table, Int)  {
         throw DecodeError.value(type:  UInt32.self, message: "cannot read table size")
     }
 
-    var result: [String:Field] = [:]
+    var result: Table = [:]
 
     var bytesRead = 0
 
