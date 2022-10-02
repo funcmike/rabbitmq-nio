@@ -4,6 +4,6 @@ enum DecodeError: Error {
 }
 
 enum EncodeError: Error {
-    case value(type: Any.Type? = nil, message: String? = nil, inner: Error? = nil)
+    case value(type: Any.Type? = nil, value: Any? = nil, message: String? = nil, inner: Error? = nil)
     case unsupported(value: Any, message: String? = nil)
 }

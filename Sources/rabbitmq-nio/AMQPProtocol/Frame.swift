@@ -71,9 +71,9 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         
         switch Type(rawValue: rawType) {
         case .method:
-            frame = Self.method(channelId, try! Method.decode(from: &buffer))
+            frame = Self.method(channelId, try Method.decode(from: &buffer))
         case .header:
-            frame = Self.header(channelId, try! Header.decode(from: &buffer))
+            frame = Self.header(channelId, try Header.decode(from: &buffer))
         case .body:
             guard let body = buffer.readBytes(length: Int(size)) else {
                 throw DecodeError.value(type: [UInt8].self)
@@ -106,7 +106,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             let startIndex: Int = buffer.writerIndex
             buffer.writeInteger(UInt32(0)) // placeholder for size
                             
-            try! method.encode(into: &buffer)
+            try method.encode(into: &buffer)
 
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
@@ -119,7 +119,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             let startIndex: Int = buffer.writerIndex
             buffer.writeInteger(UInt32(0)) // placeholder for size
                             
-            try! header.encode(into: &buffer)
+            try header.encode(into: &buffer)
 
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
@@ -239,19 +239,19 @@ public enum Method: PayloadDecodable, PayloadEncodable {
     
         switch ID(rawValue: rawID) {
             case .connection:
-                return .connection(try! Connection.decode(from: &buffer))
+                return .connection(try Connection.decode(from: &buffer))
             case .channel:
-                return .channel(try! Channel.decode(from: &buffer))
+                return .channel(try Channel.decode(from: &buffer))
             case .exchange:
-                return .exchange(try! Exchange.decode(from: &buffer))
+                return .exchange(try Exchange.decode(from: &buffer))
             case .queue:
-                return .queue(try! Queue.decode(from: &buffer))
+                return .queue(try Queue.decode(from: &buffer))
             case .basic:
-                return .basic(try! Basic.decode(from: &buffer))
+                return .basic(try Basic.decode(from: &buffer))
             case .confirm:
-                return .confirm(try! Confirm.decode(from: &buffer))
+                return .confirm(try Confirm.decode(from: &buffer))
             case .tx:
-                return .tx(try! Tx.decode(from: &buffer))
+                return .tx(try Tx.decode(from: &buffer))
             default:
                 throw DecodeError.unsupported(value: rawID)
         }
@@ -261,25 +261,25 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         switch self {
         case .connection(let connection):
             buffer.writeInteger(ID.connection.rawValue)
-            try! connection.encode(into: &buffer)
+            try connection.encode(into: &buffer)
         case .channel(let channel):
             buffer.writeInteger(ID.channel.rawValue)
-            try! channel.encode(into: &buffer)
+            try channel.encode(into: &buffer)
         case .exchange(let exchange):
             buffer.writeInteger(ID.exchange.rawValue)
-            try! exchange.encode(into: &buffer)
+            try exchange.encode(into: &buffer)
         case .queue(let queue): 
             buffer.writeInteger(ID.queue.rawValue)
-            try! queue.encode(into: &buffer)
+            try queue.encode(into: &buffer)
         case .basic(let basic):
             buffer.writeInteger(ID.basic.rawValue)
-            try! basic.encode(into: &buffer)
+            try basic.encode(into: &buffer)
         case .confirm(let confirm):
             buffer.writeInteger(ID.confirm.rawValue)
-            try! confirm.encode(into: &buffer)
+            try confirm.encode(into: &buffer)
         case .tx(let tx): 
             buffer.writeInteger(ID.confirm.rawValue)
-            try! tx.encode(into: &buffer)
+            try tx.encode(into: &buffer)
         }
     }
 }
@@ -370,20 +370,20 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
     
         switch ID(rawValue: rawID) {
         case .start:
-            return .start(try! Start.decode(from: &buffer))
+            return .start(try Start.decode(from: &buffer))
         case .startOk:
-            return .startOk(try! StartOk.decode(from: &buffer))
+            return .startOk(try StartOk.decode(from: &buffer))
         case .tune:
-            return .tune(try! Tune.decode(from: &buffer))
+            return .tune(try Tune.decode(from: &buffer))
         case .tuneOk:
-            return .tuneOk(try! TuneOk.decode(from: &buffer))
+            return .tuneOk(try TuneOk.decode(from: &buffer))
         case .open:
-            return .open(try! Open.decode(from: &buffer))
+            return .open(try Open.decode(from: &buffer))
         case .openOk:
             let (reserved1, _) = try readShortStr(from: &buffer)
             return .openOk(reserved1: reserved1)
         case .close:
-            return .close(try! Close.decode(from: &buffer))
+            return .close(try Close.decode(from: &buffer))
         case .closeOk:
             return .closeOk
         case .blocked:
@@ -400,25 +400,25 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
         switch self {
         case .start(let connectionStart):
             buffer.writeInteger(ID.start.rawValue)
-            try! connectionStart.encode(into: &buffer)
+            try connectionStart.encode(into: &buffer)
         case .startOk(let connectionStartOk):
             buffer.writeInteger(ID.startOk.rawValue)
-            try! connectionStartOk.encode(into: &buffer)
+            try connectionStartOk.encode(into: &buffer)
         case .tune(let tune):
             buffer.writeInteger(ID.tune.rawValue)
-            try! tune.encode(into: &buffer)
+            try tune.encode(into: &buffer)
         case .tuneOk(let tuneOk):
             buffer.writeInteger(ID.tuneOk.rawValue)
-            try! tuneOk.encode(into: &buffer)
+            try tuneOk.encode(into: &buffer)
         case .open(let open): 
             buffer.writeInteger(ID.open.rawValue)
-            try! open.encode(into: &buffer)
+            try open.encode(into: &buffer)
         case .openOk(let reserved1): 
             buffer.writeInteger(ID.openOk.rawValue)
             try writeShortStr(value: reserved1, into: &buffer)
         case .close(let close):
             buffer.writeInteger(ID.close.rawValue)
-            try! close.encode(into: &buffer)
+            try close.encode(into: &buffer)
         case .closeOk: 
             buffer.writeInteger(ID.closeOk.rawValue)
         case .blocked(let reason):
@@ -716,7 +716,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             }
             return .flowOk(active: active == 1)       
         case .close: 
-            return .close(try! Close.decode(from: &buffer))
+            return .close(try Close.decode(from: &buffer))
         case .closeOk:
             return .closeOk
         default:
@@ -740,7 +740,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             buffer.writeInteger(active ? UInt8(1) : UInt8(0))
         case .close(let close):
             buffer.writeInteger(ID.close.rawValue)
-            try! close.encode(into: &buffer)
+            try close.encode(into: &buffer)
         case .closeOk:
             buffer.writeInteger(ID.closeOk.rawValue)
         }
@@ -852,19 +852,19 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         
         switch ID(rawValue: rawID) {
         case .declare:
-            return .declare(try! Declare.decode(from: &buffer))
+            return .declare(try Declare.decode(from: &buffer))
         case .declareOk:
             return .declareOk
         case .delete:
-            return .delete(try! Delete.decode(from: &buffer))
+            return .delete(try Delete.decode(from: &buffer))
         case .deleteOk:
             return .deleteOk
         case .bind:
-            return .bind(try! Bind.decode(from: &buffer))
+            return .bind(try Bind.decode(from: &buffer))
         case .bindOk:
             return .bindOk
         case .unbind:
-            return .unbind(try! Unbind.decode(from: &buffer))
+            return .unbind(try Unbind.decode(from: &buffer))
         case .unbindOk:
             return .unbindOk
         default:
@@ -876,22 +876,22 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         switch self {
         case .declare(let declare):
             buffer.writeInteger(ID.declare.rawValue)
-            try! declare.encode(into: &buffer)
+            try declare.encode(into: &buffer)
         case .declareOk:
             buffer.writeInteger(ID.declare.rawValue)
         case .delete(let deleteOk):
             buffer.writeInteger(ID.deleteOk.rawValue)
-            try! deleteOk.encode(into: &buffer)
+            try deleteOk.encode(into: &buffer)
         case .deleteOk:
             buffer.writeInteger(ID.deleteOk.rawValue)
         case .bind(let bind):
             buffer.writeInteger(ID.bind.rawValue)
-            try! bind.encode(into: &buffer)
+            try bind.encode(into: &buffer)
         case .bindOk:
             buffer.writeInteger(ID.bindOk.rawValue)
         case .unbind(let unbind):
             buffer.writeInteger(ID.unbind.rawValue)
-            try! unbind.encode(into: &buffer)
+            try unbind.encode(into: &buffer)
         case .unbindOk:
             buffer.writeInteger(ID.unbindOk.rawValue)
         }
@@ -1161,29 +1161,29 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
 
         switch ID(rawValue: rawID) {
         case .declare:
-            return .declare(try! Declare.decode(from: &buffer))
+            return .declare(try Declare.decode(from: &buffer))
         case .declareOk:
-            return .declareOk(try! DeclareOk.decode(from: &buffer))
+            return .declareOk(try DeclareOk.decode(from: &buffer))
         case .bind:
-            return .bind(try! Bind.decode(from: &buffer))
+            return .bind(try Bind.decode(from: &buffer))
         case .bindOk:
             return .bindOk
         case .purge:
-            return .purge(try! Purge.decode(from: &buffer))
+            return .purge(try Purge.decode(from: &buffer))
         case .purgeOk:
             guard let messageCount = buffer.readInteger(as: UInt32.self) else {
                 throw DecodeError.value(type: UInt32.self)
             }            
             return .purgeOk(messageCount: messageCount)            
         case .delete:
-            return .delete(try! Delete.decode(from: &buffer))
+            return .delete(try Delete.decode(from: &buffer))
         case .deleteOk:
             guard let messageCount = buffer.readInteger(as: UInt32.self) else {
                 throw DecodeError.value(type: UInt32.self)
             }            
             return .deleteOk(messageCount: messageCount)
         case .unbind:
-            return .unbind(try! Unbind.decode(from: &buffer))
+            return .unbind(try Unbind.decode(from: &buffer))
         case .unbindOk:
             return .unbindOk
         default:
@@ -1195,30 +1195,30 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         switch self  {       
         case .bind(let bind):
             buffer.writeInteger(ID.bind.rawValue)
-            try! bind.encode(into: &buffer)
+            try bind.encode(into: &buffer)
         case .bindOk:
             buffer.writeInteger(ID.bindOk.rawValue)
         case .declare(let declare):
             buffer.writeInteger(ID.declare.rawValue)
-            try! declare.encode(into: &buffer)
+            try declare.encode(into: &buffer)
         case .declareOk(let declareOk):
             buffer.writeInteger(ID.declareOk.rawValue)
-            try! declareOk.encode(into: &buffer)
+            try declareOk.encode(into: &buffer)
         case .purge(let purge):
             buffer.writeInteger(ID.purge.rawValue)
-            try! purge.encode(into: &buffer)
+            try purge.encode(into: &buffer)
         case .purgeOk(let messageCount):
             buffer.writeInteger(ID.purgeOk.rawValue)
             buffer.writeInteger(messageCount)
         case .delete(let delete):
             buffer.writeInteger(ID.purgeOk.rawValue)
-            try! delete.encode(into: &buffer)
+            try delete.encode(into: &buffer)
         case .deleteOk(let messageCount):
             buffer.writeInteger(ID.deleteOk.rawValue)
             buffer.writeInteger(messageCount)
         case .unbind(let unbind):
             buffer.writeInteger(ID.unbind.rawValue)
-            try! unbind.encode(into: &buffer)
+            try unbind.encode(into: &buffer)
         case .unbindOk:
             buffer.writeInteger(ID.unbindOk.rawValue)
         }
@@ -1591,36 +1591,36 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
 
         switch ID(rawValue: rawID) {
         case .qos:
-            return .qos(try! Qos.decode(from: &buffer))
+            return .qos(try Qos.decode(from: &buffer))
         case .qosOk:
             return .qosOk
         case .consume:
-            return .consume(try! Consume.decode(from: &buffer))
+            return .consume(try Consume.decode(from: &buffer))
         case .consumeOk:
             let (consumerTag, _) = try readShortStr(from: &buffer) 
             return .consumeOk(consumerTag: consumerTag)
         case .cancel:
-            return .cancel(try! Cancel.decode(from: &buffer))
+            return .cancel(try Cancel.decode(from: &buffer))
         case .cancelOk:
             let (consumerTag, _) = try readShortStr(from: &buffer)
             return .cancelOk(consumerTag: consumerTag)            
         case .publish:
-            return .publish(try! Publish.decode(from: &buffer))
+            return .publish(try Publish.decode(from: &buffer))
         case .`return`:
-            return .return(try! Return.decode(from: &buffer))
+            return .return(try Return.decode(from: &buffer))
         case .deliver:
-            return .deliver(try! Deliver.decode(from: &buffer))
+            return .deliver(try Deliver.decode(from: &buffer))
         case .get:
-            return .get(try! Get.decode(from: &buffer))
+            return .get(try Get.decode(from: &buffer))
         case .getOk:
-            return .getOk(try! GetOk.decode(from: &buffer))
+            return .getOk(try GetOk.decode(from: &buffer))
         case .getEmpty:
             let (reserved1, _) = try readShortStr(from: &buffer)
             return .getEmpty(reserved1: reserved1)  
         case .ack:
-            return .ack(try! Ack.decode(from: &buffer))
+            return .ack(try Ack.decode(from: &buffer))
         case .reject:
-            return .reject(try! Reject.decode(from: &buffer))
+            return .reject(try Reject.decode(from: &buffer))
         case .recover:
             guard let requeue = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
@@ -1629,7 +1629,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         case .recoverOk:
             return .recoverOk
         case .nack:
-            return .nack(try! Nack.decode(from: &buffer))
+            return .nack(try Nack.decode(from: &buffer))
         default:
             throw DecodeError.unsupported(value: rawID)
         }
@@ -1639,45 +1639,45 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         switch self {
         case .qos(let qos):
             buffer.writeInteger(ID.qos.rawValue)
-            try! qos.encode(into: &buffer)
+            try qos.encode(into: &buffer)
         case .qosOk:
             buffer.writeInteger(ID.qosOk.rawValue)
         case .consume(let consume):
             buffer.writeInteger(ID.consume.rawValue)
-            try! consume.encode(into: &buffer)
+            try consume.encode(into: &buffer)
         case .consumeOk(let consumerTag):
             buffer.writeInteger(ID.consumeOk.rawValue)
             try writeShortStr(value: consumerTag, into: &buffer)
         case .cancel(let cancel):
             buffer.writeInteger(ID.cancel.rawValue)
-            try! cancel.encode(into: &buffer)
+            try cancel.encode(into: &buffer)
         case .cancelOk(let consumerTag):
             buffer.writeInteger(ID.cancelOk.rawValue)
             try writeShortStr(value: consumerTag, into: &buffer)
         case .publish(let publish):
             buffer.writeInteger(ID.cancelOk.rawValue)
-            try! publish.encode(into: &buffer)
+            try publish.encode(into: &buffer)
         case .`return`(let `return`):
             buffer.writeInteger(ID.return.rawValue)
-            try! `return`.encode(into: &buffer)
+            try `return`.encode(into: &buffer)
         case .deliver(let deliver):
             buffer.writeInteger(ID.deliver.rawValue)
-            try! deliver.encode(into: &buffer)
+            try deliver.encode(into: &buffer)
         case .get(let get):
             buffer.writeInteger(ID.get.rawValue)
-            try! get.encode(into: &buffer)
+            try get.encode(into: &buffer)
         case .getOk(let getOk):
             buffer.writeInteger(ID.getOk.rawValue)
-            try! getOk.encode(into: &buffer)
+            try getOk.encode(into: &buffer)
         case .getEmpty(let reserved1):
             buffer.writeInteger(ID.getEmpty.rawValue)
             try writeShortStr(value: reserved1, into: &buffer)
         case .ack(let ack):
             buffer.writeInteger(ID.ack.rawValue)
-            try! ack.encode(into: &buffer)
+            try ack.encode(into: &buffer)
         case .reject(let reject):
             buffer.writeInteger(ID.reject.rawValue)
-            try! reject.encode(into: &buffer)
+            try reject.encode(into: &buffer)
         case .recover(let requeue):
             buffer.writeInteger(ID.recover.rawValue)
             buffer.writeInteger(requeue ? UInt8(1): UInt8(0))
@@ -1685,7 +1685,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             buffer.writeInteger(ID.recoverOk.rawValue)
         case .nack(let nack):
             buffer.writeInteger(ID.nack.rawValue)
-            try! nack.encode(into: &buffer)
+            try nack.encode(into: &buffer)
         }
     }
 

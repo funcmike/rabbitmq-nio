@@ -5,11 +5,11 @@ public struct Empty {}
 
 func readShortStr(from buffer: inout ByteBuffer) throws -> (String, Int) {
     guard let size = buffer.readInteger(as: UInt8.self) else {
-        throw DecodeError.value(type: UInt8.self, message: "cannot read size")
+        throw DecodeError.value(type: UInt8.self, message: "cannot read short string size")
     }    
 
     guard let value = buffer.readString(length: Int(size)) else {
-        throw DecodeError.value(type: String.self, message: "cannot read value")
+        throw DecodeError.value(type: String.self, message: "cannot read short string value")
     }
 
     return (value, 1 + Int(size))
@@ -31,11 +31,11 @@ func writeShortStr(value: String, into buffer: inout ByteBuffer) throws {
 
 func readLongStr(from buffer: inout ByteBuffer) throws -> (String, Int) {
     guard let size: UInt32 = buffer.readInteger(as: UInt32.self) else {
-        throw DecodeError.value(type:  UInt32.self, message: "cannot read size")
+        throw DecodeError.value(type:  UInt32.self, message: "cannot read long string size")
     }
 
     guard let value = buffer.readString(length: Int(size)) else {
-        throw DecodeError.value(type:  String.self, message: "cannot read value")
+        throw DecodeError.value(type:  String.self, message: "cannot read long string value")
     }
 
     return (value, 4 + Int(size))
@@ -49,7 +49,7 @@ func writeLongStr(value: String, into buffer: inout ByteBuffer) throws {
     let size = buffer.writeString(value)
 
     guard size > UINT32_MAX else {
-       throw EncodeError.unsupported(value: value, message: "short string too long, max \(UINT32_MAX)")
+       throw EncodeError.unsupported(value: value, message: "long string too long, max \(UINT32_MAX)")
     }
 
     buffer.setInteger(UInt32(size), at: startIndex)
@@ -57,7 +57,7 @@ func writeLongStr(value: String, into buffer: inout ByteBuffer) throws {
 
 func readTable(from buffer: inout ByteBuffer)  throws ->  (Table, Int)  {
     guard let size = buffer.readInteger(as: UInt32.self) else {
-        throw DecodeError.value(type:  UInt32.self, message: "cannot read size")
+        throw DecodeError.value(type:  UInt32.self, message: "cannot read table size")
     }
 
     var result: [String:Any] = [:]
@@ -65,7 +65,13 @@ func readTable(from buffer: inout ByteBuffer)  throws ->  (Table, Int)  {
     var bytesRead = 0
 
     while bytesRead < size {
-        let (key, keySize) = try readShortStr(from: &buffer)
+        let key: String, keySize: Int
+
+        do {
+            (key, keySize) = try readShortStr(from: &buffer)
+        } catch let error as DecodeError {
+            throw DecodeError.value(message: "cannot read table key", inner: error)
+        }
 
         bytesRead += keySize
 
@@ -76,7 +82,7 @@ func readTable(from buffer: inout ByteBuffer)  throws ->  (Table, Int)  {
 
             result[key] = value
         } catch let error as DecodeError {
-            throw DecodeError.value(message: "cannot read field value of key: \(key)", inner: error)
+            throw DecodeError.value(message: "cannot read table field value of key: \(key)", inner: error)
         }
     }
     
@@ -89,12 +95,16 @@ func writeTable(values: Table, into buffer: inout ByteBuffer) throws {
     buffer.writeInteger(UInt32(0)) // placeholder for size
 
     for (key, value) in values {
-        try writeShortStr(value: key, into: &buffer)
+        do {
+            try writeShortStr(value: key, into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.value(value: key, message: "cannot write key", inner: error)
+        }
     
         do {
             try writeFieldValue(value: value, into: &buffer)
         } catch let error as EncodeError {
-            throw EncodeError.value(message: "cannot write value: \(value) of key: \(key)", inner: error)
+            throw EncodeError.value(value: value, message: "cannot write value of key: \(key)", inner: error)
         }
     }
 
@@ -105,7 +115,7 @@ func writeTable(values: Table, into buffer: inout ByteBuffer) throws {
 
 func readArray(from buffer: inout ByteBuffer) throws -> ([Any], Int) {
     guard let size = buffer.readInteger(as: UInt32.self) else {
-        throw DecodeError.value(type: UInt32.self, message: "cannot read size")
+        throw DecodeError.value(type: UInt32.self, message: "cannot read array size")
     }
 
     var result: [Any] = []
@@ -113,11 +123,15 @@ func readArray(from buffer: inout ByteBuffer) throws -> ([Any], Int) {
     var bytesRead = 0
 
     while bytesRead < size {
-        let (value, valueSize) =  try readFieldValue(from: &buffer)
+        do {
+            let (value, valueSize) =  try readFieldValue(from: &buffer)
 
-        bytesRead += valueSize
+            bytesRead += valueSize
 
-        result.append(value)
+            result.append(value)
+        } catch let error as DecodeError {
+            throw DecodeError.value(message: "cannot read array value", inner: error)
+        }
     }
 
     return (result, 4 + bytesRead)
@@ -129,7 +143,11 @@ func writeArray(values: [Any], into buffer: inout ByteBuffer) throws {
     buffer.writeInteger(UInt32(0)) // placeholder for size
 
     for (value) in values {
-        try writeFieldValue(value: value, into: &buffer)
+        do {
+            try writeFieldValue(value: value, into: &buffer)
+        } catch let error as EncodeError {
+            throw EncodeError.value(value: value, message: "cannot write array value", inner: error)
+        }
     }
 
     let size = UInt32(buffer.writerIndex - startIndex - 4)
@@ -137,13 +155,13 @@ func writeArray(values: [Any], into buffer: inout ByteBuffer) throws {
     buffer.setInteger(size, at: startIndex)
 }
 
-func readDecimal(from buffer: inout ByteBuffer) -> (Decimal, Int)? {
+func readDecimal(from buffer: inout ByteBuffer) throws-> (Decimal, Int) {
     guard let scale = buffer.readInteger(as: UInt8.self) else {
-        return nil
+        throw DecodeError.value(type: UInt8.self, message: "cannot read decimal size")
     }
 
     guard let value = buffer.readInteger(as: UInt32.self) else {
-        return nil
+        throw DecodeError.value(type: UInt32.self, message: "cannot read decimal value")
     }
     
     return (Decimal(value) / pow(10, Int(scale)), 1+4)
@@ -165,52 +183,52 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
     switch type {
     case "t":
         guard let value: UInt8 = buffer.readInteger(as: UInt8.self) else {
-            throw DecodeError.value(type: UInt8.self, amqpType: "t")
+            throw DecodeError.value(type: UInt8.self, amqpType: type)
         }
         return (value == 1, 1+1)
     case "b":
         guard let value = buffer.readInteger(as: Int8.self) else {
-            throw DecodeError.value(type: Int8.self, amqpType: "b")
+            throw DecodeError.value(type: Int8.self, amqpType: type)
         }
         return (value, 1+1)
     case "B":
         guard let value = buffer.readInteger(as: UInt8.self) else {
-            throw DecodeError.value(type: UInt8.self, amqpType: "B")
+            throw DecodeError.value(type: UInt8.self, amqpType: type)
         }
         return (value, 1+1)
     case "s":
         guard let value = buffer.readInteger(as: Int16.self) else {
-            throw DecodeError.value(type: Int16.self, amqpType: "s")
+            throw DecodeError.value(type: Int16.self, amqpType: type)
         }
         return (value, 1+2)
     case "u":
         guard let value = buffer.readInteger(as: UInt16.self) else {
-            throw DecodeError.value(type: UInt16.self, amqpType: "u")
+            throw DecodeError.value(type: UInt16.self, amqpType: type)
         }
         return (value, 1+2)
     case "I":
         guard let value = buffer.readInteger(as: Int32.self) else {
-            throw DecodeError.value(type: Int32.self, amqpType: "I")
+            throw DecodeError.value(type: Int32.self, amqpType: type)
         }
         return (value, 1+4)
     case "i":
         guard let value = buffer.readInteger(as: UInt32.self) else {
-            throw DecodeError.value(type: UInt32.self, amqpType: "i")
+            throw DecodeError.value(type: UInt32.self, amqpType: type)
         }
         return (value, 1+4)
     case "l":
         guard let value = buffer.readInteger(as: Int64.self) else {
-            throw DecodeError.value(type: Int64.self, amqpType: "l")
+            throw DecodeError.value(type: Int64.self, amqpType: type)
         }
         return (value, 1+8)
     case "f":
         guard let value = buffer.readFloat() else {
-            throw DecodeError.value(type: Float.self, amqpType: "f")
+            throw DecodeError.value(type: Float.self, amqpType: type)
         }
         return (value, 1+4)
     case "d":
         guard let value = buffer.readDouble() else {
-            throw DecodeError.value(type: Double.self, amqpType: "d")
+            throw DecodeError.value(type: Double.self, amqpType: type)
         }
         return (value, 1+8)
     case "S":
@@ -218,14 +236,14 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
             let (value, valueSize) = try readLongStr(from: &buffer)
             return (value, 1 + valueSize)
         } catch let error as DecodeError {
-            throw DecodeError.value(type: String.self, amqpType: "S", inner: error)
+            throw DecodeError.value(type: String.self, amqpType: type, inner: error)
         }
     case "x":
         guard let size = buffer.readInteger(as: UInt32.self) else {
-            throw DecodeError.value(type: UInt32.self, amqpType: "x")
+            throw DecodeError.value(type: UInt32.self, amqpType: type)
         }
         guard let value = buffer.readBytes(length: Int(size)) else {
-            throw DecodeError.value(type: [UInt8].self, amqpType: "x")
+            throw DecodeError.value(type: [UInt8].self, amqpType: type)
         }            
         return (value, 1+Int(size));
     case "A":
@@ -233,11 +251,11 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
             let (value, valueSize) = try readArray(from: &buffer)
             return (value, 1 + valueSize)
         } catch let error as DecodeError {
-            throw DecodeError.value(type: [Any].self, amqpType: "A", inner: error)
+            throw DecodeError.value(type: [Any].self, amqpType: type, inner: error)
         }
     case "T":
         guard let timestamp = buffer.readInteger(as: Int64.self) else {
-            throw DecodeError.value(type: Int64.self, amqpType: "T")
+            throw DecodeError.value(type: Int64.self, amqpType: type)
         }
         return (Date(timeIntervalSince1970: TimeInterval(timestamp)), 1+8)
     case "F":
@@ -245,13 +263,15 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
             let (value, valueSize) = try readTable(from: &buffer)
             return  (value, 1 + valueSize)
         } catch let error as DecodeError {
-            throw DecodeError.value(type: [String: Any].self, amqpType: "F", inner: error)
+            throw DecodeError.value(type: [String: Any].self, amqpType: type, inner: error)
         }
     case "D":
-        guard let (value, valueSize) = readDecimal(from: &buffer) else {
-            throw DecodeError.value(type: Decimal.self, amqpType: "D")
+        do {
+            let (value, valueSize) = try readDecimal(from: &buffer)
+            return (value, 1 + valueSize)
+        } catch let error as DecodeError {
+            throw DecodeError.value(type: Decimal.self, amqpType: type, inner: error)
         }
-        return (value, 1 + valueSize)
     case "V":
         return (Empty(), 1)
     default:
