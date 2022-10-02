@@ -18,10 +18,10 @@ public struct ConnectionHandler: BufferHandler {
                     switch connection {
                     case .start:
                             let clientProperties: Table = [
-                                "connection_name": .string("test"),
-                                "product": .string("rabbitmq-nio"),
-                                "platform": .string("Swift"),
-                                "version":  .string("0.1"),
+                                "connection_name": .longString("test"),
+                                "product": .longString("rabbitmq-nio"),
+                                "platform": .longString("Swift"),
+                                "version":  .longString("0.1"),
                                 "capabilities": .table([
                                     "publisher_confirms":           .bool(true),
                                     "exchange_exchange_bindings":   .bool(true),

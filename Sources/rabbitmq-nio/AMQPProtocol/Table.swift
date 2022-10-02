@@ -14,7 +14,7 @@ public enum Field {
     case int64(Int64)
     case float(Float)
     case double(Double)
-    case string(String)
+    case longString(String)
     case bytes([UInt8])
     case array([Field])
     case timestamp(Date)
@@ -202,7 +202,7 @@ func readField(from buffer: inout ByteBuffer) throws -> (Field, Int) {
     case "S":
         do {
             let (value, valueSize) = try readLongStr(from: &buffer)
-            return (.string(value), 1 + valueSize)
+            return (.longString(value), 1 + valueSize)
         } catch let error as DecodeError {
             throw DecodeError.value(type: String.self, amqpType: type, inner: error)
         }
@@ -279,7 +279,7 @@ func writeField(field: Field, into buffer: inout ByteBuffer) throws {
     case .double(let v):
         buffer.writeInteger(Character("d").asciiValue!)
         buffer.writeDouble(v)
-    case .string(let v):
+    case .longString(let v):
         buffer.writeInteger(Character("S").asciiValue!)
         try writeLongStr(value: v, into: &buffer)
     case .bytes(let v):
