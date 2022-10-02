@@ -143,7 +143,7 @@ func writeDecimal(value: Decimal, into buffer: inout ByteBuffer) throws {
 
 func readField(from buffer: inout ByteBuffer) throws -> (Field, Int) {
     guard let rawtype = buffer.readInteger(as: UInt8.self) else {
-        throw DecodeError.value(type: UInt8.self)
+        throw DecodeError.value(type: UInt8.self, message: "cannot read field type")
     }
 
     let type = Character(UnicodeScalar(rawtype))
