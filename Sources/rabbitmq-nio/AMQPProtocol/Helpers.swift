@@ -3,54 +3,61 @@ import Foundation
 
 public struct Empty {}
 
-func readShortStr(from buffer: inout ByteBuffer) -> (String, Int)? {
+func readShortStr(from buffer: inout ByteBuffer) throws -> (String, Int) {
     guard let size = buffer.readInteger(as: UInt8.self) else {
-        return nil
+        throw DecodeError.value(type: UInt8.self, message: "cannot read size")
     }    
 
     guard let value = buffer.readString(length: Int(size)) else {
-        return nil
+        throw DecodeError.value(type: String.self, message: "cannot read value")
     }
 
-    return  (value, 1 + Int(size))
+    return (value, 1 + Int(size))
 }
 
-func writeShortStr(value: String, into buffer: inout ByteBuffer) {
+func writeShortStr(value: String, into buffer: inout ByteBuffer) throws {
     let startIndex: Int = buffer.writerIndex
 
     buffer.writeInteger(UInt8(0)) // placeholder for size
 
-    let size = UInt8(buffer.writeString(value))
+    let size = buffer.writeString(value)
 
-    buffer.setInteger(size, at: startIndex)
+    guard size > UINT8_MAX else {
+        throw EncodeError.unsupported(value: value, message: "Short string too long, max \(UINT8_MAX)")
+    }
+
+    buffer.setInteger(UInt8(size), at: startIndex)
 }
 
-func readLongStr(from buffer: inout ByteBuffer) -> (String, Int)? {
+func readLongStr(from buffer: inout ByteBuffer) throws -> (String, Int) {
     guard let size: UInt32 = buffer.readInteger(as: UInt32.self) else {
-        return nil
+        throw DecodeError.value(type:  UInt32.self, message: "cannot read size")
     }
 
     guard let value = buffer.readString(length: Int(size)) else {
-        return nil
+        throw DecodeError.value(type:  String.self, message: "cannot read value")
     }
 
     return (value, 4 + Int(size))
 }
 
-func writeLongStr(value: String, into buffer: inout ByteBuffer) {
+func writeLongStr(value: String, into buffer: inout ByteBuffer) throws {
     let startIndex: Int = buffer.writerIndex
 
     buffer.writeInteger(UInt32(0))  // placeholde for size
 
-    let size: UInt32 = UInt32(buffer.writeString(value))
+    let size = buffer.writeString(value)
 
-    buffer.setInteger(size, at: startIndex)
+    guard size > UINT32_MAX else {
+       throw EncodeError.unsupported(value: value, message: "short string too long, max \(UINT32_MAX)")
+    }
+
+    buffer.setInteger(UInt32(size), at: startIndex)
 }
 
-
-func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], Int)  {
+func readTable(from buffer: inout ByteBuffer)  throws ->  (Table, Int)  {
     guard let size = buffer.readInteger(as: UInt32.self) else {
-        throw DecodeError.dictionary(.size)
+        throw DecodeError.value(type:  UInt32.self, message: "cannot read size")
     }
 
     var result: [String:Any] = [:]
@@ -58,9 +65,7 @@ func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], In
     var bytesRead = 0
 
     while bytesRead < size {
-        guard let (key, keySize) = readShortStr(from: &buffer) else {
-            throw DecodeError.dictionary(.key)
-        }
+        let (key, keySize) = try readShortStr(from: &buffer)
 
         bytesRead += keySize
 
@@ -71,25 +76,25 @@ func readDictionary(from buffer: inout ByteBuffer)  throws ->  ([String:Any], In
 
             result[key] = value
         } catch let error as DecodeError {
-            throw DecodeError.dictionary(.value(key: key, inner: error))
+            throw DecodeError.value(message: "cannot read field value of key: \(key)", inner: error)
         }
     }
     
     return (result, 4 + bytesRead)
 }
 
-func writeDictionary(values: [String:Any], into buffer: inout ByteBuffer) throws {
+func writeTable(values: Table, into buffer: inout ByteBuffer) throws {
     let startIndex: Int = buffer.writerIndex
 
     buffer.writeInteger(UInt32(0)) // placeholder for size
 
     for (key, value) in values {
-        writeShortStr(value: key, into: &buffer)
+        try writeShortStr(value: key, into: &buffer)
     
         do {
             try writeFieldValue(value: value, into: &buffer)
         } catch let error as EncodeError {
-            throw EncodeError.dictionary(.value(key: key, inner: error))
+            throw EncodeError.value(message: "cannot write value: \(value) of key: \(key)", inner: error)
         }
     }
 
@@ -100,7 +105,7 @@ func writeDictionary(values: [String:Any], into buffer: inout ByteBuffer) throws
 
 func readArray(from buffer: inout ByteBuffer) throws -> ([Any], Int) {
     guard let size = buffer.readInteger(as: UInt32.self) else {
-        throw DecodeError.array(.size)
+        throw DecodeError.value(type: UInt32.self, message: "cannot read size")
     }
 
     var result: [Any] = []
@@ -108,15 +113,11 @@ func readArray(from buffer: inout ByteBuffer) throws -> ([Any], Int) {
     var bytesRead = 0
 
     while bytesRead < size {
-        do {
-            let (value, valueSize) =  try readFieldValue(from: &buffer)
+        let (value, valueSize) =  try readFieldValue(from: &buffer)
 
-            bytesRead += valueSize
+        bytesRead += valueSize
 
-            result.append(value)
-        } catch let error as DecodeError {
-            throw DecodeError.array(.value(inner: error))
-        }
+        result.append(value)
     }
 
     return (result, 4 + bytesRead)
@@ -128,11 +129,7 @@ func writeArray(values: [Any], into buffer: inout ByteBuffer) throws {
     buffer.writeInteger(UInt32(0)) // placeholder for size
 
     for (value) in values {
-        do {
-            try writeFieldValue(value: value, into: &buffer)
-        } catch let error as EncodeError {
-            throw EncodeError.array(.value(inner: error))
-        }
+        try writeFieldValue(value: value, into: &buffer)
     }
 
     let size = UInt32(buffer.writerIndex - startIndex - 4)
@@ -217,10 +214,12 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
         }
         return (value, 1+8)
     case "S":
-        guard let (value, valueSize) = readLongStr(from: &buffer) else {
-            throw DecodeError.value(type: String.self, amqpType: "S")
+        do {
+            let (value, valueSize) = try readLongStr(from: &buffer)
+            return (value, 1 + valueSize)
+        } catch let error as DecodeError {
+            throw DecodeError.value(type: String.self, amqpType: "S", inner: error)
         }
-        return (value, 1 + valueSize)
     case "x":
         guard let size = buffer.readInteger(as: UInt32.self) else {
             throw DecodeError.value(type: UInt32.self, amqpType: "x")
@@ -243,7 +242,7 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
         return (Date(timeIntervalSince1970: TimeInterval(timestamp)), 1+8)
     case "F":
         do {
-            let (value, valueSize) = try readDictionary(from: &buffer)
+            let (value, valueSize) = try readTable(from: &buffer)
             return  (value, 1 + valueSize)
         } catch let error as DecodeError {
             throw DecodeError.value(type: [String: Any].self, amqpType: "F", inner: error)
@@ -256,7 +255,7 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
     case "V":
         return (Empty(), 1)
     default:
-        throw DecodeError.unsupported(amqpType: type)
+        throw DecodeError.unsupported(value: type, message: "invalid field type")
     }
 }
 
@@ -297,22 +296,22 @@ func writeFieldValue(value: Any, into buffer: inout ByteBuffer) throws {
         buffer.writeDouble(v)
     case let v as String:
         buffer.writeInteger(Character("S").asciiValue!)
-        writeLongStr(value: v, into: &buffer)
+        try writeLongStr(value: v, into: &buffer)
     case let v as [UInt8]:
         buffer.writeInteger(Character("x").asciiValue!)
         buffer.writeBytes(v)
     case let v as [Any]:
         buffer.writeInteger(Character("A").asciiValue!)
-        try! writeArray(values: v, into: &buffer)
+        try writeArray(values: v, into: &buffer)
     case let v as Date:
         buffer.writeInteger(Character("T").asciiValue!)
         buffer.writeInteger(v.toUnixEpoch())
     case let v as Table:
         buffer.writeInteger(Character("F").asciiValue!)
-        try! writeDictionary(values: v, into: &buffer)
+        try writeTable(values: v, into: &buffer)
     case let v as Decimal:
         buffer.writeInteger(Character("D").asciiValue!)
-        try! writeDecimal(value: v, into: &buffer)
+        try writeDecimal(value: v, into: &buffer)
     case is Empty:
         buffer.writeInteger(Character("V").asciiValue!)
     default:

@@ -48,30 +48,19 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         var contentType: String? = nil
         
         if flags & Flag.contentType > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           contentType = v
+            (contentType, _) = try readShortStr(from: &buffer)
         }
 
         var contentEncoding: String? = nil
 
         if flags & Flag.contentEncoding > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           contentEncoding = v
+            (contentEncoding, _) =  try readShortStr(from: &buffer)
         }
 
         var headers: Table? = nil
 
         if flags & Flag.headers > 0 {
-            do {
-               (headers, _) = try readDictionary(from: &buffer)
-            }
-            catch let error as DecodeError {
-                throw DecodeError.value(type: Table.self, inner: error)
-            }
+            (headers, _) = try readTable(from: &buffer)
         }
 
         var deliveryMode: UInt8? = nil
@@ -80,7 +69,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
             guard let v = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }
-           deliveryMode = v
+            deliveryMode = v
         }
 
         var priority: UInt8? = nil
@@ -89,43 +78,31 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
             guard let v = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }
-           priority = v
+            priority = v
         }
 
         var correlationID: String? = nil
         
         if flags & Flag.correlationID > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           correlationID = v
+            (correlationID, _) = try readShortStr(from: &buffer)
         }
 
         var replyTo: String? = nil
         
         if flags & Flag.replyTo > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           replyTo = v
+            (replyTo, _) = try readShortStr(from: &buffer)
         }
 
         var expiration: String? = nil
         
         if flags & Flag.expiration > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           expiration = v
+            (expiration, _) = try readShortStr(from: &buffer)
         }
 
         var messageID: String? = nil
         
         if flags & Flag.messageID > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           messageID = v
+            (messageID, _) = try readShortStr(from: &buffer) 
         }
 
         var timestamp : Int64? = nil
@@ -140,37 +117,25 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         var type: String? = nil
         
         if flags & Flag.type > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           type = v
+            (type, _) =  try readShortStr(from: &buffer)
         }
 
         var userID: String?  = nil
         
         if flags & Flag.userID > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           userID = v
+            (userID, _ ) = try readShortStr(from: &buffer)
         }
 
         var appID: String? = nil
         
         if flags & Flag.appID > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           appID = v
+            (appID, _) = try readShortStr(from: &buffer)
         }
 
         var reserved1: String? = nil
         
         if flags & Flag.reserved1 > 0 {
-           guard let (v, _) = readShortStr(from: &buffer) else {
-                throw DecodeError.value(type: String.self)
-           }
-           reserved1 = v
+            (reserved1, _ ) = try readShortStr(from: &buffer)
         }
 
         return Properties(
@@ -252,20 +217,15 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         buffer.writeInteger(flags)
 
         if let contentType = contentType {
-           writeShortStr(value: contentType, into: &buffer)
+            try writeShortStr(value: contentType, into: &buffer)
         }
 
         if let contentEncoding = contentEncoding{
-            writeShortStr(value: contentEncoding, into: &buffer)
+            try writeShortStr(value: contentEncoding, into: &buffer)
         }
 
         if let headers = headers {
-            do
-            {
-                try writeDictionary(values: headers, into: &buffer)
-            } catch let error as EncodeError {
-                throw EncodeError.value(type: Table.self, inner: error)
-            }
+            try writeTable(values: headers, into: &buffer)
         }
 
         if let deliveryMode = deliveryMode {
@@ -277,19 +237,19 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         }
 
         if let correlationID = correlationID{
-            writeShortStr(value: correlationID, into: &buffer)
+            try writeShortStr(value: correlationID, into: &buffer)
         }
 
         if let replyTo = replyTo {
-            writeShortStr(value: replyTo, into: &buffer)
+            try writeShortStr(value: replyTo, into: &buffer)
         }
 
         if let expiration = expiration {
-            writeShortStr(value: expiration, into: &buffer)
+            try writeShortStr(value: expiration, into: &buffer)
         }
 
         if let messageID = messageID {
-            writeShortStr(value: messageID, into: &buffer)
+            try writeShortStr(value: messageID, into: &buffer)
         }
 
         if let timestamp = timestamp {
@@ -297,19 +257,19 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         }
 
         if let type = type {
-            writeShortStr(value: type, into: &buffer)
+            try writeShortStr(value: type, into: &buffer)
         }
 
         if let userID = userID {
-            writeShortStr(value: userID, into: &buffer)
+            try writeShortStr(value: userID, into: &buffer)
         }
 
         if let appID = appID {
-            writeShortStr(value: appID, into: &buffer)
+            try writeShortStr(value: appID, into: &buffer)
         }
 
         if let reserved1 = reserved1 {
-            writeShortStr(value: reserved1, into: &buffer)
+            try writeShortStr(value: reserved1, into: &buffer)
         }
     }
 }
