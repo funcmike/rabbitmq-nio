@@ -29,9 +29,9 @@ public enum Field {
         case .int8:
             return .int8
         case .uInt8:
-            return .int8
-        case .int16:
             return .uInt8
+        case .int16:
+            return .int16
         case .uInt16:
             return .uInt16
         case .int32:

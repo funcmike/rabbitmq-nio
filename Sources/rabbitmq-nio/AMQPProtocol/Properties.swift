@@ -27,7 +27,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
     let replyTo: String?
     let expiration: String?
     let messageID: String?
-    let timestamp : Int64?
+    let timestamp: Int64?
     let type: String?
     let userID: String?
     let appID: String?
