@@ -281,12 +281,9 @@ func readFieldValue(from buffer: inout ByteBuffer) throws -> (Any, Int) {
 
 func writeFieldValue(value: Any, into buffer: inout ByteBuffer) throws {
     switch value {
-    case let v as Bool where v == true:
+    case let v as Bool:
         buffer.writeInteger(Character("t").asciiValue!)
-        buffer.writeInteger(UInt8(1))
-    case let v as Bool where v == false:
-        buffer.writeInteger(Character("t").asciiValue!)
-        buffer.writeInteger(UInt8(1))
+        buffer.writeInteger(v ? UInt8(1) : UInt8(0))
     case let v as Int8:
         buffer.writeInteger(Character("b").asciiValue!)
         buffer.writeInteger(v)
