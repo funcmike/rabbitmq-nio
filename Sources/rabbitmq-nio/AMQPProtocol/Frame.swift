@@ -1480,6 +1480,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     case getEmpty(reserved1: String)
     case ack(Ack)
     case reject(Reject)
+    case recoverAsync(requeue: Bool)
     case recover(requeue: Bool)
     case recoverOk
     case nack(Nack)
@@ -1499,6 +1500,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         case getEmpty
         case ack
         case reject
+        case recoverAsync
         case recover
         case recoverOk
         case nack
@@ -1533,6 +1535,8 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 self = .ack
             case 90:
                 self = .reject
+            case 100:
+                self = .recoverAsync
             case 110:
                 self = .recover
             case 111:
@@ -1574,6 +1578,8 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 return 80
             case .reject:
                 return 90
+            case .recoverAsync:
+                return 100
             case .recover:
                 return 110
             case .recoverOk:
@@ -1621,6 +1627,11 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return .ack(try Ack.decode(from: &buffer))
         case .reject:
             return .reject(try Reject.decode(from: &buffer))
+        case .recoverAsync:
+            guard let requeue = buffer.readInteger(as: UInt8.self) else {
+                throw DecodeError.value(type: UInt8.self)
+            }        
+            return .recoverAsync(requeue: requeue == 1)    
         case .recover:
             guard let requeue = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
@@ -1678,6 +1689,9 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         case .reject(let reject):
             buffer.writeInteger(ID.reject.rawValue)
             try reject.encode(into: &buffer)
+        case .recoverAsync(let requeue):
+            buffer.writeInteger(ID.recover.rawValue)
+            buffer.writeInteger(requeue ? UInt8(1): UInt8(0))
         case .recover(let requeue):
             buffer.writeInteger(ID.recover.rawValue)
             buffer.writeInteger(requeue ? UInt8(1): UInt8(0))
