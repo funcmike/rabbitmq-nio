@@ -435,16 +435,16 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
         let locales: String
 
         init(versionMajor: UInt8 = 0, versionMinor: UInt8 = 9, serverProperties: Table = [
-                            "capabilities": [
-                                "publisher_confirms":           true,
-                                "exchange_exchange_bindings":   true,
-                                "basic.nack":                   true,
-                                "per_consumer_qos":             true,
-                                "authentication_failure_close": true,
-                                "consumer_cancel_notify":       true,
-                                "connection.blocked":           true,
-                            ]
-                            ], mechanisms: String = "AMQPLAIN PLAIN", locales: String = "en_US")
+                "capabilities": .table([
+                    "publisher_confirms":           .bool(true),
+                    "exchange_exchange_bindings":   .bool(true),
+                    "basic.nack":                   .bool(true),
+                    "per_consumer_qos":             .bool(true),
+                    "authentication_failure_close": .bool(true),
+                    "consumer_cancel_notify":       .bool(true),
+                    "connection.blocked":           .bool(true),
+                ])
+            ], mechanisms: String = "AMQPLAIN PLAIN", locales: String = "en_US")
         {
             self.versionMajor = versionMajor
             self.versionMinor = versionMinor

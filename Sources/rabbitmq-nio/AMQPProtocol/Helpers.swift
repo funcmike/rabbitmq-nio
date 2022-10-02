@@ -1,8 +1,6 @@
 import NIOCore
 import Foundation
 
-public struct Empty {}
-
 func readShortStr(from buffer: inout ByteBuffer) throws -> (String, Int) {
     guard let size = buffer.readInteger(as: UInt8.self) else {
         throw DecodeError.value(type: UInt8.self, message: "cannot read short string size")

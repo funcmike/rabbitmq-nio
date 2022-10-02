@@ -18,19 +18,19 @@ public struct ConnectionHandler: BufferHandler {
                     switch connection {
                     case .start:
                             let clientProperties: Table = [
-                                "connection_name": "test",
-                                "product": "rabbitmq-nio",
-                                "platform": "Swift",
-                                "version":  "0.1",
-                                "capabilities": [
-                                    "publisher_confirms":           true,
-                                    "exchange_exchange_bindings":   true,
-                                    "basic.nack":                   true,
-                                    "per_consumer_qos":             true,
-                                    "authentication_failure_close": true,
-                                    "consumer_cancel_notify":       true,
-                                    "connection.blocked":           true,
-                                ]
+                                "connection_name": .string("test"),
+                                "product": .string("rabbitmq-nio"),
+                                "platform": .string("Swift"),
+                                "version":  .string("0.1"),
+                                "capabilities": .table([
+                                    "publisher_confirms":           .bool(true),
+                                    "exchange_exchange_bindings":   .bool(true),
+                                    "basic.nack":                   .bool(true),
+                                    "per_consumer_qos":             .bool(true),
+                                    "authentication_failure_close": .bool(true),
+                                    "consumer_cancel_notify":       .bool(true),
+                                    "connection.blocked":           .bool(true),
+                                ])
                             ]
 
                             let response: Frame = Frame.method(channelId, Method.connection(Connection.startOk(Connection.StartOk(
