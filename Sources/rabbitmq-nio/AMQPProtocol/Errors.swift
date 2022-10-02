@@ -1,5 +1,5 @@
 enum DecodeError: Error {
-    case value(type: Any.Type? = nil, amqpType: Character? = nil, message: String? = nil, inner: Error? = nil)
+    case value(type: Any.Type? = nil, kind: Field.Kind? = nil, message: String? = nil, inner: Error? = nil)
     case unsupported(value: Any, message: String? = nil)
 }
 
