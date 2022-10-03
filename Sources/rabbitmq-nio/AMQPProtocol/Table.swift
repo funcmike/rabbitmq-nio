@@ -19,7 +19,7 @@ public enum Field {
     case array([Field])
     case timestamp(Date)
     case table(Table)
-    case decimal(Decimal)
+    case decimal(scale: UInt8, value: UInt32)
     case `nil`
 
     var kind: Kind {
@@ -263,7 +263,7 @@ func writeArray(values: [Field], into buffer: inout ByteBuffer) throws {
     buffer.setInteger(size, at: startIndex)
 }
 
-func readDecimal(from buffer: inout ByteBuffer) throws-> (Decimal, Int) {
+func readDecimal(from buffer: inout ByteBuffer) throws-> ((scale:UInt8, value: UInt32), Int) {
     guard let scale = buffer.readInteger(as: UInt8.self) else {
         throw DecodeError.value(type: UInt8.self, message: "cannot read decimal size")
     }
@@ -271,13 +271,11 @@ func readDecimal(from buffer: inout ByteBuffer) throws-> (Decimal, Int) {
     guard let value = buffer.readInteger(as: UInt32.self) else {
         throw DecodeError.value(type: UInt32.self, message: "cannot read decimal value")
     }
+
+    // TODO(check how to convert to Decimal type in swift)
+    // possible: (Decimal(value) / pow(10, Int(scale)), 1+4)
     
-    return (Decimal(value) / pow(10, Int(scale)), 1+4)
-}
-
-
-func writeDecimal(value: Decimal, into buffer: inout ByteBuffer) throws {
-    return TODO("implement Decimal writing")
+    return ((scale, value), 1+4)
 }
 
 
@@ -377,8 +375,8 @@ func readField(from buffer: inout ByteBuffer) throws -> (Field, Int) {
         }
     case .decimal:
         do {
-            let (value, valueSize) = try readDecimal(from: &buffer)
-            return (.decimal(value), 1 + valueSize)
+            let ((scale, value), valueSize) = try readDecimal(from: &buffer)
+            return (.decimal(scale: scale, value: value), 1 + valueSize)
         } catch let error as DecodeError {
             throw DecodeError.value(type: Decimal.self, kind: kind, inner: error)
         }
@@ -421,8 +419,9 @@ func writeField(field: Field, into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(v.toUnixEpoch())
     case .table(let v):
         try writeTable(values: v, into: &buffer)
-    case .decimal(let v):
-        try writeDecimal(value: v, into: &buffer)
+    case .decimal(let scale, let value):
+        buffer.writeInteger(scale)
+        buffer.writeInteger(value)
     case .nil:
         break
     }
