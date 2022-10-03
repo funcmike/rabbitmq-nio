@@ -309,6 +309,8 @@ public enum Method: PayloadDecodable, PayloadEncodable {
 public enum Connection: PayloadDecodable, PayloadEncodable {
     case start(Start)
     case startOk(StartOk)
+    case secure(challenge: String)
+    case secureOk(response: String)
     case tune(Tune)
     case tuneOk(TuneOk)
     case open(Open)
@@ -325,6 +327,10 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return .start
         case .startOk:
             return .startOk
+        case .secure:
+            return .secure
+        case .secureOk:
+            return .secureOk
         case .tune:
             return .tune
         case .tuneOk:
@@ -333,20 +339,22 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return .open
         case .openOk:
             return .openOk
-        case .blocked: 
-            return .blocked
-        case .unblocked: 
-            return .unblocked
         case .close: 
             return .close
         case .closeOk: 
             return .closeOk
+        case .blocked: 
+            return .blocked
+        case .unblocked: 
+            return .unblocked
         }
     }
 
     public enum Kind {
         case start
         case startOk
+        case secure
+        case secureOk
         case tune
         case tuneOk
         case open
@@ -363,6 +371,10 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
                 self = .start
             case 11:
                 self = .startOk
+            case 20:
+                self = .secure
+            case 21:
+                self = .secureOk
             case 30:
                 self = .tune
             case 31:
@@ -390,6 +402,10 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
                 return 10
             case .startOk:
                 return 11
+            case .secure:
+                return 20
+            case .secureOk:
+                return 21
             case .tune:
                 return 30
             case .tuneOk:
@@ -398,13 +414,13 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
                 return 40
             case .openOk:
                 return 41
-            case .blocked: 
-                return 50
-            case .unblocked: 
-                return 51
             case .close: 
-                return 60
+                return 50
             case .closeOk: 
+                return 51
+            case .blocked: 
+                return 60
+            case .unblocked: 
                 return 61
             }
         }
@@ -424,6 +440,12 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return .start(try Start.decode(from: &buffer))
         case .startOk:
             return .startOk(try StartOk.decode(from: &buffer))
+        case .secure:
+            let (challenge, _) = try readLongStr(from: &buffer)
+            return .secure(challenge: challenge)
+        case .secureOk:
+            let (response, _) = try readLongStr(from: &buffer)
+            return .secureOk(response: response)            
         case .tune:
             return .tune(try Tune.decode(from: &buffer))
         case .tuneOk:
@@ -453,6 +475,10 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             try connectionStart.encode(into: &buffer)
         case .startOk(let connectionStartOk):
             try connectionStartOk.encode(into: &buffer)
+        case .secure(let challenge):
+            try writeLongStr(value: challenge, into: &buffer)
+        case .secureOk(let response):
+            try writeLongStr(value: response, into: &buffer)
         case .tune(let tune):
             try tune.encode(into: &buffer)
         case .tuneOk(let tuneOk):
@@ -638,7 +664,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt8.self)
             }
 
-            return Open(vhost: vhost, reserved1: reserved1, reserved2: reserved2 > 0 ? true : false)
+            return Open(vhost: vhost, reserved1: reserved1, reserved2: reserved2 > 0)
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -657,17 +683,17 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
 
         static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let replyCode = buffer.readInteger(as: UInt16.self) else {
-                throw DecodeError.value(type: UInt8.self)
+                throw DecodeError.value(type: UInt16.self)
             }
 
             let (replyText, _) = try readShortStr(from: &buffer)
 
             guard let failingClassID = buffer.readInteger(as: UInt16.self) else {
-                throw DecodeError.value(type: UInt8.self)
+                throw DecodeError.value(type: UInt16.self)
             }
 
             guard let failingMethodID = buffer.readInteger(as: UInt16.self) else {
-                throw DecodeError.value(type: UInt8.self)
+                throw DecodeError.value(type: UInt16.self)
             }
 
             return Close(replyCode: replyCode, replyText: replyText, failingClassID: failingClassID, failingMethodID: failingMethodID)
@@ -773,12 +799,12 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             guard let active = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }
-            return .flow(active: active == 1)               
+            return .flow(active: active > 0)               
         case .flowOk:
             guard let active = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }
-            return .flowOk(active: active == 1)       
+            return .flowOk(active: active > 0)       
         case .close: 
             return .close(try Close.decode(from: &buffer))
         case .closeOk:
@@ -1113,6 +1139,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try writeShortStr(value: destination, into: &buffer)
+            try writeShortStr(value: source, into: &buffer)
             try writeShortStr(value: routingKey, into: &buffer)
             buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
             try writeTable(values: arguments, into: &buffer)
@@ -1149,6 +1176,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try writeShortStr(value: destination, into: &buffer)
+            try writeShortStr(value: source, into: &buffer)
             try writeShortStr(value: routingKey, into: &buffer)
             buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
             try writeTable(values: arguments, into: &buffer)
@@ -1330,8 +1358,8 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         let queueName : String
         let passive: Bool
         let durable: Bool
+        let exclusive: Bool
         let autoDelete: Bool
-        let `internal`: Bool
         let noWait: Bool
         let arguments: Table
 
@@ -1348,12 +1376,12 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             
             let passive = bits.isBitSet(pos: 0)
             let durable = bits.isBitSet(pos: 1)
-            let autoDelete = bits.isBitSet(pos: 2)
-            let `internal` = bits.isBitSet(pos: 3)
+            let exclusive = bits.isBitSet(pos: 2)
+            let autoDelete = bits.isBitSet(pos: 3)
             let noWait = bits.isBitSet(pos: 4)
             let (arguments, _) = try readTable(from: &buffer)
 
-            return Declare(reserved1: reserved1, queueName: queueName, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: noWait, arguments: arguments)
+            return Declare(reserved1: reserved1, queueName: queueName, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: noWait, arguments: arguments)
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -1370,11 +1398,11 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
                 bits = bits | (1 << 1)
             }
 
-            if autoDelete {
+            if exclusive {
                 bits = bits | (1 << 2)
             }
 
-            if `internal` {
+            if autoDelete {
                 bits = bits | (1 << 3)
             }
 
@@ -1383,7 +1411,6 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             }
 
             buffer.writeInteger(bits)
-            
             try writeTable(values: arguments, into: &buffer)
         }
     }
@@ -1533,7 +1560,6 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         let queueName : String
         let exchangeName: String
         let routingKey : String
-        let noWait: Bool
         let arguments: Table
 
         static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -1544,15 +1570,9 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             let (queueName, _) = try readShortStr(from: &buffer)
             let (exchangeName, _) = try readShortStr(from: &buffer)
             let (routingKey, _) = try readShortStr(from: &buffer)
-
-            guard let bits = buffer.readInteger(as: UInt8.self) else {
-                throw DecodeError.value(type: UInt8.self)
-            }
-
-            let noWait = bits.isBitSet(pos: 0)
             let (arguments, _) = try readTable(from: &buffer)
 
-            return Unbind(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, noWait: noWait, arguments: arguments)
+            return Unbind(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, arguments: arguments)
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -1560,7 +1580,6 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             try writeShortStr(value: queueName, into: &buffer)
             try writeShortStr(value: exchangeName, into: &buffer)
             try writeShortStr(value: routingKey, into: &buffer)
-            buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
             try writeTable(values: arguments, into: &buffer)
         }
     }
@@ -1777,12 +1796,12 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             guard let requeue = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }        
-            return .recoverAsync(requeue: requeue == 1)    
+            return .recoverAsync(requeue: requeue > 0)    
         case .recover:
             guard let requeue = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }        
-            return .recover(requeue: requeue == 1)    
+            return .recover(requeue: requeue > 0)    
         case .recoverOk:
             return .recoverOk
         case .nack:
@@ -1851,7 +1870,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt8.self)
             }  
 
-            return Qos(prefetchSize: prefetchSize, prefetchCount: prefetchCount, global: global == 1)       
+            return Qos(prefetchSize: prefetchSize, prefetchCount: prefetchCount, global: global > 0)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -1931,7 +1950,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt8.self)
             }  
 
-            return Cancel(consumerTag: consumerTag, noWait: noWait == 1)       
+            return Cancel(consumerTag: consumerTag, noWait: noWait > 0)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -1943,7 +1962,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     public struct Publish : PayloadDecodable, PayloadEncodable {
         let reserved1: UInt16
         let exchange: String
-        let reoutingKey: String
+        let routingKey: String
         let mandatory : Bool
         let immediate : Bool
 
@@ -1953,7 +1972,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             }
 
            let (exchange, _) = try readShortStr(from: &buffer)
-           let (reoutingKey, _) = try readShortStr(from: &buffer)
+           let (routingKey, _) = try readShortStr(from: &buffer)
 
             guard let bits = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
@@ -1962,13 +1981,13 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             let mandatory = bits.isBitSet(pos: 0)
             let immediate = bits.isBitSet(pos: 1)
 
-            return Publish (reserved1: reserved1, exchange: exchange, reoutingKey: reoutingKey, mandatory: mandatory, immediate: immediate)       
+            return Publish (reserved1: reserved1, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try writeShortStr(value: exchange, into: &buffer)
-            try writeShortStr(value: reoutingKey, into: &buffer)
+            try writeShortStr(value: routingKey, into: &buffer)
 
             var bits = UInt8(0)
             
@@ -2022,18 +2041,18 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         static func decode(from buffer: inout ByteBuffer) throws -> Self {
             let (consumerTag, _) = try readShortStr(from: &buffer)
 
-            guard let redelivered = buffer.readInteger(as: UInt8.self) else {
+            guard let deliveryTag = buffer.readInteger(as: UInt64.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }
 
-            guard let deliveryTag = buffer.readInteger(as: UInt64.self) else {
+            guard let redelivered = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }
 
             let (exchange, _) = try readShortStr(from: &buffer)
             let (routingKey, _) = try readShortStr(from: &buffer)
 
-            return Deliver(consumerTag: consumerTag, deliveryTag: deliveryTag, redelivered: redelivered == 1, exchange: exchange, routingKey: routingKey)       
+            return Deliver(consumerTag: consumerTag, deliveryTag: deliveryTag, redelivered: redelivered > 0, exchange: exchange, routingKey: routingKey)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -2061,7 +2080,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt8.self)
             }
 
-            return Get(reserved1: reserved1, queue: queue, noAck: noAck == 1)       
+            return Get(reserved1: reserved1, queue: queue, noAck: noAck > 0)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -2095,7 +2114,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt32.self)
             }
 
-            return GetOk(deliveryTag: deliveryTag, redelivered: redelivered == 1,  exchange: exchange, routingKey: routingKey, messageCount: messageCount)       
+            return GetOk(deliveryTag: deliveryTag, redelivered: redelivered > 0,  exchange: exchange, routingKey: routingKey, messageCount: messageCount)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -2120,7 +2139,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt8.self)
             }  
 
-            return Ack(deliveryTag: deliveryTag, multiple: multiple == 1)       
+            return Ack(deliveryTag: deliveryTag, multiple: multiple > 0)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -2142,7 +2161,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
                 throw DecodeError.value(type: UInt8.self)
             }  
 
-            return Reject(deliveryTag: deliveryTag, requeue: requeue == 1)       
+            return Reject(deliveryTag: deliveryTag, requeue: requeue > 0)       
         }
 
         func encode(into buffer: inout ByteBuffer) throws {
@@ -2241,7 +2260,7 @@ public enum Confirm: PayloadDecodable, PayloadEncodable {
             guard let noWait = buffer.readInteger(as: UInt8.self) else {
                 throw DecodeError.value(type: UInt8.self)
             }        
-            return .select(noWait: noWait == 1)    
+            return .select(noWait: noWait > 0)    
         case .selectOk:
             return .selectOk
         }
