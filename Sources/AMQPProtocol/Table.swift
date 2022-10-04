@@ -80,7 +80,7 @@ public enum Field {
         case decimal
         case `nil`
 
-        public init?(rawValue: UInt8)
+        init?(rawValue: UInt8)
         {
             switch rawValue {
             case UInt8(ascii: "t"):
@@ -169,7 +169,7 @@ extension Table: PayloadDecodable {
         return table
     }
 
-    private static func readTable(from buffer: inout ByteBuffer)  throws -> (Table, Int)  {
+    static func readTable(from buffer: inout ByteBuffer)  throws -> (Table, Int)  {
         guard let size = buffer.readInteger(as: UInt32.self) else {
             throw ProtocolError.decode(type: UInt32.self, context: self)
         }
@@ -203,7 +203,7 @@ extension Table: PayloadDecodable {
         return (result, 4 + bytesRead)
     }
 
-    private static func readArray(from buffer: inout ByteBuffer) throws -> ([Field], Int) {
+    static func readArray(from buffer: inout ByteBuffer) throws -> ([Field], Int) {
         guard let size = buffer.readInteger(as: UInt32.self) else {
             throw ProtocolError.decode(type: UInt32.self, context: self)
         }
@@ -227,7 +227,7 @@ extension Table: PayloadDecodable {
         return (result, 4 + bytesRead)
     }
 
-    private static func readField(from buffer: inout ByteBuffer) throws -> (Field, Int) {
+    static func readField(from buffer: inout ByteBuffer) throws -> (Field, Int) {
         guard let rawType = buffer.readInteger(as: UInt8.self) else {
             throw ProtocolError.decode(type: UInt8.self, context: self)
         }
@@ -359,7 +359,7 @@ extension Table: PayloadEncodable {
         buffer.setInteger(size, at: startIndex)
     }
 
-    private static func writeArray(values: [Field], into buffer: inout ByteBuffer) throws {
+    static func writeArray(values: [Field], into buffer: inout ByteBuffer) throws {
         let startIndex = buffer.writerIndex
 
         buffer.writeInteger(UInt32(0)) // placeholder for size
@@ -377,7 +377,7 @@ extension Table: PayloadEncodable {
         buffer.setInteger(size, at: startIndex)
     }
 
-    private static func writeField(field: Field, into buffer: inout ByteBuffer) throws {
+    static func writeField(field: Field, into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(field.kind.rawValue)
 
         switch field {

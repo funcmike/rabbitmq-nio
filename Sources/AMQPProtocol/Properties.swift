@@ -1,7 +1,7 @@
 import NIOCore
 
 public struct Properties: PayloadDecodable, PayloadEncodable  {
-    public enum Flag {
+    enum Flag {
         static let contentType      = UInt16(0x8000)
         static let contentEncoding  = UInt16(0x4000)
         static let headers          = UInt16(0x2000)
