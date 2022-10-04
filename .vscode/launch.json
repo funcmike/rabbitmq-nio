@@ -17,6 +17,24 @@
             "args": [],
             "cwd": "${workspaceFolder:rabbitmq-nio}",
             "preLaunchTask": "swift: Build Release rabbitmq-nio"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug AMQPClient",
+            "program": "${workspaceFolder:rabbitmq-nio}/.build/debug/AMQPClient",
+            "args": [],
+            "cwd": "${workspaceFolder:rabbitmq-nio}",
+            "preLaunchTask": "swift: Build Debug AMQPClient"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release AMQPClient",
+            "program": "${workspaceFolder:rabbitmq-nio}/.build/release/AMQPClient",
+            "args": [],
+            "cwd": "${workspaceFolder:rabbitmq-nio}",
+            "preLaunchTask": "swift: Build Release AMQPClient"
         }
     ]
 }

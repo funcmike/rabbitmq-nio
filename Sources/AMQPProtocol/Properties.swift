@@ -18,22 +18,39 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
         static let reserved1        = UInt16(0x0004)
     }
 
-    let contentType: String?
-    let contentEncoding: String?
-    let headers: Table?
-    let deliveryMode: UInt8?
-    let priority: UInt8?
-    let correlationID: String?
-    let replyTo: String?
-    let expiration: String?
-    let messageID: String?
-    let timestamp: Int64?
-    let type: String?
-    let userID: String?
-    let appID: String?
-    let reserved1: String?
+    public let contentType: String?
+    public let contentEncoding: String?
+    public let headers: Table?
+    public let deliveryMode: UInt8?
+    public let priority: UInt8?
+    public let correlationID: String?
+    public let replyTo: String?
+    public let expiration: String?
+    public let messageID: String?
+    public let timestamp: Int64?
+    public let type: String?
+    public let userID: String?
+    public let appID: String?
+    public let reserved1: String?
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public init(contentType: String? = nil, contentEncoding: String? = nil, headers: Table? = nil, deliveryMode: UInt8? = nil, priority: UInt8? = nil, correlationID: String? = nil, replyTo: String? = nil, expiration: String? = nil, messageID: String? = nil, timestamp: Int64? = nil, type: String? = nil, userID: String? = nil, appID: String? = nil, reserved1: String? = nil) {
+        self.contentType = contentType
+        self.contentEncoding = contentEncoding
+        self.headers = headers
+        self.deliveryMode = deliveryMode
+        self.priority = priority
+        self.correlationID = correlationID
+        self.replyTo = replyTo
+        self.expiration = expiration
+        self.messageID = messageID
+        self.timestamp = timestamp
+        self.type = type
+        self.userID = userID
+        self.appID = appID
+        self.reserved1 = reserved1
+    }
+
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let flags = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -155,7 +172,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
                 reserved1: reserved1)
     }
 
-    func encode(into buffer: inout NIOCore.ByteBuffer) throws {
+    public func encode(into buffer: inout NIOCore.ByteBuffer) throws {
         var flags = UInt16(0)
 
         if contentType != nil {

@@ -80,7 +80,7 @@ public enum Field {
         case decimal
         case `nil`
 
-        init?(rawValue: UInt8)
+        public init?(rawValue: UInt8)
         {
             switch rawValue {
             case UInt8(ascii: "t"):
@@ -164,7 +164,7 @@ public enum Field {
 }
 
 extension Table: PayloadDecodable {
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         let (table, _) = try readTable(from: &buffer)
         return table
     }
@@ -335,7 +335,7 @@ extension Table: PayloadDecodable {
 }
 
 extension Table: PayloadEncodable {
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         let startIndex: Int = buffer.writerIndex
 
         buffer.writeInteger(UInt32(0)) // placeholder for size

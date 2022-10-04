@@ -1,10 +1,10 @@
 import NIOCore
 
-protocol PayloadDecodable {
+public protocol PayloadDecodable {
     static func decode(from buffer: inout ByteBuffer) throws -> Self
 }
 
-protocol PayloadEncodable {
+public protocol PayloadEncodable {
     func encode(into buffer: inout ByteBuffer) throws
 }
 
@@ -29,13 +29,13 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    enum Kind {
+    public enum Kind {
         case method
         case header
         case body
         case heartbeat
 
-        init?(rawValue: UInt8)
+        public init?(rawValue: UInt8)
         {
             switch rawValue {
             case 1:
@@ -65,7 +65,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let (type, channelId, size) = buffer.readMultipleIntegers(as: (UInt8, ChannelID, UInt32).self) else {
             throw ProtocolError.decode(type: (UInt8, ChannelID, UInt32).self, context: self)
         }
@@ -101,7 +101,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         return frame
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
         
         switch self {
@@ -137,12 +137,19 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Header: PayloadDecodable, PayloadEncodable {
-        let classID: UInt16
-        let weight: UInt16
-        let bodySize: UInt64
-        let properties: Properties
+        public let classID: UInt16
+        public let weight: UInt16
+        public let bodySize: UInt64
+        public let properties: Properties
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(classID: UInt16, weight: UInt16, bodySize: UInt64, properties: Properties) {
+            self.classID = classID
+            self.weight = weight
+            self.bodySize = bodySize
+            self.properties = properties
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let (classID, weight, bodySize) = buffer.readMultipleIntegers(as: (UInt16, UInt16, UInt64).self) else {
                 throw ProtocolError.decode(type: (UInt16, UInt16, UInt64).self, context: self)
             }
@@ -152,7 +159,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             return Header(classID: classID, weight: weight, bodySize: bodySize, properties: properties)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeMultipleIntegers(classID, weight, bodySize)
             try properties.encode(into: &buffer)
         }
@@ -187,7 +194,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    enum Kind {
+    public enum Kind {
         case connection
         case channel
         case exchange
@@ -196,7 +203,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         case confirm
         case tx
 
-        init?(rawValue: UInt16)
+        public init?(rawValue: UInt16)
         {
             switch rawValue {
             case 10:
@@ -238,7 +245,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let classID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -265,7 +272,7 @@ public enum Method: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
 
         switch self {
@@ -345,7 +352,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
         case blocked
         case unblocked
 
-        init?(rawValue: UInt16)
+        public init?(rawValue: UInt16)
         {
             switch rawValue {
             case 10:
@@ -407,7 +414,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -454,7 +461,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
 
         switch self {
@@ -486,13 +493,13 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Start: PayloadDecodable {
-        let versionMajor: UInt8
-        let versionMinor: UInt8
-        let serverProperties: Table
-        let mechanisms: String
-        let locales: String
+        public let versionMajor: UInt8
+        public let versionMinor: UInt8
+        public let serverProperties: Table
+        public let mechanisms: String
+        public let locales: String
 
-        init(versionMajor: UInt8 = 0, versionMinor: UInt8 = 9, serverProperties: Table = [
+        public init(versionMajor: UInt8 = 0, versionMinor: UInt8 = 9, serverProperties: Table = [
                 "capabilities": .table([
                     "publisher_confirms":           .bool(true),
                     "exchange_exchange_bindings":   .bool(true),
@@ -511,7 +518,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             self.locales = locales
         }
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let (versionMajor, versionMinor)  = buffer.readMultipleIntegers(as: (UInt8, UInt8).self) else {
                 throw ProtocolError.decode(type: (UInt8, UInt8).self, context: self)
             }
@@ -523,7 +530,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return Start(versionMajor: versionMajor, versionMinor: versionMinor, serverProperties: serverProperties, mechanisms: mechanisms, locales: locales)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeMultipleIntegers(versionMajor, versionMinor)
             try serverProperties.encode(into: &buffer)
             try buffer.writeLongString(mechanisms)
@@ -532,12 +539,19 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
     }
 
     public struct StartOk: PayloadDecodable, PayloadEncodable {
-        let clientProperties: Table
-        let mechanism: String
-        let response: String
-        let locale: String
+        public let clientProperties: Table
+        public let mechanism: String
+        public let response: String
+        public let locale: String
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(clientProperties: Table, mechanism: String, response: String, locale: String) {
+            self.clientProperties = clientProperties
+            self.mechanism = mechanism
+            self.response = response
+            self.locale = locale
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             let clientProperties = try Table.decode(from: &buffer)
             let (mechanism, _) =  try buffer.readShortString()
             let (response, _) = try buffer.readLongString()
@@ -546,7 +560,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return StartOk(clientProperties: clientProperties, mechanism: mechanism, response: response, locale: locale)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             try clientProperties.encode(into: &buffer)
             try buffer.writeShortString(mechanism)
             try buffer.writeLongString(response)
@@ -555,18 +569,18 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Open: PayloadDecodable, PayloadEncodable {
-        let vhost: String
-        let reserved1: String
-        let reserved2: Bool
+        public let vhost: String
+        public let reserved1: String
+        public let reserved2: Bool
 
-        init(vhost: String = "/", reserved1: String = "", reserved2: Bool = false)
+        public init(vhost: String = "/", reserved1: String = "", reserved2: Bool = false)
         {
             self.vhost = vhost
             self.reserved1 = reserved1
             self.reserved2 = reserved2
         }
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             let (vhost, _) = try buffer.readShortString()
             let (reserved1, _) = try buffer.readShortString()
 
@@ -577,7 +591,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return Open(vhost: vhost, reserved1: reserved1, reserved2: reserved2 > 0)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             try buffer.writeShortString(vhost)
             try buffer.writeShortString(reserved1)
             buffer.writeInteger(reserved2 ? UInt8(1) : UInt8(0))
@@ -586,12 +600,19 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
 
 
     public struct Close: PayloadDecodable, PayloadEncodable {
-        let replyCode: UInt16
-        let replyText: String
-        let failingClassID: UInt16
-        let failingMethodID: UInt16
+        public let replyCode: UInt16
+        public let replyText: String
+        public let failingClassID: UInt16
+        public let failingMethodID: UInt16
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(replyCode: UInt16, replyText: String, failingClassID: UInt16, failingMethodID: UInt16) {
+            self.replyCode = replyCode
+            self.replyText = replyText
+            self.failingClassID = failingClassID
+            self.failingMethodID = failingMethodID
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let replyCode = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -605,7 +626,7 @@ public enum Connection: PayloadDecodable, PayloadEncodable {
             return Close(replyCode: replyCode, replyText: replyText, failingClassID: failingClassID, failingMethodID: failingMethodID)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(replyCode)
             try buffer.writeShortString(replyText)
             buffer.writeMultipleIntegers(failingClassID, failingMethodID)
@@ -646,7 +667,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
         case close
         case closeOk
 
-        init?(rawValue: UInt16)
+        public init?(rawValue: UInt16)
         {
             switch rawValue {
             case 10:
@@ -684,7 +705,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -717,7 +738,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
 
         switch self {
@@ -737,12 +758,19 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Close: PayloadDecodable, PayloadEncodable {
-        let replyCode: UInt16
-        let replyText: String
-        let classID: UInt16
-        let methodID: UInt16
+        public let replyCode: UInt16
+        public let replyText: String
+        public let classID: UInt16
+        public let methodID: UInt16
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(replyCode: UInt16, replyText: String, classID: UInt16, methodID: UInt16) {
+            self.replyCode = replyCode
+            self.replyText = replyText
+            self.classID = classID
+            self.methodID = methodID
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let replyCode = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -756,7 +784,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             return Close(replyCode: replyCode, replyText: replyText, classID: classID, methodID: methodID)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(replyCode)
             try buffer.writeShortString(replyText)
             buffer.writeMultipleIntegers(classID, methodID)
@@ -805,7 +833,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         case unbind
         case unbindOk
 
-        init?(rawValue: UInt16)
+        public init?(rawValue: UInt16)
         {
             switch rawValue {
             case 10:
@@ -851,7 +879,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -880,7 +908,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
 
         switch self {
@@ -904,17 +932,29 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Declare: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let exchangeName: String
-        let exchangeType: String
-        let passive: Bool
-        let durable: Bool
-        let autoDelete: Bool
-        let `internal`: Bool
-        let noWait: Bool
-        let arguments: Table
+        public let reserved1: UInt16
+        public let exchangeName: String
+        public let exchangeType: String
+        public let passive: Bool
+        public let durable: Bool
+        public let autoDelete: Bool
+        public let `internal`: Bool
+        public let noWait: Bool
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, exchangeName: String, exchangeType: String, passive: Bool, durable: Bool, autoDelete: Bool, `internal`: Bool, noWait: Bool, arguments: Table) {
+            self.reserved1 = reserved1
+            self.exchangeName = exchangeName
+            self.exchangeType = exchangeType
+            self.passive = passive
+            self.durable = durable
+            self.autoDelete = autoDelete
+            self.`internal` = `internal`
+            self.noWait = noWait
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -936,7 +976,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
             return Declare(reserved1: reserved1, exchangeName: exchangeName, exchangeType: exchangeType, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: noWait, arguments: arguments)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(exchangeName)
             try buffer.writeShortString(exchangeType)
@@ -969,12 +1009,19 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Delete: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let exchangeName: String
-        let ifUnused : Bool
-        let noWait: Bool
+        public let reserved1: UInt16
+        public let exchangeName: String
+        public let ifUnused : Bool
+        public let noWait: Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, exchangeName: String, ifUnused: Bool, noWait: Bool) {
+            self.reserved1 = reserved1
+            self.exchangeName = exchangeName
+            self.ifUnused = ifUnused
+            self.noWait = noWait
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -991,7 +1038,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
             return Delete(reserved1: reserved1, exchangeName: exchangeName, ifUnused: ifUnused, noWait: noWait)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(exchangeName)
 
@@ -1010,14 +1057,23 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Bind: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let destination: String
-        let source: String
-        let routingKey: String
-        let noWait: Bool
-        let arguments: Table
+        public let reserved1: UInt16
+        public let destination: String
+        public let source: String
+        public let routingKey: String
+        public let noWait: Bool
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, destination: String, source: String, routingKey: String, noWait: Bool, arguments: Table) {
+            self.reserved1 = reserved1
+            self.destination = destination
+            self.source = source
+            self.routingKey = routingKey
+            self.noWait = noWait
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1036,7 +1092,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
             return Bind(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(destination)
             try buffer.writeShortString(source)
@@ -1047,14 +1103,23 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Unbind: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let destination: String
-        let source: String
-        let routingKey: String
-        let noWait: Bool
-        let arguments: Table
+        public let reserved1: UInt16
+        public let destination: String
+        public let source: String
+        public let routingKey: String
+        public let noWait: Bool
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, destination: String, source: String, routingKey: String, noWait: Bool, arguments: Table) {
+            self.reserved1 = reserved1
+            self.destination = destination
+            self.source = source
+            self.routingKey = routingKey
+            self.noWait = noWait
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1073,7 +1138,7 @@ public enum Exchange: PayloadDecodable, PayloadEncodable{
             return Unbind(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(destination)
             try buffer.writeShortString(source)
@@ -1133,7 +1198,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         case unbind
         case unbindOk
 
-        init?(rawValue: UInt16)
+        public init?(rawValue: UInt16)
         {
             switch rawValue {
             case 10:
@@ -1187,7 +1252,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -1226,7 +1291,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
         
         switch self  {       
@@ -1254,16 +1319,27 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Declare: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queueName : String
-        let passive: Bool
-        let durable: Bool
-        let exclusive: Bool
-        let autoDelete: Bool
-        let noWait: Bool
-        let arguments: Table
+        public let reserved1: UInt16
+        public let queueName : String
+        public let passive: Bool
+        public let durable: Bool
+        public let exclusive: Bool
+        public let autoDelete: Bool
+        public let noWait: Bool
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, queueName: String, passive: Bool, durable: Bool, exclusive: Bool, autoDelete: Bool, noWait: Bool, arguments: Table) {
+            self.reserved1 = reserved1
+            self.queueName = queueName
+            self.passive = passive
+            self.durable = durable
+            self.exclusive = exclusive
+            self.autoDelete = autoDelete
+            self.noWait = noWait
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1284,7 +1360,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return Declare(reserved1: reserved1, queueName: queueName, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: noWait, arguments: arguments)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queueName)
 
@@ -1316,12 +1392,17 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
     }
 
     public struct DeclareOk: PayloadDecodable, PayloadEncodable {
-        let queueName : String
-        let messageCount: UInt32
-        let consumerCount: UInt32
+        public let queueName : String
+        public let messageCount: UInt32
+        public let consumerCount: UInt32
 
+        public init(queueName: String, messageCount: UInt32, consumerCount: UInt32) {
+            self.queueName = queueName
+            self.messageCount = messageCount
+            self.consumerCount = consumerCount
+        }
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             let (queueName, _) = try buffer.readShortString()
 
             guard let (messageCount, consumerCount) = buffer.readMultipleIntegers(as: (UInt32, UInt32).self) else {
@@ -1331,21 +1412,30 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return DeclareOk(queueName: queueName, messageCount: messageCount, consumerCount: consumerCount)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             try buffer.writeShortString(queueName)
             buffer.writeMultipleIntegers(messageCount, consumerCount)
         }
     }
 
     public struct Bind: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queueName : String
-        let exchangeName: String
-        let routingKey : String
-        let noWait: Bool
-        let arguments: Table
+        public let reserved1: UInt16
+        public let queueName : String
+        public let exchangeName: String
+        public let routingKey : String
+        public let noWait: Bool
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        internal init(reserved1: UInt16, queueName: String, exchangeName: String, routingKey: String, noWait: Bool, arguments: Table) {
+            self.reserved1 = reserved1
+            self.queueName = queueName
+            self.exchangeName = exchangeName
+            self.routingKey = routingKey
+            self.noWait = noWait
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1364,7 +1454,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return Bind(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, noWait: noWait, arguments: arguments)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queueName)
             try buffer.writeShortString(exchangeName)
@@ -1375,11 +1465,17 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Purge: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queueName : String
-        let noWait: Bool
+        public let reserved1: UInt16
+        public let queueName : String
+        public let noWait: Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, queueName: String, noWait: Bool) {
+            self.reserved1 = reserved1
+            self.queueName = queueName
+            self.noWait = noWait
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1395,7 +1491,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return Purge(reserved1: reserved1, queueName: queueName, noWait: noWait)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queueName)
             buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
@@ -1404,13 +1500,21 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
 
 
     public struct Delete: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queueName : String
-        let ifUnused: Bool
-        let ifEmpty : Bool
-        let noWait: Bool
+        public let reserved1: UInt16
+        public let queueName : String
+        public let ifUnused: Bool
+        public let ifEmpty : Bool
+        public let noWait: Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, queueName: String, ifUnused: Bool, ifEmpty: Bool, noWait: Bool) {
+            self.reserved1 = reserved1
+            self.queueName = queueName
+            self.ifUnused = ifUnused
+            self.ifEmpty = ifEmpty
+            self.noWait = noWait
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1428,7 +1532,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return Delete(reserved1: reserved1, queueName: queueName, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: noWait)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queueName)
 
@@ -1451,13 +1555,21 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
     }
 
     public struct Unbind: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queueName : String
-        let exchangeName: String
-        let routingKey : String
-        let arguments: Table
+        public let reserved1: UInt16
+        public let queueName : String
+        public let exchangeName: String
+        public let routingKey : String
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, queueName: String, exchangeName: String, routingKey: String, arguments: Table) {
+            self.reserved1 = reserved1
+            self.queueName = queueName
+            self.exchangeName = exchangeName
+            self.routingKey = routingKey
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1470,7 +1582,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
             return Unbind(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, arguments: arguments)
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queueName)
             try buffer.writeShortString(exchangeName)
@@ -1561,7 +1673,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         case recoverOk
         case nack
 
-        init?(rawValue: UInt16) {
+        public init?(rawValue: UInt16) {
             switch rawValue {
             case 10:
                 self = .qos
@@ -1646,7 +1758,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -1713,7 +1825,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
 
         switch self {
@@ -1757,16 +1869,27 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Consume: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queue: String
-        let consumerTag: String
-        let noLocal: Bool
-        let noAck: Bool
-        let exclusive: Bool
-        let noWait: Bool
-        let arguments: Table
+        public let reserved1: UInt16
+        public let queue: String
+        public let consumerTag: String
+        public let noLocal: Bool
+        public let noAck: Bool
+        public let exclusive: Bool
+        public let noWait: Bool
+        public let arguments: Table
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, queue: String, consumerTag: String, noLocal: Bool, noAck: Bool, exclusive: Bool, noWait: Bool, arguments: Table) {
+            self.reserved1 = reserved1
+            self.queue = queue
+            self.consumerTag = consumerTag
+            self.noLocal = noLocal
+            self.noAck = noAck
+            self.exclusive = exclusive
+            self.noWait = noWait
+            self.arguments = arguments
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1787,7 +1910,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Consume (reserved1: reserved1, queue: queue, consumerTag: consumerTag, noLocal: noLocal, noAck: noAck, exclusive: exclusive, noWait: noWait, arguments: arguments)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queue)
             try buffer.writeShortString(consumerTag)
@@ -1816,10 +1939,15 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Cancel: PayloadDecodable, PayloadEncodable {
-        let consumerTag: String
-        let noWait: Bool
+        public let consumerTag: String
+        public let noWait: Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(consumerTag: String, noWait: Bool) {
+            self.consumerTag = consumerTag
+            self.noWait = noWait
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             let (consumerTag, _) = try buffer.readShortString()
 
             guard let noWait = buffer.readInteger(as: UInt8.self) else {
@@ -1829,20 +1957,28 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Cancel(consumerTag: consumerTag, noWait: noWait > 0)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             try buffer.writeShortString(consumerTag)
             buffer.writeInteger(noWait ? UInt8(1) : UInt8(0))
         }
     }
 
     public struct Publish : PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let exchange: String
-        let routingKey: String
-        let mandatory : Bool
-        let immediate : Bool
+        public let reserved1: UInt16
+        public let exchange: String
+        public let routingKey: String
+        public let mandatory : Bool
+        public let immediate : Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, exchange: String, routingKey: String, mandatory: Bool, immediate: Bool) {
+            self.reserved1 = reserved1
+            self.exchange = exchange
+            self.routingKey = routingKey
+            self.mandatory = mandatory
+            self.immediate = immediate
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1860,7 +1996,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Publish (reserved1: reserved1, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(exchange)
             try buffer.writeShortString(routingKey)
@@ -1880,13 +2016,19 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Return: PayloadDecodable, PayloadEncodable {
-        let replyCode: UInt16
-        let replyText: String
-        let exchange: String
-        let routingKey: String
+        public let replyCode: UInt16
+        public let replyText: String
+        public let exchange: String
+        public let routingKey: String
 
+        public init(replyCode: UInt16, replyText: String, exchange: String, routingKey: String) {
+            self.replyCode = replyCode
+            self.replyText = replyText
+            self.exchange = exchange
+            self.routingKey = routingKey
+        }
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let replyCode = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1898,7 +2040,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Return(replyCode: replyCode, replyText: replyText, exchange: exchange, routingKey: routingKey)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(replyCode)
             try buffer.writeShortString(replyText)
             try buffer.writeShortString(exchange)
@@ -1907,14 +2049,21 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Deliver: PayloadDecodable, PayloadEncodable {
-        let consumerTag : String
-        let deliveryTag : UInt64
-        let redelivered: Bool
-        let exchange: String
-        let routingKey: String
+        public let consumerTag : String
+        public let deliveryTag : UInt64
+        public let redelivered: Bool
+        public let exchange: String
+        public let routingKey: String
 
+        public init(consumerTag: String, deliveryTag: UInt64, redelivered: Bool, exchange: String, routingKey: String) {
+            self.consumerTag = consumerTag
+            self.deliveryTag = deliveryTag
+            self.redelivered = redelivered
+            self.exchange = exchange
+            self.routingKey = routingKey
+        }
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             let (consumerTag, _) = try buffer.readShortString()
 
             guard let deliveryTag = buffer.readInteger(as: UInt64.self) else {
@@ -1931,7 +2080,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Deliver(consumerTag: consumerTag, deliveryTag: deliveryTag, redelivered: redelivered > 0, exchange: exchange, routingKey: routingKey)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             try buffer.writeShortString(consumerTag)
             buffer.writeInteger(deliveryTag)
             buffer.writeInteger(redelivered ? UInt8(1) : UInt8(0))
@@ -1941,11 +2090,17 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Get: PayloadDecodable, PayloadEncodable {
-        let reserved1: UInt16
-        let queue: String
-        let noAck: Bool
+        public let reserved1: UInt16
+        public let queue: String
+        public let noAck: Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(reserved1: UInt16, queue: String, noAck: Bool) {
+            self.reserved1 = reserved1
+            self.queue = queue
+            self.noAck = noAck
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let reserved1 = buffer.readInteger(as: UInt16.self) else {
                 throw ProtocolError.decode(type: UInt16.self, context: self)
             }
@@ -1959,7 +2114,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Get(reserved1: reserved1, queue: queue, noAck: noAck > 0)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(reserved1)
             try buffer.writeShortString(queue)
             buffer.writeInteger(noAck ? UInt8(1) : UInt8(0))
@@ -1967,14 +2122,21 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct GetOk: PayloadDecodable, PayloadEncodable {
-        let deliveryTag : UInt64
-        let redelivered: Bool
-        let exchange: String
-        let routingKey: String
-        let messageCount: UInt32
+        public let deliveryTag : UInt64
+        public let redelivered: Bool
+        public let exchange: String
+        public let routingKey: String
+        public let messageCount: UInt32
 
+        public init(deliveryTag: UInt64, redelivered: Bool, exchange: String, routingKey: String, messageCount: UInt32) {
+            self.deliveryTag = deliveryTag
+            self.redelivered = redelivered
+            self.exchange = exchange
+            self.routingKey = routingKey
+            self.messageCount = messageCount
+        }
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let deliveryTag = buffer.readInteger(as: UInt64.self) else {
                 throw ProtocolError.decode(type: UInt64.self, context: self)
             }
@@ -1993,7 +2155,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return GetOk(deliveryTag: deliveryTag, redelivered: redelivered > 0,  exchange: exchange, routingKey: routingKey, messageCount: messageCount)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(deliveryTag)
             buffer.writeInteger(redelivered ? UInt8(1) : UInt8(0))
             try buffer.writeShortString(exchange)
@@ -2003,11 +2165,17 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
     }
 
     public struct Nack: PayloadDecodable, PayloadEncodable {
-        let deliveryTag : UInt64
-        let multiple: Bool
-        let requeue: Bool
+        public let deliveryTag : UInt64
+        public let multiple: Bool
+        public let requeue: Bool
 
-        static func decode(from buffer: inout ByteBuffer) throws -> Self {
+        public init(deliveryTag: UInt64, multiple: Bool, requeue: Bool) {
+            self.deliveryTag = deliveryTag
+            self.multiple = multiple
+            self.requeue = requeue
+        }
+
+        public static func decode(from buffer: inout ByteBuffer) throws -> Self {
             guard let (deliveryTag, bits)  = buffer.readMultipleIntegers(as: (UInt64,  UInt8).self) else {
                 throw ProtocolError.decode(type: (UInt64,  UInt8).self, context: self)
             }
@@ -2018,7 +2186,7 @@ public enum Basic: PayloadDecodable, PayloadEncodable {
             return Nack(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)       
         }
 
-        func encode(into buffer: inout ByteBuffer) throws {
+        public func encode(into buffer: inout ByteBuffer) throws {
             buffer.writeInteger(deliveryTag)
 
             var bits = UInt8(0)
@@ -2053,7 +2221,7 @@ public enum Confirm: PayloadDecodable, PayloadEncodable {
         case select
         case selectOk
 
-        init?(rawValue: UInt16) {
+        public init?(rawValue: UInt16) {
             switch rawValue {
             case 10:
                 self = .select
@@ -2074,7 +2242,7 @@ public enum Confirm: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -2094,7 +2262,7 @@ public enum Confirm: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
 
         switch self {
@@ -2139,7 +2307,7 @@ public enum Tx: PayloadDecodable, PayloadEncodable {
         case rollback
         case rollbackOk
 
-        init?(rawValue: UInt16) {
+        public init?(rawValue: UInt16) {
             switch rawValue {
             case 10:
                 self = .select
@@ -2176,7 +2344,7 @@ public enum Tx: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    static func decode(from buffer: inout ByteBuffer) throws -> Self {
+    public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let methodID = buffer.readInteger(as: UInt16.self) else {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
@@ -2201,7 +2369,7 @@ public enum Tx: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    func encode(into buffer: inout ByteBuffer) throws {
+    public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
     }
 }

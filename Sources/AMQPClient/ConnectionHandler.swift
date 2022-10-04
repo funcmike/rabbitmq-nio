@@ -1,5 +1,6 @@
 
 import NIOCore
+import AMQPProtocol
 
 public struct ConnectionHandler: BufferHandler {
     func sendActive(buffer: inout NIOCore.ByteBuffer) throws {
@@ -16,7 +17,7 @@ public struct ConnectionHandler: BufferHandler {
                 switch method {
                 case .connection(let connection):
                     switch connection {
-                    case .start:
+                    case .start(let start):
                             let clientProperties: Table = [
                                 "connection_name": .longString("test"),
                                 "product": .longString("rabbitmq-nio"),
