@@ -66,7 +66,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
     }
 
     public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-        guard let (type, channelId, size) = buffer.readMultipleIntegers(as: (UInt8, ChannelID, UInt32).self) else {
+        guard let (type, channelID, size) = buffer.readMultipleIntegers(as: (UInt8, ChannelID, UInt32).self) else {
             throw ProtocolError.decode(type: (UInt8, ChannelID, UInt32).self, context: self)
         }
 
@@ -78,16 +78,16 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
         switch kind {
         case .method:
-            frame = try Self.method(channelId, .decode(from: &buffer))
+            frame = try Self.method(channelID, .decode(from: &buffer))
         case .header:
-            frame = try Self.header(channelId, .decode(from: &buffer))
+            frame = try Self.header(channelID, .decode(from: &buffer))
         case .body:
             guard let body = buffer.readBytes(length: Int(size)) else {
                 throw ProtocolError.decode(type: [UInt8].self, context: self)
             }
-            frame = Self.body(channelId, body: body)
+            frame = Self.body(channelID, body: body)
         case .heartbeat:
-            frame = Self.heartbeat(channelId)
+            frame = Self.heartbeat(channelID)
         }
 
         guard let frameEnd = buffer.readInteger(as: UInt8.self) else {
