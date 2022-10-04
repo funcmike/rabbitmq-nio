@@ -35,14 +35,14 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
 
     static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let flags = buffer.readInteger(as: UInt16.self) else {
-            throw ProtocolError.decode(param: "flags", type: UInt16.self)
+            throw ProtocolError.decode(type: UInt16.self, context: self)
         }
 
         var invalid = true || flags & 1 << 0 > 0
         invalid = invalid || flags & 2 << 0 > 0
 
         guard !invalid else {
-            throw ProtocolError.invalid(param: "flags", value: flags)
+            throw ProtocolError.invalid(value: flags, context: self)
         }
 
         var contentType: String? = nil
@@ -67,7 +67,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
 
         if flags & Flag.deliveryMode > 0 {
             guard let v = buffer.readInteger(as: UInt8.self) else {
-                throw ProtocolError.decode(param: "deliveryMode", type: UInt8.self)
+                throw ProtocolError.decode(type: UInt8.self, context: self)
             }
             deliveryMode = v
         }
@@ -76,7 +76,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
 
         if flags & Flag.priority > 0 {
             guard let v = buffer.readInteger(as: UInt8.self) else {
-                throw ProtocolError.decode(param: "priority", type: UInt8.self)
+                throw ProtocolError.decode(type: UInt8.self, context: self)
             }
             priority = v
         }
@@ -109,7 +109,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
 
         if flags & Flag.timestamp > 0 {
             guard let v = buffer.readInteger(as: Int64.self) else {
-                throw ProtocolError.decode(param: "timestamp", type: Int64.self)
+                throw ProtocolError.decode(type: Int64.self, context: self)
             }
             timestamp = v
         }

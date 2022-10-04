@@ -40,8 +40,8 @@ public struct ConnectionHandler: BufferHandler {
                             buffer.clear()
 
                             try! response.encode(into: &buffer)
-                    case .tune(let tune):
-                            let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(Connection.TuneOk(channelMax: tune.channelMax, frameMax: tune.frameMax, heartbeat: tune.heartbeat))))
+                    case .tune(let channelMax, let frameMax, let heartbeat):
+                            let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
 
                             buffer.clear()
 
