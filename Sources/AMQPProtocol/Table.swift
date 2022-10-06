@@ -169,7 +169,7 @@ extension Table: PayloadDecodable {
         return table
     }
 
-    static func readTable(from buffer: inout ByteBuffer)  throws -> (Table, Int)  {
+    static func readTable(from buffer: inout ByteBuffer)  throws -> (Table, Int) {
         guard let size = buffer.readInteger(as: UInt32.self) else {
             throw ProtocolError.decode(type: UInt32.self, context: self)
         }
