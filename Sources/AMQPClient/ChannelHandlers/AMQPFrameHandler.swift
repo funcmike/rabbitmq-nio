@@ -9,7 +9,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
     private let state: ConnectionState = .start
     private var encoder: BufferedFrameEncoder!
-    private let decoder: NIOSingleStepByteToMessageProcessor<AMQPFrameDecoder> = NIOSingleStepByteToMessageProcessor(AMQPFrameDecoder())
+    private let decoder = NIOSingleStepByteToMessageProcessor(AMQPFrameDecoder())
 
 
     func handlerAdded(context: ChannelHandlerContext) {
