@@ -10,12 +10,30 @@
       }
     },
     {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "f504716c27d2e5d4144fa4794b12129301d17729",
+        "version" : "1.0.3"
+      }
+    },
+    {
       "identity" : "swift-nio",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio.git",
       "state" : {
-        "revision" : "b4e0a274f7f34210e97e2f2c50ab02a10b549250",
-        "version" : "2.41.1"
+        "revision" : "bc4c55b9f9584f09eb971d67d956e28d08caa9d0",
+        "version" : "2.43.1"
+      }
+    },
+    {
+      "identity" : "swift-nio-ssl",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-nio-ssl.git",
+      "state" : {
+        "revision" : "ba7c0d7f82affc518147ea61d240330bf7f7ea9b",
+        "version" : "2.22.1"
       }
     }
   ],

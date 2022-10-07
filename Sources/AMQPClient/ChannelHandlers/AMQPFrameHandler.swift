@@ -7,7 +7,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     public typealias OutboundIn = Frame
     public typealias OutboundOut = ByteBuffer
 
-    private let state: ConnectionState = .start
+    private let state: ConnectionState = .connecting
     private var encoder: BufferedFrameEncoder!
     private let decoder = NIOSingleStepByteToMessageProcessor(AMQPFrameDecoder())
 
@@ -100,7 +100,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             var buffer = context.channel.allocator.buffer(capacity: PROTOCOL_START_0_9_1.count)
             buffer.writeBytes(PROTOCOL_START_0_9_1)
             context.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
-        case .start(let channelId, let user, let pass):
+        case .start(let channelID, let user, let pass):
             let clientProperties: Table = [
                 "connection_name": .longString("test"),
                 "product": .longString("rabbitmq-nio"),
@@ -117,7 +117,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 ])
             ]
 
-            let startOk = Frame.method(channelId, Method.connection(Connection.startOk(Connection.StartOk(
+            let startOk = Frame.method(channelID, Method.connection(Connection.startOk(Connection.StartOk(
                 clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(pass)", locale: "en_US"))))
             try! self.encoder.encode(startOk)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)

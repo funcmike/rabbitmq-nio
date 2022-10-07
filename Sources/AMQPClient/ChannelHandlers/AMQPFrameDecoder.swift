@@ -12,8 +12,7 @@ struct AMQPFrameDecoder: NIOSingleStepByteToMessageDecoder {
         let startReaderIndex = buffer.readerIndex
 
         do {
-            let frame = try Frame.decode(from: &buffer)
-            return frame
+            return try Frame.decode(from: &buffer)
         } catch let error as ProtocolError {
             buffer.moveReaderIndex(to: startReaderIndex)
             throw ClientError.protocol(error)

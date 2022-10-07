@@ -2,7 +2,7 @@ import AMQPProtocol
 
 
 enum ConnectionState {
-    case start
+    case connecting
 
     enum ConnectionAction {
         case initStart

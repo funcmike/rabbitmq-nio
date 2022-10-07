@@ -11,7 +11,8 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0")
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.43.1"),
+        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.22.1")
     ],
     targets: [
         .target(name: "AMQPProtocol"),
@@ -22,6 +23,7 @@ let package = Package(
             dependencies: [
                 "AMQPProtocol",
                 .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOSSL", package: "swift-nio-ssl"),
             ]),
         .testTarget(
             name: "rabbitmq-nioTests",
