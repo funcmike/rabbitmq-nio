@@ -1,7 +1,7 @@
 import NIO
 import NIOConcurrencyHelpers
 
-struct MQTTListeners<ReturnType> {
+struct AMQPListeners<ReturnType> {
     typealias Listener = (Result<ReturnType, Error>) -> Void
 
     private let lock = NIOLock()

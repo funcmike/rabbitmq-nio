@@ -8,7 +8,7 @@ public class AMQPClient {
     let eventLoopGroupProvider: NIOEventLoopGroupProvider
     private let isShutdown = ManagedAtomic(false)
     let config: Configuration
-    var shutdownListeners = MQTTListeners<Void>()
+    var shutdownListeners = AMQPListeners<Void>()
     private var _connection: AMQPConnection?
     private var lock = NIOLock()
     
