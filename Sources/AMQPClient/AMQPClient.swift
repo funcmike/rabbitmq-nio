@@ -2,6 +2,7 @@ import Atomics
 import NIO
 import Dispatch
 import NIOConcurrencyHelpers
+import AMQPProtocol
 
 public class AMQPClient {
     let eventLoopGroup: EventLoopGroup
@@ -36,12 +37,33 @@ public class AMQPClient {
         }
     }
 
-    public func connect() -> EventLoopFuture<Void> {
-        let connectFuture = AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
-        return connectFuture
-            .map { connection  in 
+    public func connect() ->  EventLoopFuture<Void> {
+        return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
+            .flatMap { connection  in 
                 self.connection = connection
-                ()
+                connection.closeFuture().whenComplete { result in
+                    if self.connection === connection {
+                        self.connection = nil
+                    }
+                }
+                return connection.sendBytes(bytes: PROTOCOL_START_0_9_1, immediate: true)
+            }
+            .flatMapThrowing { response in
+                guard case .connection(let connection) = response, case .connected = connection else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return ()
+            }
+    }
+
+    public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
+        let responsePromise = self.connection!.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
+        return responsePromise
+            .flatMapThrowing  { response in 
+                guard case .connection(let connection) = response, case .channelOpened(let channelID) = connection, id == channelID else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return AMQPChannel(channelID: channelID)
             }
     }
 

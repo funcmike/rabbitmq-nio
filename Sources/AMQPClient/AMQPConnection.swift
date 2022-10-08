@@ -4,14 +4,16 @@ import AMQPProtocol
 
 final class AMQPConnection {
     let channel: NIO.Channel
+    let eventLoopGroup: EventLoopGroup
 
-    init(channel: NIO.Channel) {
+    init(channel: NIO.Channel, eventLoopGroup: EventLoopGroup) {
         self.channel = channel
+        self.eventLoopGroup = eventLoopGroup
     }
 
     static func create(use eventLoopGroup: EventLoopGroup, from config: Configuration) -> EventLoopFuture<AMQPConnection> {
         return self.boostrapChannel(use: eventLoopGroup, from: config)
-            .map { AMQPConnection(channel: $0) }
+            .map { AMQPConnection(channel: $0, eventLoopGroup: eventLoopGroup) }
     }
 
     static func boostrapChannel(use eventLoopGroup: EventLoopGroup, from config: Configuration) -> EventLoopFuture<NIO.Channel> {
@@ -34,9 +36,10 @@ final class AMQPConnection {
                 .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
                 .connectTimeout(serverConfig.timeout)
                 .channelInitializer { channel in
-                    channel.pipeline.addHandler(AMQPFrameHandler())
+                    channel.pipeline.addHandler(AMQPFrameHandler(config: serverConfig))
                 }
                 .connect(host: serverConfig.host, port: serverConfig.port)
+                .map { channelPromise.succeed($0) }
                 .cascadeFailure(to: channelPromise)
         } catch {
             channelPromise.fail(error)
@@ -61,8 +64,24 @@ final class AMQPConnection {
         }        
     }
 
-    func sendFrameNoWait(_ frame: AMQPProtocol.Frame) -> EventLoopFuture<Void> {
-        return self.channel.writeAndFlush(frame)
+    func sendBytes(eventLoop: EventLoop? = nil, bytes: [UInt8], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return sendFrame(eventLoop: eventLoop, outbound: .bytes(bytes), immediate: immediate)
+    }
+
+
+    func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return sendFrame(eventLoop: eventLoop, outbound: .frame(frame), immediate: immediate)
+    }
+
+    private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPFrameHandler.AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        let eventLoop = eventLoop ?? self.eventLoopGroup.any()
+        let promise = eventLoop.makePromise(of: AMQPResponse.self)
+        let outboundData = (outbound, promise)
+
+        let writeFuture = immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
+
+        return writeFuture
+            .flatMap{ promise.futureResult }
     }
 
     func close() -> EventLoopFuture<Void> {

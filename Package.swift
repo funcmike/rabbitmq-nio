@@ -15,7 +15,11 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.22.1")
     ],
     targets: [
-        .target(name: "AMQPProtocol"),
+        .target(
+            name: "AMQPProtocol",
+            dependencies: [
+                .product(name: "NIOCore", package: "swift-nio"),
+            ]),
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .executableTarget(

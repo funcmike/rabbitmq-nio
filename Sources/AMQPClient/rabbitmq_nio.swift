@@ -28,20 +28,20 @@ func setupEventloop(arguments: [String]) {
     let client: AMQPClient
 
     if let target = connectTarget {
-        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(Configuration.Server(
-             host: target.0, port: target.1)))
+        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(Configuration.Server(host: target.0, port: target.1, user: "vxos", password: "vxos")))
     } else {
-         client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(Configuration.Server()))
+        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(Configuration.Server(user: "vxos", password: "vxos")))
     }
 
     defer {
         client.shutdown({error  in return ()})
     }
 
-    let result = client.connect()
-    try! result.wait()
-    
+    let result =  try! client.connect().wait()
 
+
+    let channelResult = try! client.openChannel(id: 1).wait()
+   
     try! client.closeFuture()?.wait()
     print("Client closed")
 }

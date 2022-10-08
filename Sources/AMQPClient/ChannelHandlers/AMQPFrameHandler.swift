@@ -2,24 +2,38 @@ import NIO
 import AMQPProtocol
 
 internal final class AMQPFrameHandler: ChannelDuplexHandler  {
+    enum AMQPOutbound {
+        case frame(Frame)
+        case bytes([UInt8])
+    }
+
     public typealias InboundIn = ByteBuffer
     public typealias InboundOut  = Frame
-    public typealias OutboundIn = Frame
+
+    public typealias OutboundCommandPayload = (outbound: AMQPOutbound, responsePromise: EventLoopPromise<AMQPResponse>)
+
+    public typealias OutboundIn = OutboundCommandPayload
     public typealias OutboundOut = ByteBuffer
 
     private let state: ConnectionState = .connecting
     private var encoder: BufferedFrameEncoder!
     private let decoder = NIOSingleStepByteToMessageProcessor(AMQPFrameDecoder())
+    
+    private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
+    private var channels: [Frame.ChannelID: AMQPChannelHandler] = [:]
+    private var channelMax: UInt16?
 
+    private let config: Configuration.Server
+
+    init(config: Configuration.Server, initialQueueCapacity: Int = 3) {
+        self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
+        self.config = config
+    }
 
     func handlerAdded(context: ChannelHandlerContext) {
         self.encoder = BufferedFrameEncoder(
             buffer: context.channel.allocator.buffer(capacity: 256)
         )
-        
-        if context.channel.isActive {
-            self.connected(context: context)
-        }
     }
 
     public func channelActive(context: ChannelHandlerContext) {
@@ -29,8 +43,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         // since we want to make sure that upstream handlers know about the active connection before
         // it receives a         
         context.fireChannelActive()
-
-        self.connected(context: context)
     }
 
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
@@ -45,24 +57,38 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 switch frame {
                 case .method(let channelID, let method): 
                     switch method {
-                        case .connection(let connection):
-                            switch connection {
-                            case .start(_):
-                                action = .start(channelID: channelID, user: "vxos", pass: "vxos")
-                            case .tune(let channelMax, let frameMax, let heartbeat):
-                                action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: "/")
-                            case .openOk:
-                                action = .none
-                            default:
-                                action = .none
-                            }
+                    case .connection(let connection):
+                        switch connection {
+                        case .start(_):
+                            action = .start(channelID: channelID, user: config.user, pass: config.password)
+                        case .tune(let channelMax, let frameMax, let heartbeat):
+                            action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: config.vhost)
+                        case .openOk:
+                            action = .connected
                         default:
                             action = .none
+                        }
+                    case .basic(let basic):
+                        switch basic {
+                        case .deliver, .getEmpty, .getOk, .return, .ack, .nack, .cancel:
+                            action = .channel(channelID, frame)//
+                        default:
+                            action = .none
+                        }
+                    case .channel(let channel):
+                        switch channel {
+                        case .openOk:
+                            action = .channelOpen(channelID)
+                        case .flow, .close:
+                            action = .channel(channelID, frame)
+                        default:
+                            action = .none
+                        }
+                    default:
+                            action = .none
                     }
-                case .body(_, _):
-                    action = .none
-                case .header(_, _): 
-                    action = .none
+                case .header(let channelID, _), .body(let channelID, _):
+                    action = .channel(channelID, frame)
                 case .heartbeat(let channelID): 
                     action = .heartbeat(channelID: channelID)
                 }
@@ -77,29 +103,52 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        let frame = self.unwrapOutboundIn(data)
+        let (outbound, responsePromise) = self.unwrapOutboundIn(data)
 
-        do {
-            try self.encoder.encode(frame)
-            context.write(wrapOutboundOut(self.encoder.flush()), promise: promise)
-            print("write", frame)
-        } catch {
-            promise?.fail(error)
+        switch outbound {
+        case .frame(let frame): 
+            print("write outbound frame", frame)
+    
+            do {
+                try self.encoder.encode(frame)
+            } catch {
+                responsePromise.fail(error)
+                promise?.fail(error)
+                return
+            }
+
+            let channelID = frame.channelID
+
+            if channelID == 0  {
+                self.responseQueue.append(responsePromise)
+            } else if isMethodChannelOpen(frame: frame) {
+                guard let limit = self.channelMax, (limit == 0 || self.channels.count < limit) else {
+                    responsePromise.fail(ClientError.tooManyOpenedChannels)
+                    return
+                }
+                self.responseQueue.append(responsePromise) 
+            } else if var channel = self.channels[channelID] {
+                channel.append(promise: responsePromise)
+            }
+        case .bytes(let bytes):
+            print("write outbound bytes", bytes)
+
+            self.responseQueue.append(responsePromise)
+            self.encoder.write(from: bytes)
+        }
+
+        return context.write(wrapOutboundOut(self.encoder.flush()), promise: promise)
+
+        func isMethodChannelOpen(frame: Frame) -> Bool {
+            if case .method(_, let method) = frame, case .channel(let channel) = method, case .open = channel {
+                return true
+            }
+            return false
         }
     }
 
-    func connected(context: ChannelHandlerContext) {
-        self.run(.initStart, with: context)
-    }
-
     func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) {
-        print("got action", action)
-
         switch action {
-        case .initStart:
-            var buffer = context.channel.allocator.buffer(capacity: PROTOCOL_START_0_9_1.count)
-            buffer.writeBytes(PROTOCOL_START_0_9_1)
-            context.writeAndFlush(self.wrapOutboundOut(buffer), promise: nil)
         case .start(let channelID, let user, let pass):
             let clientProperties: Table = [
                 "connection_name": .longString("test"),
@@ -121,7 +170,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(pass)", locale: "en_US"))))
             try! self.encoder.encode(startOk)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
-            print("send frame", startOk)
         case .none:
             ()
         case .close:
@@ -134,13 +182,24 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             try! self.encoder.encode(open)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
 
-            print("send frame", tuneOk)
-            print("send frame", open)
+            self.channelMax = channelMax
         case .heartbeat(let channelID):
             let heartbeat: Frame = Frame.heartbeat(channelID)
             try! self.encoder.encode(heartbeat)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
-            print("send frame", heartbeat)
+        case .channel(let channelID, let frame):
+            if var channel = self.channels[channelID] {
+                channel.processFrame(frame: frame)
+            }
+        case .channelOpen(let channelID):
+            if let promise =  responseQueue.popFirst() {
+                self.channels[channelID] = AMQPChannelHandler(channelID: channelID)
+                promise.succeed(.connection(.channelOpened(channelID)))
+            }
+        case .connected:
+            if let promise =  responseQueue.popFirst() {
+                promise.succeed(.connection(.connected))
+            }
         }
     }
     
