@@ -92,7 +92,6 @@ final class AMQPConnection {
         }
     }
 
-    //TODO: remove after client will be used normally
     func closeFuture() -> EventLoopFuture<Void> {
         return self.channel.closeFuture
     }

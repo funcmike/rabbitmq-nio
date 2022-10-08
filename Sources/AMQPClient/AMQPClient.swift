@@ -123,7 +123,6 @@ public class AMQPClient {
         self.shutdownListeners.removeListener(named: name)
     }
 
-    //TODO: remove after client will be used normally
     public func closeFuture() -> EventLoopFuture<Void>? {
         return self._connection?.closeFuture()
     }
