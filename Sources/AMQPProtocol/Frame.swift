@@ -16,6 +16,19 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
     case body(ChannelID, body: [UInt8])
     case heartbeat(ChannelID)
 
+    public var channelID: ChannelID {
+        switch self {
+        case .method(let id, _):
+            return id
+        case .header(let id, _):
+            return id
+        case .body(let id, _):
+            return id
+        case .heartbeat(let id):
+            return id
+        }
+    }
+
     var kind: Kind {
         switch self {
         case .method:
