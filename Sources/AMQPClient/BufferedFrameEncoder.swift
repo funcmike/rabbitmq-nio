@@ -14,21 +14,32 @@ struct BufferedFrameEncoder {
         self.buffer = buffer
     }
 
+    @usableFromInline
     mutating func write(from bytes: [UInt8]) {
         self.prepare()
         self.buffer.writeBytes(bytes)
     }
     
+    @usableFromInline
     mutating func encode(_ frame: Frame) throws {
         self.prepare()
-        try frame.encode(into: &self.buffer)
+        do
+        {
+            try frame.encode(into: &self.buffer)
+        }
+        catch {
+            self.buffer.clear()
+            throw error
+        }
     }
     
+    @usableFromInline
     mutating func flush() -> ByteBuffer {
         self.state = .flushed
         return self.buffer
     }
 
+    @usableFromInline
     mutating func prepare() {
         switch self.state {
         case .flushed:

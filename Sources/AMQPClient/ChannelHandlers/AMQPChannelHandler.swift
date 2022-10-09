@@ -2,21 +2,23 @@ import NIO
 import AMQPProtocol
 
 
-internal struct AMQPChannelHandler {
+internal final class AMQPChannelHandler {
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var nextMessage: (properties: Properties, body: [UInt8]?)?
+    private var closePromise: EventLoopPromise<Void>
 
-    init(channelID: Frame.ChannelID, initialQueueCapacity: Int = 3) {
+    init(channelID: Frame.ChannelID, closePromise: EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
         self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
         self.channelID = channelID
+        self.closePromise = closePromise
     }
 
-    mutating func append(promise: EventLoopPromise<AMQPResponse>) {
+    func append(promise: EventLoopPromise<AMQPResponse>) {
         self.responseQueue.append(promise)
     }
 
-    mutating func processFrame(frame: Frame) {
+    func processFrame(frame: Frame) {
         switch frame {
         case .method(let channelID, let method): 
             guard self.channelID == channelID else {
@@ -28,7 +30,7 @@ internal struct AMQPChannelHandler {
                 switch basic {
                 case .getOk(let get):
                     if  let promise = self.responseQueue.popFirst() , let msg = nextMessage {
-                        promise.succeed(.message(.get(AMQPMessage.Get(
+                        promise.succeed(.channel(.message(.get(.init(
                             message: AMQPMessage.Delivery(
                                 exchange: get.exchange,
                                 routingKey: get.routingKey,
@@ -36,13 +38,25 @@ internal struct AMQPChannelHandler {
                                 properties: msg.properties,
                                 redelivered: get.redelivered,
                                 body: msg.body ?? [UInt8]()),
-                            messageCount: get.messageCount))))
+                            messageCount: get.messageCount)))))
                     }
                 default:
                     return
                 }
-            case .channel(_):
-                ()
+            case .channel(let channel):
+                switch channel {   
+                case .openOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.opened(channelID: channelID, closeFuture: closePromise.futureResult)))
+                    }
+                case .closeOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.closed(self.channelID)))
+                        closePromise.succeed(())
+                    }
+                default:
+                    return
+                }
             default:
                 return
             }

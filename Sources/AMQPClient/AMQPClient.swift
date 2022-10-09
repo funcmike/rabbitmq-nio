@@ -7,12 +7,13 @@ import AMQPProtocol
 public class AMQPClient {
     let eventLoopGroup: EventLoopGroup
     let eventLoopGroupProvider: NIOEventLoopGroupProvider
-    private let isShutdown = ManagedAtomic(false)
     let config: Configuration
+
+    private let isShutdown = ManagedAtomic(false)
     var shutdownListeners = AMQPListeners<Void>()
-    private var _connection: AMQPConnection?
+
     private var lock = NIOLock()
-    
+    private var _connection: AMQPConnection?
     var connection: AMQPConnection? {
         get {
             self.lock.withLock {
@@ -57,13 +58,12 @@ public class AMQPClient {
     }
 
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
-        let responsePromise = self.connection!.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
-        return responsePromise
+        return self.connection!.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
-                guard case .connection(let connection) = response, case .channelOpened(let channelID) = connection, id == channelID else {
+                guard case .channel(let channel) = response, case .opened(let channelID, let closeFuture) = channel, id == channelID else {
                     throw ClientError.invalidResponse(response)
                 }
-                return AMQPChannel(channelID: channelID)
+                return AMQPChannel(channelID: channelID, connection: self.connection!, channelCloseFuture: closeFuture)
             }
     }
 

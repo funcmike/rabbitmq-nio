@@ -1,17 +1,18 @@
 import NIO
 import NIOPosix
+import Foundation
 
 @main
 public struct rabbitmq_nio {
     public private(set) var text = "Hello, World!"
 
-    public static func main() {
+    public  static func main() async {
         print(rabbitmq_nio().text)
-        setupEventloop(arguments: CommandLine.arguments)
+        await setupEventloop(arguments: CommandLine.arguments)
     }
 }
 
-func setupEventloop(arguments: [String]) {
+func setupEventloop(arguments: [String]) async {
     let arg1 = arguments.dropFirst().first
     let arg2 = arguments.dropFirst(2).first
 
@@ -37,11 +38,24 @@ func setupEventloop(arguments: [String]) {
         client.shutdown({error  in return ()})
     }
 
-    let result =  try! client.connect().wait()
+    try! client.connect().wait()
 
 
     let channelResult = try! client.openChannel(id: 1).wait()
-   
+
+
+    let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
+
+    let start = Date()
+
+    for _ in 1 ... 1000000  {
+        try! await channelResult.basicPublish(body: test, exchange: "", routingKey: "test")
+    }
+
+    let stop = Date()
+
+    print(1000000.0/start.distance(to: stop))
+
     try! client.closeFuture()?.wait()
     print("Client closed")
 }

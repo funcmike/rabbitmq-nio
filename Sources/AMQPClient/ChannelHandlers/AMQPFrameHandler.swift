@@ -4,13 +4,14 @@ import AMQPProtocol
 internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     enum AMQPOutbound {
         case frame(Frame)
+        case bulk([Frame])
         case bytes([UInt8])
     }
 
     public typealias InboundIn = ByteBuffer
     public typealias InboundOut  = Frame
 
-    public typealias OutboundCommandPayload = (outbound: AMQPOutbound, responsePromise: EventLoopPromise<AMQPResponse>)
+    public typealias OutboundCommandPayload = (outbound: AMQPOutbound, responsePromise: EventLoopPromise<AMQPResponse>?)
 
     public typealias OutboundIn = OutboundCommandPayload
     public typealias OutboundOut = ByteBuffer
@@ -77,15 +78,13 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                         }
                     case .channel(let channel):
                         switch channel {
-                        case .openOk:
-                            action = .channelOpen(channelID)
-                        case .flow, .close:
+                        case .openOk, .flow, .close:
                             action = .channel(channelID, frame)
                         default:
                             action = .none
                         }
                     default:
-                            action = .none
+                        action = .none
                     }
                 case .header(let channelID, _), .body(let channelID, _):
                     action = .channel(channelID, frame)
@@ -112,39 +111,77 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             do {
                 try self.encoder.encode(frame)
             } catch {
-                responsePromise.fail(error)
+                responsePromise?.fail(error)
                 promise?.fail(error)
+                return
+            }
+
+            guard processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
                 return
             }
 
             let channelID = frame.channelID
 
-            if channelID == 0  {
-                self.responseQueue.append(responsePromise)
-            } else if isMethodChannelOpen(frame: frame) {
-                guard let limit = self.channelMax, (limit == 0 || self.channels.count < limit) else {
-                    responsePromise.fail(ClientError.tooManyOpenedChannels)
+            if let promise = responsePromise {
+                if channelID == 0  {
+                    self.responseQueue.append(promise) 
+                } else if let channel = self.channels[channelID] {
+                    channel.append(promise: promise)
+                }
+            }
+        case .bulk(let frames):            
+            var channelID: Frame.ChannelID?
+
+            for frame in frames {
+                channelID = frame.channelID
+
+                do {
+                    try self.encoder.encode(frame)
+                } catch {
+                    responsePromise?.fail(error)
+                    promise?.fail(error)
                     return
                 }
-                self.responseQueue.append(responsePromise) 
-            } else if var channel = self.channels[channelID] {
-                channel.append(promise: responsePromise)
+
+                guard processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
+                    return
+                }
+            }
+
+            if let promise = responsePromise, let id = channelID {
+                if id == 0  {
+                    self.responseQueue.append(promise)
+                } else if let channel = self.channels[id] {
+                    channel.append(promise: promise)
+                }
             }
         case .bytes(let bytes):
             print("write outbound bytes", bytes)
 
-            self.responseQueue.append(responsePromise)
+            if let promise = responsePromise {
+                self.responseQueue.append(promise)
+            }
+
             self.encoder.write(from: bytes)
         }
 
-        return context.write(wrapOutboundOut(self.encoder.flush()), promise: promise)
+        context.write(wrapOutboundOut(self.encoder.flush()), promise: promise)
+    }
 
-        func isMethodChannelOpen(frame: Frame) -> Bool {
-            if case .method(_, let method) = frame, case .channel(let channel) = method, case .open = channel {
-                return true
+   func processChannelOpen(context: ChannelHandlerContext, frame: Frame, responsePromise: EventLoopPromise<AMQPResponse>?, promise:  EventLoopPromise<Void>?) -> Bool {
+        if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
+
+            guard let limit = self.channelMax, (limit == 0 || self.channels.count < limit) else {
+                responsePromise?.fail(ClientError.tooManyOpenedChannels)
+                promise?.fail(ClientError.tooManyOpenedChannels)
+                return false
             }
-            return false
+
+            let closePromise = context.eventLoop.makePromise(of: Void.self)
+            self.channels[channelID] = AMQPChannelHandler(channelID: channelID, closePromise: closePromise)
         }
+
+        return true
     }
 
     func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) {
@@ -166,7 +203,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 ])
             ]
 
-            let startOk = Frame.method(channelID, Method.connection(Connection.startOk(Connection.StartOk(
+            let startOk = Frame.method(channelID, .connection(.startOk(.init(
                 clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(pass)", locale: "en_US"))))
             try! self.encoder.encode(startOk)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
@@ -175,10 +212,10 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         case .close:
             ()
         case .tuneOpen(let channelMax, let frameMax, let heartbeat, let vhost):
-            let tuneOk: Frame = Frame.method(0, Method.connection(Connection.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
+            let tuneOk: Frame = Frame.method(0, .connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
             try! self.encoder.encode(tuneOk)
 
-            let open: Frame = Frame.method(0, Method.connection(Connection.open(Connection.Open(vhost: vhost))))
+            let open: Frame = Frame.method(0, .connection(.open(.init(vhost: vhost))))
             try! self.encoder.encode(open)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
 
@@ -188,17 +225,12 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             try! self.encoder.encode(heartbeat)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
         case .channel(let channelID, let frame):
-            if var channel = self.channels[channelID] {
+            if let channel = self.channels[channelID] {
                 channel.processFrame(frame: frame)
-            }
-        case .channelOpen(let channelID):
-            if let promise =  responseQueue.popFirst() {
-                self.channels[channelID] = AMQPChannelHandler(channelID: channelID)
-                promise.succeed(.connection(.channelOpened(channelID)))
             }
         case .connected:
             if let promise =  responseQueue.popFirst() {
-                promise.succeed(.connection(.connected))
+                promise.succeed(.connection(.connected(channelMax: channelMax!)))
             }
         }
     }

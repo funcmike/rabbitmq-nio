@@ -2,11 +2,17 @@ import NIO
 import AMQPProtocol
 
 public enum AMQPResponse {
-    case message(AMQPMessage)
+    case channel(Channel)
     case connection(Connection)
 
+    public enum Channel {
+        case opened(channelID: Frame.ChannelID, closeFuture: EventLoopFuture<Void>)
+        case closed(Frame.ChannelID)
+        case message(AMQPMessage)
+        case published
+    }
+
     public enum Connection {
-        case connected
-        case channelOpened(Frame.ChannelID)
+        case connected(channelMax: UInt16)
     }
 }

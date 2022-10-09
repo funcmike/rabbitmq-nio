@@ -73,10 +73,15 @@ final class AMQPConnection {
         return sendFrame(eventLoop: eventLoop, outbound: .frame(frame), immediate: immediate)
     }
 
+    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
+        let outboundData: AMQPFrameHandler.OutboundCommandPayload = (AMQPFrameHandler.AMQPOutbound.bulk(frames), nil)
+        return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
+    }
+
     private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPFrameHandler.AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
         let eventLoop = eventLoop ?? self.eventLoopGroup.any()
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
-        let outboundData = (outbound, promise)
+        let outboundData: AMQPFrameHandler.OutboundCommandPayload = (outbound, promise)
 
         let writeFuture = immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
 
