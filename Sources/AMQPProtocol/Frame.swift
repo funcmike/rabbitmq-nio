@@ -141,6 +141,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         case .body(let channelID, let body):
             let size = UInt32(body.count)
             buffer.writeMultipleIntegers(channelID, size)
+            buffer.writeBytes(body)
         case .heartbeat(let channelID):
             let size = UInt32(0)
             buffer.writeMultipleIntegers(channelID, size)
@@ -733,7 +734,7 @@ public enum Channel: PayloadDecodable, PayloadEncodable {
             return .open(reserved1: reserved1)
         case .openOk:
            let (reserved1, _) = try buffer.readLongString()
-            return .open(reserved1: reserved1)                
+            return .openOk(reserved1: reserved1)                
         case .flow:
             guard let active = buffer.readInteger(as: UInt8.self) else {
                 throw ProtocolError.decode(type: UInt8.self, context: self)
