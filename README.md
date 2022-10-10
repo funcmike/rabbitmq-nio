@@ -1,6 +1,6 @@
 # RabbitMQNIO
 
-A Swift implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) and client (AMQPClient).
+A Swift implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) and non-blocking client (AMQPClient).
 
 Heavy inspired by projects: amq-protocol (https://github.com/cloudamqp/amq-protocol.cr) and amqp-client (https://github.com/cloudamqp/amqp-client.cr).
 
@@ -11,8 +11,10 @@ Swift-NIO related code is based on other NIO projects like:
 
 ## State of the project
 
-Repository it's in very early stage and everything can change in the near future.
-Please don't use it until first release.
+**!!! WARNING !!!** <br>
+This project is in very early stage and still under heavy development so everything can change in the near future. <br>
+Please don't use it until first release! <br>
+**!!! WARNING !!!**
 
 AMQPProtocol library currently should cover all of AMQP 0.9.1 specification.
 
