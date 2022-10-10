@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the RabbitMQNIO project
+//
+// Copyright (c) 2022 Krzysztof Majk
+// Licensed under Apache License v2.0
+//
+// See LICENSE.txt for license information
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 // Shamelessly taken from https://github.com/apple/swift-distributed-actors/blob/3483d424eb66d54d772b27622c2e2978514fc87e/Sources/DistributedActorsActor/utils.swift
 /**
  * `undefined()` pretends to be able to produce a value of any type `T` which can
