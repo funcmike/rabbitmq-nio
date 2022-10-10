@@ -1,7 +1,7 @@
 import NIO
 import AMQPProtocol
 
-struct AMQPFrameDecoder: NIOSingleStepByteToMessageDecoder {
+internal struct AMQPFrameDecoder: NIOSingleStepByteToMessageDecoder {
     mutating func decodeLast(buffer: inout ByteBuffer, seenEOF: Bool) throws -> Frame? {
         try self.decode(buffer: &buffer)
     }

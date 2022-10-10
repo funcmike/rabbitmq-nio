@@ -2,9 +2,9 @@ import NIO
 import NIOSSL
 import AMQPProtocol
 
-final class AMQPConnection {
-    let channel: NIO.Channel
-    let eventLoopGroup: EventLoopGroup
+internal final class AMQPConnection {
+    private let channel: NIO.Channel
+    private let eventLoopGroup: EventLoopGroup
 
     init(channel: NIO.Channel, eventLoopGroup: EventLoopGroup) {
         self.channel = channel
@@ -68,7 +68,6 @@ final class AMQPConnection {
         return sendFrame(eventLoop: eventLoop, outbound: .bytes(bytes), immediate: immediate)
     }
 
-
     func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
         return sendFrame(eventLoop: eventLoop, outbound: .frame(frame), immediate: immediate)
     }
@@ -76,6 +75,10 @@ final class AMQPConnection {
     func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
         let outboundData: AMQPFrameHandler.OutboundCommandPayload = (AMQPFrameHandler.AMQPOutbound.bulk(frames), nil)
         return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
+    }
+
+    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return sendFrame(eventLoop: eventLoop, outbound: .bulk(frames), immediate: immediate)
     }
 
     private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPFrameHandler.AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
@@ -92,9 +95,8 @@ final class AMQPConnection {
     func close() -> EventLoopFuture<Void> {
         if self.channel.isActive {
             return self.channel.close()
-        } else {
-            return self.channel.eventLoop.makeSucceededFuture(())
-        }
+        } 
+        return self.channel.eventLoop.makeSucceededFuture(())
     }
 
     func closeFuture() -> EventLoopFuture<Void> {

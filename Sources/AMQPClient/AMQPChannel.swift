@@ -2,8 +2,8 @@ import NIO
 import NIOConcurrencyHelpers
 import AMQPProtocol
 
-public class AMQPChannel {
-    let channelID: Frame.ChannelID
+public final class AMQPChannel {
+    public let channelID: Frame.ChannelID
 
     private var lock = NIOLock()
     private var _connection: AMQPConnection?
@@ -37,44 +37,14 @@ public class AMQPChannel {
         }
     }
 
-    public func ack(deliveryTag: UInt64, multiple: Bool = false) {
-
-    }
-
-    public func ack(message: AMQPMessage.Delivery,  multiple: Bool = false) {
-        self.ack(deliveryTag: message.deliveryTag, multiple: multiple)
-    }
-
-    public func nack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) {
-
-    }
-
-    public func nack(message: AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) {
-        self.nack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
-    }
-
-    public func reject(deliveryTag: UInt64, requeue: Bool = false) {
-
-    }
-
-    public func reject(message: AMQPMessage.Delivery, requeue: Bool = false) {
-        self.reject(deliveryTag: message.deliveryTag, requeue: requeue)
-    }
-
     public func basicGet(queue: String, noAck: Bool = true) -> AMQPMessage.Get? {
-        return nil
+        return TODO("implement basic get")
     }
-
-    public func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws  {
-        try await self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
-    }
-
 
     public func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
         let body = body.getBytes(at: 0, length: body.readableBytes)!
         return self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
     }
-
 
     public func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
         let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
@@ -92,5 +62,29 @@ public class AMQPChannel {
             }
             ()
         }
+    }
+
+    public func ack(deliveryTag: UInt64, multiple: Bool = false) {
+        return TODO("implement ack")
+    }
+
+    public func ack(message: AMQPMessage.Delivery,  multiple: Bool = false) {
+        self.ack(deliveryTag: message.deliveryTag, multiple: multiple)
+    }
+
+    public func nack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) {
+        return TODO("implement nack")
+    }
+
+    public func nack(message: AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) {
+        self.nack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
+    }
+
+    public func reject(deliveryTag: UInt64, requeue: Bool = false) {
+        return TODO("implement reject")
+    }
+
+    public func reject(message: AMQPMessage.Delivery, requeue: Bool = false) {
+        self.reject(deliveryTag: message.deliveryTag, requeue: requeue)
     }
 }

@@ -4,7 +4,7 @@ import Dispatch
 import NIOConcurrencyHelpers
 import AMQPProtocol
 
-public class AMQPClient {
+public final class AMQPClient {
     let eventLoopGroup: EventLoopGroup
     let eventLoopGroupProvider: NIOEventLoopGroupProvider
     let config: Configuration
@@ -27,7 +27,7 @@ public class AMQPClient {
         }
     }
 
-    internal init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: Configuration) {
+    public init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: Configuration) {
         self.config = config
         self.eventLoopGroupProvider = eventLoopGroupProvider
         switch eventLoopGroupProvider {

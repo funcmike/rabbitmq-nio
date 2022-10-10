@@ -1,7 +1,7 @@
 import NIOCore
 import AMQPProtocol
 
-struct BufferedFrameEncoder {
+internal struct BufferedFrameEncoder {
     private enum State {
         case flushed
         case writable
@@ -15,9 +15,9 @@ struct BufferedFrameEncoder {
     }
 
     @usableFromInline
-    mutating func write(from bytes: [UInt8]) {
+    mutating func writeBytes(from bytes: [UInt8]) -> Int {
         self.prepare()
-        self.buffer.writeBytes(bytes)
+        return self.buffer.writeBytes(bytes)
     }
     
     @usableFromInline

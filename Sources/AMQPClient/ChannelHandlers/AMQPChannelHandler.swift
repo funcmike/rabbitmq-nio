@@ -1,7 +1,6 @@
 import NIO
 import AMQPProtocol
 
-
 internal final class AMQPChannelHandler {
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
@@ -15,7 +14,7 @@ internal final class AMQPChannelHandler {
     }
 
     func append(promise: EventLoopPromise<AMQPResponse>) {
-        self.responseQueue.append(promise)
+        return self.responseQueue.append(promise)
     }
 
     func processFrame(frame: Frame) {

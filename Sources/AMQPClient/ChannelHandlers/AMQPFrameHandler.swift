@@ -37,16 +37,16 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         )
     }
 
-    public func channelActive(context: ChannelHandlerContext) {
+    func channelActive(context: ChannelHandlerContext) {
         print("Client connected to \(context.remoteAddress!)")
         
         // `fireChannelActive` needs to be called BEFORE we set the state machine to connected,
         // since we want to make sure that upstream handlers know about the active connection before
         // it receives a         
-        context.fireChannelActive()
+        return context.fireChannelActive()
     }
 
-    public func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
         let buffer = self.unwrapInboundIn(data)
         
         do {
@@ -116,7 +116,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 return
             }
 
-            guard processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
+            guard self.processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
                 return
             }
 
@@ -130,11 +130,9 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 }
             }
         case .bulk(let frames):            
-            var channelID: Frame.ChannelID?
+            let channelID = frames.first?.channelID
 
             for frame in frames {
-                channelID = frame.channelID
-
                 do {
                     try self.encoder.encode(frame)
                 } catch {
@@ -143,7 +141,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     return
                 }
 
-                guard processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
+                guard self.processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
                     return
                 }
             }
@@ -162,13 +160,21 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 self.responseQueue.append(promise)
             }
 
-            self.encoder.write(from: bytes)
+            _ = self.encoder.writeBytes(from: bytes)
         }
 
-        context.write(wrapOutboundOut(self.encoder.flush()), promise: promise)
+        return context.write(wrapOutboundOut(self.encoder.flush()), promise: promise)
     }
 
-   func processChannelOpen(context: ChannelHandlerContext, frame: Frame, responsePromise: EventLoopPromise<AMQPResponse>?, promise:  EventLoopPromise<Void>?) -> Bool {
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        print("error: ", error)
+
+        // As we are not really interested getting notified on success or failure we just pass nil as promise to
+        // reduce allocations.
+        return context.close(promise: nil)
+    }
+
+    private func processChannelOpen(context: ChannelHandlerContext, frame: Frame, responsePromise: EventLoopPromise<AMQPResponse>?, promise:  EventLoopPromise<Void>?) -> Bool {
         if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
 
             guard let limit = self.channelMax, (limit == 0 || self.channels.count < limit) else {
@@ -184,7 +190,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         return true
     }
 
-    func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) {
+    private func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) {
         switch action {
         case .start(let channelID, let user, let pass):
             let clientProperties: Table = [
@@ -233,13 +239,5 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 promise.succeed(.connection(.connected(channelMax: channelMax!)))
             }
         }
-    }
-    
-    public func errorCaught(context: ChannelHandlerContext, error: Error) {
-        print("error: ", error)
-
-        // As we are not really interested getting notified on success or failure we just pass nil as promise to
-        // reduce allocations.
-        context.close(promise: nil)
     }
 }

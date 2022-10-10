@@ -1,7 +1,6 @@
 import AMQPProtocol
 
-
-enum ConnectionState {
+internal enum ConnectionState {
     case connecting
 
     enum ConnectionAction {
