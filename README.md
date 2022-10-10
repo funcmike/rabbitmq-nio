@@ -1,6 +1,6 @@
 # RabbitMQNIO
 
-An implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) and client (AMQPClient).
+A Swift implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) and client (AMQPClient).
 
 Heavy inspired by projects: amq-protocol (https://github.com/cloudamqp/amq-protocol.cr) and amqp-client (https://github.com/cloudamqp/amqp-client.cr).
 
