@@ -23,7 +23,6 @@ public final class AMQPClient {
     let config: Configuration
 
     private let isShutdown = ManagedAtomic(false)
-    var shutdownListeners = AMQPListeners<Void>()
 
     private var lock = NIOLock()
     private var _connection: AMQPConnection?
@@ -43,6 +42,7 @@ public final class AMQPClient {
     public init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: Configuration) {
         self.config = config
         self.eventLoopGroupProvider = eventLoopGroupProvider
+
         switch eventLoopGroupProvider {
         case .createNew:
             self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -85,15 +85,16 @@ public final class AMQPClient {
             callback(ClientError.alreadyShutdown)
             return
         }
+
         let eventLoop = self.eventLoopGroup.next()
         let closeFuture: EventLoopFuture<Void>
 
-        self.shutdownListeners.notify(.success(()))
         if let connection = self.connection {
             closeFuture = connection.close()
         } else {
             closeFuture = eventLoop.makeSucceededVoidFuture()
         }
+
         closeFuture.whenComplete { result in
             let closeError: Error?
             switch result {
@@ -106,7 +107,7 @@ public final class AMQPClient {
             case .success:
                 closeError = nil
             }
-            self.shutdownListeners.notify(.success(()))
+
             self.shutdownEventLoopGroup(queue: queue) { error in
                 callback(closeError ?? error)
             }
@@ -123,17 +124,6 @@ public final class AMQPClient {
         case .createNew:
             self.eventLoopGroup.shutdownGracefully(queue: queue, callback)
         }
-    }
-
-
-    /// Add shutdown listener. Called whenever the client is shutdown
-    public func addShutdownListener(named name: String, _ listener: @escaping (Result<Void, Swift.Error>) -> Void) {
-        self.shutdownListeners.addListener(named: name, listener: listener)
-    }
-
-    /// Remove named shutdown listener
-    public func removeShutdownListener(named name: String) {
-        self.shutdownListeners.removeListener(named: name)
     }
 
     public func closeFuture() -> EventLoopFuture<Void>? {
