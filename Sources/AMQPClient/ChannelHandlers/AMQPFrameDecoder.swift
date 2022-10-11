@@ -28,7 +28,7 @@ internal struct AMQPFrameDecoder: NIOSingleStepByteToMessageDecoder {
             return try Frame.decode(from: &buffer)
         } catch let error as ProtocolError {
             buffer.moveReaderIndex(to: startReaderIndex)
-            throw ClientError.protocol(error)
+            throw error
         } catch {
             preconditionFailure("Expected to only see `ProtocolError`s here.")
         }

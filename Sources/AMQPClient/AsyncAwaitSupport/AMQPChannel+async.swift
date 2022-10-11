@@ -15,6 +15,10 @@ import NIO
 import AMQPProtocol
 
 public extension AMQPChannel {
+    func basicGet(queue: String, noAck: Bool = true) async throws -> AMQPMessage.Get? {
+        return try await self.basicGet(queue: queue, noAck: noAck).get()
+    }
+
     func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws {
         return try await self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
     }

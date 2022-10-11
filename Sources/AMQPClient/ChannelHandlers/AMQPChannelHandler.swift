@@ -17,7 +17,7 @@ import AMQPProtocol
 internal final class AMQPChannelHandler {
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
-    private var nextMessage: (properties: Properties, body: [UInt8]?)?
+    private var nextMessage: (getOk: Basic.GetOk, properties: Properties?)?
     private var closePromise: EventLoopPromise<Void>
 
     init(channelID: Frame.ChannelID, closePromise: EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
@@ -33,25 +33,13 @@ internal final class AMQPChannelHandler {
     func processFrame(frame: Frame) {
         switch frame {
         case .method(let channelID, let method): 
-            guard self.channelID == channelID else {
-                preconditionFailure("Invalid channelID")
-            }
+            guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
 
             switch method {
             case .basic(let basic):
                 switch basic {
-                case .getOk(let get):
-                    if  let promise = self.responseQueue.popFirst() , let msg = nextMessage {
-                        promise.succeed(.channel(.message(.get(.init(
-                            message: AMQPMessage.Delivery(
-                                exchange: get.exchange,
-                                routingKey: get.routingKey,
-                                deliveryTag: get.deliveryTag,
-                                properties: msg.properties,
-                                redelivered: get.redelivered,
-                                body: msg.body ?? [UInt8]()),
-                            messageCount: get.messageCount)))))
-                    }
+                case .getOk(let getOk):
+                    self.nextMessage = (getOk: getOk, properties: nil)
                 default:
                     return
                 }
@@ -73,17 +61,30 @@ internal final class AMQPChannelHandler {
                 return
             }
         case .header(let channelID, let header):
-            guard self.channelID == channelID else {
-                preconditionFailure("Invalid channelID")
-            }
-    
-            self.nextMessage = (properties: header.properties, body:  nil)
-        case .body(let channelID, let body):
-            guard self.channelID == channelID else {
-                preconditionFailure("Invalid channelID")
-            }
+            guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
 
-            self.nextMessage?.body = body
+            self.nextMessage?.properties = header.properties
+        case .body(let channelID, let body):
+            guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
+
+            if let promise = self.responseQueue.popFirst() {
+                guard let msg = nextMessage, let properties = msg.properties else {
+                    promise.fail(ClientError.invalidMessage)
+                    return
+                }
+
+                promise.succeed(.channel(.message(.get(.init(
+                    message: AMQPMessage.Delivery(
+                        exchange: msg.getOk.exchange,
+                        routingKey: msg.getOk.routingKey,
+                        deliveryTag: msg.getOk.deliveryTag,
+                        properties: properties,
+                        redelivered: msg.getOk.redelivered,
+                        body: body),
+                    messageCount: msg.getOk.messageCount)))))
+
+                nextMessage = nil
+            }
         default:
             return
         }

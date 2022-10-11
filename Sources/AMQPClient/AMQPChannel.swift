@@ -52,13 +52,22 @@ public final class AMQPChannel {
         }
     }
 
-    public func basicGet(queue: String, noAck: Bool = true) -> AMQPMessage.Get? {
-        return TODO("implement basic get")
+    public func basicGet(queue: String, noAck: Bool = true) -> EventLoopFuture<AMQPMessage.Get?> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.get(.init(reserved1: 0, queue: queue, noAck: noAck)))), immediate: true)
+            .flatMapThrowing { response in 
+                guard case .channel(let channel) = response, case .message(let message) = channel, case .get(let get) = message else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return get
+            }
     }
 
 
     public func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
-        let body = body.getBytes(at: 0, length: body.readableBytes)!
+        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.invalidBody) }
+
         return self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
     }
 

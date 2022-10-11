@@ -79,7 +79,7 @@ public final class AMQPClient {
                     throw ClientError.invalidResponse(response)
                 }
 
-                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, connection: self.connection!, channelCloseFuture: closeFuture)
+                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, connection: connection, channelCloseFuture: closeFuture)
             }
     }
 

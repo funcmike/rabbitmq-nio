@@ -59,15 +59,31 @@ func setupEventloop(arguments: [String]) async {
 
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
-    let start = Date()
+    let startProduce = Date()
 
-    for _ in 1 ... 1000000  {
+    for _ in 1 ... 100000  {
         try! await channelResult.basicPublish(body: test, exchange: "", routingKey: "test")
+    }
+
+    let stopProduce = Date()
+
+    print(100000.0/startProduce.distance(to: stopProduce))
+
+
+    let start = Date()
+    for _ in 1 ... 100000  {
+        do
+        {
+            let message = try await channelResult.basicGet(queue: "test")
+            //print("got messge", message as Any)
+        } catch {
+            print("error", error)
+        }
     }
 
     let stop = Date()
 
-    print(1000000.0/start.distance(to: stop))
+    print(100000.0/start.distance(to: stop))
 
     try! client.closeFuture()?.wait()
     print("Client closed")

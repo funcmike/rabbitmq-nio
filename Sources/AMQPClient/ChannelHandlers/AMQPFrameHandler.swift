@@ -51,7 +51,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     }
 
     func channelActive(context: ChannelHandlerContext) {
-        print("Client connected to \(context.remoteAddress!)")
+        print("Client connected to \(context.remoteAddress as Any)")
         
         // `fireChannelActive` needs to be called BEFORE we set the state machine to connected,
         // since we want to make sure that upstream handlers know about the active connection before
@@ -61,7 +61,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
         let buffer = self.unwrapInboundIn(data)
-        
+
         do {
             try self.decoder.process(buffer: buffer) { frame in
                 print("got frame", frame)
@@ -85,7 +85,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     case .basic(let basic):
                         switch basic {
                         case .deliver, .getEmpty, .getOk, .return, .ack, .nack, .cancel:
-                            action = .channel(channelID, frame)//
+                            action = .channel(channelID, frame)
                         default:
                             action = .none
                         }
@@ -104,11 +104,11 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 case .heartbeat(let channelID): 
                     action = .heartbeat(channelID: channelID)
                 }
-                self.run(action, with: context)
+
+                try self.run(action, with: context)
             }
         } catch let error as ProtocolError {
-            let action = self.state.errorHappened(error)
-            self.run(action, with: context)
+            processError(buffer: buffer, error: error, context: context)
         } catch {
             preconditionFailure("Expected to only get ProtocolError from the AMQPFrameDecoder.")
         }
@@ -203,7 +203,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         return true
     }
 
-    private func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) {
+    private func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) throws {
         switch action {
         case .start(let channelID, let user, let pass):
             let clientProperties: Table = [
@@ -224,7 +224,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
             let startOk = Frame.method(channelID, .connection(.startOk(.init(
                 clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(pass)", locale: "en_US"))))
-            try! self.encoder.encode(startOk)
+            try self.encoder.encode(startOk)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
         case .none:
             ()
@@ -232,25 +232,34 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             ()
         case .tuneOpen(let channelMax, let frameMax, let heartbeat, let vhost):
             let tuneOk: Frame = Frame.method(0, .connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
-            try! self.encoder.encode(tuneOk)
+            try self.encoder.encode(tuneOk)
 
             let open: Frame = Frame.method(0, .connection(.open(.init(vhost: vhost))))
-            try! self.encoder.encode(open)
+            try self.encoder.encode(open)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
 
             self.channelMax = channelMax
         case .heartbeat(let channelID):
             let heartbeat: Frame = Frame.heartbeat(channelID)
-            try! self.encoder.encode(heartbeat)
+            try self.encoder.encode(heartbeat)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
         case .channel(let channelID, let frame):
             if let channel = self.channels[channelID] {
                 channel.processFrame(frame: frame)
             }
         case .connected:
+            guard let limit = channelMax else {
+                preconditionFailure("Required channelMax")
+            }
+
             if let promise =  responseQueue.popFirst() {
-                promise.succeed(.connection(.connected(channelMax: channelMax!)))
+                promise.succeed(.connection(.connected(channelMax: limit)))
             }
         }
+    }
+
+    private func processError(buffer: ByteBuffer, error: ProtocolError, context: ChannelHandlerContext) {
+        print("cannot encode", error)
+        return TODO("implement error handling")
     }
 }
