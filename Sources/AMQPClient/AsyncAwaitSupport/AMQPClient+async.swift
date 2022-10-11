@@ -23,6 +23,10 @@ public extension AMQPClient {
         return try await self.openChannel(id: id).get()
     }
 
+    func close(reason: String = "", code: UInt16 = 200) async throws {
+        return try await self.close(reason: reason, code: code).get()
+    }
+
     func shutdown(queue: DispatchQueue = .global()) async throws {
         return try await withUnsafeThrowingContinuation { cont in
             shutdown(queue: queue) { error in

@@ -83,6 +83,18 @@ public final class AMQPClient {
             }
     }
 
+    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))
+        .flatMapThrowing { response in
+            guard case .channel(let channel) = response, case .closed = channel else {
+                throw ClientError.invalidResponse(response)
+            }
+            ()
+        }
+    }
+
     public func shutdown(queue: DispatchQueue = .global(), _ callback: @escaping (Error?) -> Void) {
         guard self.isShutdown.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
             callback(ClientError.alreadyShutdown)
