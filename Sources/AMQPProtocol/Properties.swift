@@ -68,7 +68,7 @@ public struct Properties: PayloadDecodable, PayloadEncodable  {
             throw ProtocolError.decode(type: UInt16.self, context: self)
         }
 
-        var invalid = true || flags & 1 << 0 > 0
+        var invalid = false || flags & 1 << 0 > 0
         invalid = invalid || flags & 2 << 0 > 0
 
         guard !invalid else {
