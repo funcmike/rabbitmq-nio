@@ -18,7 +18,7 @@ internal enum ConnectionState {
     case connected
 
     enum ConnectionAction {
-        case start(channelID: Frame.ChannelID, user: String, pass: String)
+        case start(channelID: Frame.ChannelID, user: String, password: String, connectionName: String)
         case tuneOpen(channelMax: UInt16, frameMax: UInt32, heartbeat: UInt16, vhost: String)
         case heartbeat(channelID: Frame.ChannelID)
         case channel(Frame.ChannelID, Frame)

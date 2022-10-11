@@ -73,7 +73,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     case .connection(let connection):
                         switch connection {
                         case .start(_):
-                            action = .start(channelID: channelID, user: config.user, pass: config.password)
+                            action = .start(channelID: channelID, user: config.user, password: config.password, connectionName: config.connectionName)
                         case .tune(let channelMax, let frameMax, let heartbeat):
                             action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: config.vhost)
                         case .openOk:
@@ -202,9 +202,9 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
     private func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) throws {
         switch action {
-        case .start(let channelID, let user, let pass):
+        case .start(let channelID, let user, let password, let connectionName):
             let clientProperties: Table = [
-                "connection_name": .longString("test"),
+                "connection_name": .longString(connectionName),
                 "product": .longString("rabbitmq-nio"),
                 "platform": .longString("Swift"),
                 "version":  .longString("0.1"),
@@ -220,7 +220,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             ]
 
             let startOk = Frame.method(channelID, .connection(.startOk(.init(
-                clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(pass)", locale: "en_US"))))
+                clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(password)", locale: "en_US"))))
             try self.encoder.encode(startOk)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
         case .tuneOpen(let channelMax, let frameMax, let heartbeat, let vhost):

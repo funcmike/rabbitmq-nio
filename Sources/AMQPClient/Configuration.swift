@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import NIOSSL
 import NIO
 
@@ -25,14 +26,16 @@ public enum Configuration {
         let password: String
         let vhost: String
         let timeout: TimeAmount
+        let connectionName: String
 
-        public init(host: String = "localhost", port: Int = 5672, user: String = "guest", password: String = "guest", vhost: String = "/", timeout: TimeAmount = TimeAmount.seconds(60)) {
+        public init(host: String = "localhost", port: Int = 5672, user: String = "guest", password: String = "guest", vhost: String = "/", timeout: TimeAmount = TimeAmount.seconds(60), connectionName: String = ((Bundle.main.executablePath ?? "RabbitMQNIO") as NSString).lastPathComponent) {
             self.host = host
             self.port = port
             self.user = user
             self.password = password
             self.vhost = vhost
             self.timeout = timeout
+            self.connectionName = connectionName
         }
     }
 }
