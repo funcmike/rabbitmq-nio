@@ -49,11 +49,13 @@ internal final class AMQPChannelHandler {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.opened(channelID: channelID, closeFuture: closePromise.futureResult)))
                     }
+                case .close(let close):
+                    self.shutdown(error: ClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.closed(self.channelID)))
-                        closePromise.succeed(())
                     }
+                    self.shutdown(error: ClientError.channelClosed())
                 default:
                     return
                 }
@@ -88,5 +90,13 @@ internal final class AMQPChannelHandler {
         default:
             return
         }
+    }
+
+    func shutdown(error: Error) {
+        let queue = self.responseQueue
+        self.responseQueue.removeAll()
+
+        queue.forEach { $0.fail(error) }
+        closePromise.succeed(())
     }
 }

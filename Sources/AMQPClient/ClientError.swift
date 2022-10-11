@@ -16,8 +16,9 @@ import AMQPProtocol
 public enum ClientError: Error {
     case alreadyShutdown
     case tooManyOpenedChannels
-    case invalidResponse(AMQPResponse)
-    case connectionClosed
+    case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
+    case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case invalidBody
     case invalidMessage
+    case invalidResponse(AMQPResponse)
 }

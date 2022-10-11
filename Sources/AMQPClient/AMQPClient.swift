@@ -71,7 +71,7 @@ public final class AMQPClient {
     }
 
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed) }
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 

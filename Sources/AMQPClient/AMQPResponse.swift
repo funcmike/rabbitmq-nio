@@ -27,5 +27,6 @@ public enum AMQPResponse {
 
     public enum Connection {
         case connected(channelMax: UInt16)
+        case closed
     }
 }

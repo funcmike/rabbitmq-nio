@@ -22,7 +22,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     }
 
     public typealias InboundIn = ByteBuffer
-    public typealias InboundOut  = Frame
 
     public typealias OutboundCommandPayload = (outbound: AMQPOutbound, responsePromise: EventLoopPromise<AMQPResponse>?)
 
@@ -64,7 +63,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
         do {
             try self.decoder.process(buffer: buffer) { frame in
-                print("got frame", frame)
+                //print("got frame", frame)
 
                 let action: ConnectionState.ConnectionAction
 
@@ -79,25 +78,27 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                             action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: config.vhost)
                         case .openOk:
                             action = .connected
-                        default:
+                        case .close(let close):
+                            action = .close(replyCode: close.replyCode, replyText: close.replyText)
+                        case .closeOk:
+                            action = .closeOk
+                        case .blocked, .unblocked:
+                            //TODO: implement
                             action = .none
-                        }
-                    case .basic(let basic):
-                        switch basic {
-                        case .deliver, .getEmpty, .getOk, .return, .ack, .nack, .cancel:
-                            action = .channel(channelID, frame)
                         default:
                             action = .none
                         }
                     case .channel(let channel):
                         switch channel {
-                        case .openOk, .flow, .close:
-                            action = .channel(channelID, frame)
+                        case .close:
+                            action = .channelClose(channelID, frame)
+                        case .closeOk:
+                            action = .channelCloseOk(channelID, frame)                        
                         default:
-                            action = .none
+                            action = .channel(channelID, frame)
                         }
                     default:
-                        action = .none
+                        action = .channel(channelID, frame)
                     }
                 case .header(let channelID, _), .body(let channelID, _):
                     action = .channel(channelID, frame)
@@ -108,7 +109,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 try self.run(action, with: context)
             }
         } catch let error as ProtocolError {
-            processError(buffer: buffer, error: error, context: context)
+            self.shutdown(context: context, error: error)
         } catch {
             preconditionFailure("Expected to only get ProtocolError from the AMQPFrameDecoder.")
         }
@@ -119,7 +120,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
         switch outbound {
         case .frame(let frame): 
-            print("write outbound frame", frame)
+            //print("write outbound frame", frame)
     
             do {
                 try self.encoder.encode(frame)
@@ -167,7 +168,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 }
             }
         case .bytes(let bytes):
-            print("write outbound bytes", bytes)
+            //print("write outbound bytes", bytes)
 
             if let promise = responsePromise {
                 self.responseQueue.append(promise)
@@ -180,11 +181,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        print("error: ", error)
-
-        // As we are not really interested getting notified on success or failure we just pass nil as promise to
-        // reduce allocations.
-        return context.close(promise: nil)
+        return self.shutdown(context: context, error: error)
     }
 
     private func processChannelOpen(context: ChannelHandlerContext, frame: Frame, responsePromise: EventLoopPromise<AMQPResponse>?, promise:  EventLoopPromise<Void>?) -> Bool {
@@ -226,10 +223,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(pass)", locale: "en_US"))))
             try self.encoder.encode(startOk)
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
-        case .none:
-            ()
-        case .close:
-            ()
         case .tuneOpen(let channelMax, let frameMax, let heartbeat, let vhost):
             let tuneOk: Frame = Frame.method(0, .connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
             try self.encoder.encode(tuneOk)
@@ -239,14 +232,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
 
             self.channelMax = channelMax
-        case .heartbeat(let channelID):
-            let heartbeat: Frame = Frame.heartbeat(channelID)
-            try self.encoder.encode(heartbeat)
-            context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
-        case .channel(let channelID, let frame):
-            if let channel = self.channels[channelID] {
-                channel.processFrame(frame: frame)
-            }
         case .connected:
             guard let limit = channelMax else {
                 preconditionFailure("Required channelMax")
@@ -255,11 +240,49 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             if let promise =  responseQueue.popFirst() {
                 promise.succeed(.connection(.connected(channelMax: limit)))
             }
+        case .heartbeat(let channelID):
+            let heartbeat: Frame = Frame.heartbeat(channelID)
+            try self.encoder.encode(heartbeat)
+            context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
+        case .channel(let channelID, let frame):
+            if let channel = self.channels[channelID] {
+                channel.processFrame(frame: frame)
+            }
+        case .channelClose(let channelID, let frame):
+            if let channel = self.channels.removeValue(forKey: channelID) {
+                channel.processFrame(frame: frame)
+            }
+
+            let closeOk = Frame.method(channelID, .channel(.closeOk))
+            try self.encoder.encode(closeOk)
+            context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
+        case .channelCloseOk(let channelID, let frame):
+            if let channel = self.channels.removeValue(forKey: channelID) {
+                channel.processFrame(frame: frame)
+            }
+        case .close(let replyCode, let replyText):
+            let closeOk = Frame.method(0, .connection(.closeOk))
+            try self.encoder.encode(closeOk)
+            context.writeAndFlush(wrapOutboundOut(self.encoder.flush()), promise: nil)
+
+            self.shutdown(context: context, error: ClientError.connectionClosed(replyCode: replyCode, replyText: replyText))
+        case .closeOk:
+            if let promise =  responseQueue.popFirst() {
+                promise.succeed(.connection(.closed))
+            }
+
+            self.shutdown(context: context, error: ClientError.connectionClosed())
+        case .none:
+            ()
         }
     }
 
-    private func processError(buffer: ByteBuffer, error: ProtocolError, context: ChannelHandlerContext) {
-        print("cannot encode", error)
-        return TODO("implement error handling")
+    private func shutdown(context: ChannelHandlerContext, error: Error) {
+        let queue = self.responseQueue
+        self.responseQueue.removeAll()
+
+        queue.forEach { $0.fail(error) }
+
+        return context.close(promise: nil)
     }
 }
