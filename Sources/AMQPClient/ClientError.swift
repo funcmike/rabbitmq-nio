@@ -18,4 +18,5 @@ public enum ClientError: Error {
     case alreadyShutdown
     case tooManyOpenedChannels
     case invalidResponse(AMQPResponse)
+    case connectionClosed
 }

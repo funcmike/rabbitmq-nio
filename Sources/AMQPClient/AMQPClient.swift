@@ -71,12 +71,15 @@ public final class AMQPClient {
     }
 
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
-        return self.connection!.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed) }
+
+        return connection.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
                 guard case .channel(let channel) = response, case .opened(let channelID, let closeFuture) = channel, id == channelID else {
                     throw ClientError.invalidResponse(response)
                 }
-                return AMQPChannel(channelID: channelID, connection: self.connection!, channelCloseFuture: closeFuture)
+
+                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, connection: self.connection!, channelCloseFuture: closeFuture)
             }
     }
 

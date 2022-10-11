@@ -21,9 +21,9 @@ internal final class AMQPChannelHandler {
     private var closePromise: EventLoopPromise<Void>
 
     init(channelID: Frame.ChannelID, closePromise: EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
-        self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
         self.channelID = channelID
         self.closePromise = closePromise
+        self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
     }
 
     func append(promise: EventLoopPromise<AMQPResponse>) {

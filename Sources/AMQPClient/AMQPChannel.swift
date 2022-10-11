@@ -17,6 +17,7 @@ import AMQPProtocol
 
 public final class AMQPChannel {
     public let channelID: Frame.ChannelID
+    private var eventLoopGroup: EventLoopGroup
 
     private var lock = NIOLock()
     private var _connection: AMQPConnection?
@@ -33,8 +34,9 @@ public final class AMQPChannel {
         }
     }
 
-    init(channelID: Frame.ChannelID, connection: AMQPConnection, channelCloseFuture: EventLoopFuture<Void>) {
+    init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection, channelCloseFuture: EventLoopFuture<Void>) {
         self.channelID = channelID
+        self.eventLoopGroup = eventLoopGroup
         self.connection = connection
 
         connection.closeFuture().whenComplete { result in
@@ -54,21 +56,26 @@ public final class AMQPChannel {
         return TODO("implement basic get")
     }
 
+
     public func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
         let body = body.getBytes(at: 0, length: body.readableBytes)!
         return self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
     }
 
     public func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed) }
+
         let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
         let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.count), properties: properties))
         let body = Frame.body(self.channelID, body: body)
 
-        return self.connection!.sendFrames(frames: [publish, header, body], immediate: true)
+        return connection.sendFrames(frames: [publish, header, body], immediate: true)
     }
 
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
-        return self.connection!.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
         .flatMapThrowing { response in
             guard case .channel(let channel) = response, case .closed = channel else {
                 throw ClientError.invalidResponse(response)
