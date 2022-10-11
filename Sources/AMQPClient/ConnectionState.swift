@@ -15,6 +15,7 @@ import AMQPProtocol
 
 internal enum ConnectionState {
     case connecting
+    case connected
 
     enum ConnectionAction {
         case start(channelID: Frame.ChannelID, user: String, pass: String)

@@ -28,7 +28,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     public typealias OutboundIn = OutboundCommandPayload
     public typealias OutboundOut = ByteBuffer
 
-    private let state: ConnectionState = .connecting
+    private var state: ConnectionState = .connecting
     private var encoder: BufferedFrameEncoder!
     private let decoder = NIOSingleStepByteToMessageProcessor(AMQPFrameDecoder())
     
@@ -240,6 +240,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             if let promise =  responseQueue.popFirst() {
                 promise.succeed(.connection(.connected(channelMax: limit)))
             }
+            self.state = .connected
         case .heartbeat(let channelID):
             let heartbeat: Frame = Frame.heartbeat(channelID)
             try self.encoder.encode(heartbeat)
