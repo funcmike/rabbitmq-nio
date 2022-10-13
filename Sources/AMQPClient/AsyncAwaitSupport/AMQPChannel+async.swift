@@ -32,6 +32,10 @@ public extension AMQPChannel {
         return try await self.queueDeclare(name: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, args: arguments).get()
     }
 
+    func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) async throws -> AMQPResponse {
+        return try await self.queueDelete(name: name, ifUnused: ifUnused, ifEmpty: ifEmpty).get()
+    }
+
     func queueBind(queue: String, exchange: String, routingKey: String, args arguments: Table =  Table()) async throws -> AMQPResponse {
         return try await self.queueBind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }

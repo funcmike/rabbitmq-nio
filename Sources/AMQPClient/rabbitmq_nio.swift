@@ -56,9 +56,14 @@ func setupEventloop(arguments: [String]) async {
 
     let channelResult = try! await client.openChannel(id: 1)
 
-    let queue = try! await channelResult.queueDeclare(name: "test", durable: true)
-    print(queue)
+    let queueDeclare1 = try! await channelResult.queueDeclare(name: "delete", durable: true)
+    print(queueDeclare1)
 
+    let queueDelete1 = try! await channelResult.queueDelete(name: "delete")
+    print(queueDelete1)
+
+    let queueDeclare2 = try! await channelResult.queueDeclare(name: "test", durable: true)
+    print(queueDeclare2)
 
     let queueBind = try! await channelResult.queueBind(queue: "test", exchange: "amq.topic", routingKey: "test")
     print(queueBind)

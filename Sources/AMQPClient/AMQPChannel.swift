@@ -90,7 +90,18 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.queue(.declared(queueName: queueName, messageCount: messageCount, consumerCount: consumerCount)))
-            }        
+            }
+    }
+
+    public func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+        return connection.sendFrame(frame: .method(self.channelID, .queue(.delete(.init(reserved1: 0, queueName: name, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: false)))), immediate: true)
+            .flatMapThrowing { response in 
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .deleted(let messageCount) = queue else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.queue(.deleted(messageCount: messageCount)))
+            }
     }
 
     public func queueBind(queue: String, exchange: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
@@ -102,7 +113,7 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.queue(.binded))
-            }         
+            }
     }
 
     public func queueUnbind(queue: String, exchange: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
