@@ -21,7 +21,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         case bytes([UInt8])
     }
 
-    public typealias InboundIn = ByteBuffer
+    public typealias InboundIn = Frame
 
     public typealias OutboundCommandPayload = (outbound: AMQPOutbound, responsePromise: EventLoopPromise<AMQPResponse>?)
 
@@ -30,7 +30,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
     private var state: ConnectionState = .connecting
     private var encoder: BufferedFrameEncoder!
-    private let decoder = NIOSingleStepByteToMessageProcessor(AMQPFrameDecoder())
     
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var channels: [Frame.ChannelID: AMQPChannelHandler] = [:]
@@ -59,55 +58,51 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
-        let buffer = self.unwrapInboundIn(data)
+        let frame = self.unwrapInboundIn(data)
+
+        let action: ConnectionState.ConnectionAction
+
+        switch frame {
+        case .method(let channelID, let method):
+            switch method {
+            case .connection(let connection):
+                switch connection {
+                case .start(_):
+                    action = .start(channelID: channelID, user: config.user, password: config.password, connectionName: config.connectionName)
+                case .tune(let channelMax, let frameMax, let heartbeat):
+                    action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: config.vhost)
+                case .openOk:
+                    action = .connected
+                case .close(let close):
+                    action = .close(replyCode: close.replyCode, replyText: close.replyText)
+                case .closeOk:
+                    action = .closeOk
+                case .blocked, .unblocked:
+                    //TODO: implement
+                    action = .none
+                default:
+                    action = .none
+                }
+            case .channel(let channel):
+                switch channel {
+                case .close:
+                    action = .channelClose(channelID, frame)
+                case .closeOk:
+                    action = .channelCloseOk(channelID, frame)                        
+                default:
+                    action = .channel(channelID, frame)
+                }
+            default:
+                action = .channel(channelID, frame)
+            }
+        case .header(let channelID, _), .body(let channelID, _):
+            action = .channel(channelID, frame)
+        case .heartbeat(let channelID):
+            action = .heartbeat(channelID: channelID)
+        }
 
         do {
-            try self.decoder.process(buffer: buffer) { frame in
-                //print("got frame", frame)
-
-                let action: ConnectionState.ConnectionAction
-
-                switch frame {
-                case .method(let channelID, let method): 
-                    switch method {
-                    case .connection(let connection):
-                        switch connection {
-                        case .start(_):
-                            action = .start(channelID: channelID, user: config.user, password: config.password, connectionName: config.connectionName)
-                        case .tune(let channelMax, let frameMax, let heartbeat):
-                            action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: config.vhost)
-                        case .openOk:
-                            action = .connected
-                        case .close(let close):
-                            action = .close(replyCode: close.replyCode, replyText: close.replyText)
-                        case .closeOk:
-                            action = .closeOk
-                        case .blocked, .unblocked:
-                            //TODO: implement
-                            action = .none
-                        default:
-                            action = .none
-                        }
-                    case .channel(let channel):
-                        switch channel {
-                        case .close:
-                            action = .channelClose(channelID, frame)
-                        case .closeOk:
-                            action = .channelCloseOk(channelID, frame)                        
-                        default:
-                            action = .channel(channelID, frame)
-                        }
-                    default:
-                        action = .channel(channelID, frame)
-                    }
-                case .header(let channelID, _), .body(let channelID, _):
-                    action = .channel(channelID, frame)
-                case .heartbeat(let channelID): 
-                    action = .heartbeat(channelID: channelID)
-                }
-
-                try self.run(action, with: context)
-            }
+            try self.run(action, with: context)
         } catch let error as ProtocolError {
             self.shutdown(context: context, error: error)
         } catch {

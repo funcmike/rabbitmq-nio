@@ -14,23 +14,31 @@
 import NIO
 import AMQPProtocol
 
-internal struct AMQPFrameDecoder: NIOSingleStepByteToMessageDecoder {
-    mutating func decodeLast(buffer: inout ByteBuffer, seenEOF: Bool) throws -> Frame? {
-        try self.decode(buffer: &buffer)
-    }
+public final class AMQPFrameDecoder: ByteToMessageDecoder  {
+    public typealias InboundOut = Frame
 
-    typealias InboundOut = Frame
-
-    mutating func decode(buffer: inout ByteBuffer) throws -> Frame? {
+    public func decode(context: ChannelHandlerContext, buffer: inout ByteBuffer) throws -> DecodingState {
         let startReaderIndex = buffer.readerIndex
 
         do {
-            return try Frame.decode(from: &buffer)
+            let frame = try Frame.decode(from: &buffer)
+            context.fireChannelRead(wrapInboundOut(frame))
+
+            return .continue
         } catch let error as ProtocolError {
             buffer.moveReaderIndex(to: startReaderIndex)
-            throw error
+
+            guard case .incomplete = error else {
+                throw error
+            }
+
+            return .needMoreData
         } catch {
             preconditionFailure("Expected to only see `ProtocolError`s here.")
         }
+    }
+
+    public func decodeLast(context: ChannelHandlerContext, buffer: inout ByteBuffer, seenEOF: Bool) throws -> DecodingState  {
+        return .needMoreData
     }
 }

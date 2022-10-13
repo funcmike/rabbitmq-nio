@@ -93,7 +93,11 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
     public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let (type, channelID, size) = buffer.readMultipleIntegers(as: (UInt8, ChannelID, UInt32).self) else {
-            throw ProtocolError.decode(type: (UInt8, ChannelID, UInt32).self, context: self)
+            throw ProtocolError.incomplete(type: (UInt8, ChannelID, UInt32).self, need: 7, got: buffer.readableBytes)
+        }
+
+        guard buffer.readableBytes >= size else {
+            throw ProtocolError.incomplete(need: size, got: buffer.readableBytes)
         }
 
         guard let kind = Kind(rawValue: type) else {

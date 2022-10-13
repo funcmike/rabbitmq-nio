@@ -49,7 +49,7 @@ internal final class AMQPConnection {
                 .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
                 .connectTimeout(serverConfig.timeout)
                 .channelInitializer { channel in
-                    channel.pipeline.addHandler(AMQPFrameHandler(config: serverConfig))
+                    channel.pipeline.addHandlers([ByteToMessageHandler(AMQPFrameDecoder()), AMQPFrameHandler(config: serverConfig)])
                 }
                 .connect(host: serverConfig.host, port: serverConfig.port)
                 .map { channelPromise.succeed($0) }
