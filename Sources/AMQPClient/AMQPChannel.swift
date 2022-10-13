@@ -139,7 +139,7 @@ public final class AMQPChannel {
             }         
     }
 
-    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
+    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
@@ -147,7 +147,7 @@ public final class AMQPChannel {
             guard case .channel(let channel) = response, case .closed = channel else {
                 throw ClientError.invalidResponse(response)
             }
-            ()
+            return response
         }
     }
 

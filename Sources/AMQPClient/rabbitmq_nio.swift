@@ -51,7 +51,8 @@ func setupEventloop(arguments: [String]) async {
         client.shutdown({error  in return ()})
     }
 
-    try! client.connect().wait()
+    let connected = try! await client.connect()
+    print(connected)
 
 
     let channelResult = try! await client.openChannel(id: 1)
@@ -101,7 +102,7 @@ func setupEventloop(arguments: [String]) async {
     let stop = Date()
 
     print(100000.0/start.distance(to: stop))
-
+    
     try! client.closeFuture()?.wait()
     print("Client closed")
 }

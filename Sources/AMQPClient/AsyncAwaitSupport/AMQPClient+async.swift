@@ -15,7 +15,7 @@ import Foundation
 import AMQPProtocol
 
 public extension AMQPClient {
-    func connect() async throws {
+    func connect() async throws -> AMQPResponse {
         return try await self.connect().get()
     }
 
@@ -23,7 +23,7 @@ public extension AMQPClient {
         return try await self.openChannel(id: id).get()
     }
 
-    func close(reason: String = "", code: UInt16 = 200) async throws {
+    func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
         return try await self.close(reason: reason, code: code).get()
     }
 

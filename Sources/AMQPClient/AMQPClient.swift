@@ -51,7 +51,7 @@ public final class AMQPClient {
         }
     }
 
-    public func connect() ->  EventLoopFuture<Void> {
+    public func connect() ->  EventLoopFuture<AMQPResponse> {
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connection = connection
@@ -66,7 +66,7 @@ public final class AMQPClient {
                 guard case .connection(let connection) = response, case .connected = connection else {
                     throw ClientError.invalidResponse(response)
                 }
-                return ()
+                return response
             }
     }
 
@@ -83,7 +83,7 @@ public final class AMQPClient {
             }
     }
 
-    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
+    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))
@@ -91,7 +91,7 @@ public final class AMQPClient {
             guard case .channel(let channel) = response, case .closed = channel else {
                 throw ClientError.invalidResponse(response)
             }
-            ()
+            return response
         }
     }
 
