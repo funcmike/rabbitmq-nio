@@ -104,6 +104,17 @@ public final class AMQPChannel {
             }
     }
 
+    public func queuePurge(name: String) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+        return connection.sendFrame(frame: .method(self.channelID, .queue(.purge(.init(reserved1: 0, queueName: name, noWait: false)))), immediate: true)
+            .flatMapThrowing { response in 
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .purged(let messageCount) = queue else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.queue(.purged(messageCount: messageCount)))
+            }
+    }
+
     public func queueBind(queue: String, exchange: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 

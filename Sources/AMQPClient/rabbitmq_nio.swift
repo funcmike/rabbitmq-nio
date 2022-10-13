@@ -71,6 +71,9 @@ func setupEventloop(arguments: [String]) async {
     let queueUnbind = try! await channelResult.queueUnbind(queue: "test", exchange: "amq.topic", routingKey: "test")
     print(queueUnbind)
 
+    let queuePurge = try! await channelResult.queuePurge(name: "test")
+    print(queuePurge)
+
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
     let startProduce = Date()
