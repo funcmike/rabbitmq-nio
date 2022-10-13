@@ -36,6 +36,10 @@ public extension AMQPChannel {
         return try await self.queueBind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
+    func queueUnbind(queue: String, exchange: String, routingKey: String, args arguments: Table =  Table()) async throws -> AMQPResponse {
+        return try await self.queueUnbind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
+    }
+
     func close(reason: String = "", code: UInt16 = 200) async throws {
         return try await self.close(reason: reason, code: code).get()
     }

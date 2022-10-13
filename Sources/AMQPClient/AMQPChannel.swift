@@ -105,6 +105,18 @@ public final class AMQPChannel {
             }         
     }
 
+    public func queueUnbind(queue: String, exchange: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .queue(.unbind(.init(reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, arguments: arguments)))), immediate: true)
+            .flatMapThrowing { response in 
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .unbinded = queue else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.queue(.unbinded))
+            }         
+    }
+
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 

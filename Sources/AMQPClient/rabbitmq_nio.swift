@@ -63,6 +63,8 @@ func setupEventloop(arguments: [String]) async {
     let queueBind = try! await channelResult.queueBind(queue: "test", exchange: "amq.topic", routingKey: "test")
     print(queueBind)
 
+    let queueUnbind = try! await channelResult.queueUnbind(queue: "test", exchange: "amq.topic", routingKey: "test")
+    print(queueUnbind)
 
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
