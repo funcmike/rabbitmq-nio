@@ -27,9 +27,9 @@ public enum AMQPResponse {
 
         public enum Queue {
             case declared(queueName: String, messageCount: UInt32, consumerCount: UInt32)
-            case deleted(messageCount: UInt32)
-            case purged(messageCount: UInt32)
             case binded
+            case purged(messageCount: UInt32)
+            case deleted(messageCount: UInt32)
             case unbinded
         }
     }

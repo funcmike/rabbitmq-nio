@@ -1453,7 +1453,7 @@ public enum Queue: PayloadDecodable, PayloadEncodable{
         public let noWait: Bool
         public let arguments: Table
 
-        internal init(reserved1: UInt16, queueName: String, exchangeName: String, routingKey: String, noWait: Bool, arguments: Table) {
+        public init(reserved1: UInt16, queueName: String, exchangeName: String, routingKey: String, noWait: Bool, arguments: Table) {
             self.reserved1 = reserved1
             self.queueName = queueName
             self.exchangeName = exchangeName

@@ -65,6 +65,22 @@ internal final class AMQPChannelHandler {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.queue(.declared(queueName: declareOk.queueName, messageCount: declareOk.messageCount, consumerCount: declareOk.consumerCount))))
                     }
+                case .bindOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.queue(.binded)))
+                    }
+                case .purgeOk(let messageCount):
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.queue(.purged(messageCount: messageCount))))
+                    }
+                case .deleteOk(let messageCount):
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.queue(.deleted(messageCount: messageCount))))
+                    }
+                case .unbindOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.queue(.unbinded)))
+                    }
                 default:
                     return
                 }

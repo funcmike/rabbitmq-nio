@@ -28,10 +28,13 @@ public extension AMQPChannel {
     }
 
 
-    func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, arguments: Table =  Table()) async throws -> AMQPResponse {
-        return try await self.queueDeclare(name: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, arguments: arguments).get()
+    func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) async throws -> AMQPResponse {
+        return try await self.queueDeclare(name: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, args: arguments).get()
     }
 
+    func queueBind(queue: String, exchange: String, routingKey: String, args arguments: Table =  Table()) async throws -> AMQPResponse {
+        return try await self.queueBind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
+    }
 
     func close(reason: String = "", code: UInt16 = 200) async throws {
         return try await self.close(reason: reason, code: code).get()

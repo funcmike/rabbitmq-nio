@@ -60,6 +60,10 @@ func setupEventloop(arguments: [String]) async {
     print(queue)
 
 
+    let queueBind = try! await channelResult.queueBind(queue: "test", exchange: "amq.topic", routingKey: "test")
+    print(queueBind)
+
+
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
     let startProduce = Date()
