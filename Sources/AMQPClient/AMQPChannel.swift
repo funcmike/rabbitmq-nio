@@ -81,6 +81,18 @@ public final class AMQPChannel {
         return connection.sendFrames(frames: [publish, header, body], immediate: true)
     }
 
+    public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse>  {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .queue(.declare(.init(reserved1: 0, queueName: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: false, arguments: arguments)))), immediate: true)
+            .flatMapThrowing { response in 
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared(let queueName, let messageCount, let consumerCount) = queue else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.queue(.declared(queueName: queueName, messageCount: messageCount, consumerCount: consumerCount)))
+            }        
+    }
+
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 

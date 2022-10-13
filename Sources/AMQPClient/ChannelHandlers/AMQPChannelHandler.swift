@@ -59,6 +59,15 @@ internal final class AMQPChannelHandler {
                 default:
                     return
                 }
+            case .queue(let queue):
+                switch queue {
+                case .declareOk(let declareOk):
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.queue(.declared(queueName: declareOk.queueName, messageCount: declareOk.messageCount, consumerCount: declareOk.consumerCount))))
+                    }
+                default:
+                    return
+                }
             default:
                 return
             }

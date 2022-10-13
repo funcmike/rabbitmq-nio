@@ -54,7 +54,10 @@ func setupEventloop(arguments: [String]) async {
     try! client.connect().wait()
 
 
-    let channelResult = try! client.openChannel(id: 1).wait()
+    let channelResult = try! await client.openChannel(id: 1)
+
+    let queue = try! await channelResult.queueDeclare(name: "test", durable: true)
+    print(queue)
 
 
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)

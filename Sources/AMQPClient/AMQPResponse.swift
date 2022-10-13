@@ -22,7 +22,16 @@ public enum AMQPResponse {
         case opened(channelID: Frame.ChannelID, closeFuture: EventLoopFuture<Void>)
         case closed(Frame.ChannelID)
         case message(AMQPMessage)
+        case queue(Queue)
         case published
+
+        public enum Queue {
+            case declared(queueName: String, messageCount: UInt32, consumerCount: UInt32)
+            case deleted(messageCount: UInt32)
+            case purged(messageCount: UInt32)
+            case binded
+            case unbinded
+        }
     }
 
     public enum Connection {
