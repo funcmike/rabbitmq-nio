@@ -49,7 +49,11 @@ internal final class AMQPConnection {
                 .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
                 .connectTimeout(serverConfig.timeout)
                 .channelInitializer { channel in
-                    channel.pipeline.addHandlers([ByteToMessageHandler(AMQPFrameDecoder()), AMQPFrameHandler(config: serverConfig)])
+                    channel.pipeline.addHandlers([
+                        MessageToByteHandler(AMQPFrameEncoder()),
+                        ByteToMessageHandler(AMQPFrameDecoder()),
+                        AMQPFrameHandler(config: serverConfig)
+                    ])
                 }
                 .connect(host: serverConfig.host, port: serverConfig.port)
                 .map { channelPromise.succeed($0) }
@@ -86,7 +90,7 @@ internal final class AMQPConnection {
     }
 
     func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
-        let outboundData: AMQPFrameHandler.OutboundCommandPayload = (AMQPFrameHandler.AMQPOutbound.bulk(frames), nil)
+        let outboundData: OutboundCommandPayload = (AMQPOutbound.bulk(frames), nil)
         return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
     }
 
@@ -94,10 +98,10 @@ internal final class AMQPConnection {
         return sendFrame(eventLoop: eventLoop, outbound: .bulk(frames), immediate: immediate)
     }
 
-    private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPFrameHandler.AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+    private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
         let eventLoop = eventLoop ?? self.eventLoopGroup.any()
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
-        let outboundData: AMQPFrameHandler.OutboundCommandPayload = (outbound, promise)
+        let outboundData: OutboundCommandPayload = (outbound, promise)
 
         let writeFuture = immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
 

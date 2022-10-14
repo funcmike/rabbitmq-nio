@@ -92,7 +92,7 @@ func setupEventloop(arguments: [String]) async {
     for _ in 1 ... 100000  {
         do
         {
-            let message = try await channelResult.basicGet(queue: "test")
+            let _ = try await channelResult.basicGet(queue: "test")
             //print("got messge", message as Any)
         } catch {
             print("error", error)
