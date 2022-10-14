@@ -26,8 +26,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     public typealias InboundIn = Frame
     public typealias OutboundIn = OutboundCommandPayload
     public typealias OutboundOut = AMQPOutbound
-
-    private var state: ConnectionState = .connecting
     
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var channels: [Frame.ChannelID: AMQPChannelHandler] = [:]
@@ -93,7 +91,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                         promise.succeed(.connection(.connected(channelMax: limit)))
                     }
                     
-                    self.state = .connected
                 case .close(let close):
                     let closeOk = Frame.method(0, .connection(.closeOk))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
