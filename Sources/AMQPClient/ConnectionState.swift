@@ -16,17 +16,4 @@ import AMQPProtocol
 internal enum ConnectionState {
     case connecting
     case connected
-
-    enum ConnectionAction {
-        case start(channelID: Frame.ChannelID, user: String, password: String, connectionName: String)
-        case tuneOpen(channelMax: UInt16, frameMax: UInt32, heartbeat: UInt16, vhost: String)
-        case heartbeat(channelID: Frame.ChannelID)
-        case channel(Frame.ChannelID, Frame)
-        case channelClose(Frame.ChannelID, Frame)
-        case channelCloseOk(Frame.ChannelID, Frame)
-        case connected
-        case close(replyCode: UInt16, replyText: String)
-        case closeOk
-        case none
-    }
 }

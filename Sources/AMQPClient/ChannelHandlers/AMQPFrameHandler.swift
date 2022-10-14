@@ -52,48 +52,96 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
         let frame = self.unwrapInboundIn(data)
 
-        let action: ConnectionState.ConnectionAction
-
         switch frame {
         case .method(let channelID, let method):
             switch method {
             case .connection(let connection):
                 switch connection {
                 case .start(_):
-                    action = .start(channelID: channelID, user: config.user, password: config.password, connectionName: config.connectionName)
+                    let clientProperties: Table = [
+                        "connection_name": .longString(config.connectionName),
+                        "product": .longString("rabbitmq-nio"),
+                        "platform": .longString("Swift"),
+                        "version":  .longString("0.1"),
+                        "capabilities": .table([
+                            "publisher_confirms":           .bool(true),
+                            "exchange_exchange_bindings":   .bool(true),
+                            "basic.nack":                   .bool(true),
+                            "per_consumer_qos":             .bool(true),
+                            "authentication_failure_close": .bool(true),
+                            "consumer_cancel_notify":       .bool(true),
+                            "connection.blocked":           .bool(true),
+                        ])
+                    ]
+
+                    let startOk = Frame.method(channelID, .connection(.startOk(.init(
+                        clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(config.user)\u{0000}\(config.password)", locale: "en_US"))))
+                    context.writeAndFlush(self.wrapOutboundOut(AMQPOutbound.frame(startOk)), promise: nil)
                 case .tune(let channelMax, let frameMax, let heartbeat):
-                    action = .tuneOpen(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat, vhost: config.vhost)
+                    self.channelMax = channelMax
+
+                    let tuneOk: Frame = Frame.method(0, .connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
+                    let open: Frame = Frame.method(0, .connection(.open(.init(vhost: config.vhost))))
+
+                    context.writeAndFlush(self.wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
-                    action = .connected
+                    guard let limit = channelMax else {
+                        preconditionFailure("Required channelMax")
+                    }
+
+                    if let promise =  responseQueue.popFirst() {
+                        promise.succeed(.connection(.connected(channelMax: limit)))
+                    }
+                    
+                    self.state = .connected
                 case .close(let close):
-                    action = .close(replyCode: close.replyCode, replyText: close.replyText)
+                    let closeOk = Frame.method(0, .connection(.closeOk))
+                    context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
+
+                    self.shutdown(context: context, error: ClientError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
-                    action = .closeOk
+                    if let promise =  responseQueue.popFirst() {
+                        promise.succeed(.connection(.closed))
+                    }
+
+                    self.shutdown(context: context, error: ClientError.connectionClosed())
                 case .blocked, .unblocked:
                     //TODO: implement
-                    action = .none
+                    return
                 default:
-                    action = .none
+                    return
                 }
             case .channel(let channel):
                 switch channel {
                 case .close:
-                    action = .channelClose(channelID, frame)
+                    if let channel = self.channels.removeValue(forKey: channelID) {
+                        channel.processFrame(frame: frame)
+                    }
+
+                    let closeOk = Frame.method(channelID, .channel(.closeOk))
+                    context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
                 case .closeOk:
-                    action = .channelCloseOk(channelID, frame)                        
+                    if let channel = self.channels.removeValue(forKey: channelID) {
+                        channel.processFrame(frame: frame)
+                    }                       
                 default:
-                    action = .channel(channelID, frame)
+                    if let channel = self.channels[channelID] {
+                        channel.processFrame(frame: frame)
+                    }
                 }
             default:
-                action = .channel(channelID, frame)
+                if let channel = self.channels[channelID] {
+                    channel.processFrame(frame: frame)
+                }
             }
         case .header(let channelID, _), .body(let channelID, _):
-            action = .channel(channelID, frame)
+            if let channel = self.channels[channelID] {
+                channel.processFrame(frame: frame)
+            }
         case .heartbeat(let channelID):
-            action = .heartbeat(channelID: channelID)
+            let heartbeat = Frame.heartbeat(channelID)
+            context.writeAndFlush(self.wrapOutboundOut(.frame(heartbeat)), promise: nil)
         }
-
-        return self.run(action, with: context)
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
@@ -157,78 +205,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         }
 
         return true
-    }
-
-    private func run(_ action: ConnectionState.ConnectionAction, with context: ChannelHandlerContext) {
-        switch action {
-        case .start(let channelID, let user, let password, let connectionName):
-            let clientProperties: Table = [
-                "connection_name": .longString(connectionName),
-                "product": .longString("rabbitmq-nio"),
-                "platform": .longString("Swift"),
-                "version":  .longString("0.1"),
-                "capabilities": .table([
-                    "publisher_confirms":           .bool(true),
-                    "exchange_exchange_bindings":   .bool(true),
-                    "basic.nack":                   .bool(true),
-                    "per_consumer_qos":             .bool(true),
-                    "authentication_failure_close": .bool(true),
-                    "consumer_cancel_notify":       .bool(true),
-                    "connection.blocked":           .bool(true),
-                ])
-            ]
-
-            let startOk = Frame.method(channelID, .connection(.startOk(.init(
-                clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(user)\u{0000}\(password)", locale: "en_US"))))
-            context.writeAndFlush(self.wrapOutboundOut(AMQPOutbound.frame(startOk)), promise: nil)
-        case .tuneOpen(let channelMax, let frameMax, let heartbeat, let vhost):
-            self.channelMax = channelMax
-
-            let tuneOk: Frame = Frame.method(0, .connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
-            let open: Frame = Frame.method(0, .connection(.open(.init(vhost: vhost))))
-
-            context.writeAndFlush(self.wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
-        case .connected:
-            guard let limit = channelMax else {
-                preconditionFailure("Required channelMax")
-            }
-
-            if let promise =  responseQueue.popFirst() {
-                promise.succeed(.connection(.connected(channelMax: limit)))
-            }
-            self.state = .connected
-        case .heartbeat(let channelID):
-            let heartbeat = Frame.heartbeat(channelID)
-            context.writeAndFlush(self.wrapOutboundOut(.frame(heartbeat)), promise: nil)
-        case .channel(let channelID, let frame):
-            if let channel = self.channels[channelID] {
-                channel.processFrame(frame: frame)
-            }
-        case .channelClose(let channelID, let frame):
-            if let channel = self.channels.removeValue(forKey: channelID) {
-                channel.processFrame(frame: frame)
-            }
-
-            let closeOk = Frame.method(channelID, .channel(.closeOk))
-            context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
-        case .channelCloseOk(let channelID, let frame):
-            if let channel = self.channels.removeValue(forKey: channelID) {
-                channel.processFrame(frame: frame)
-            }
-        case .close(let replyCode, let replyText):
-            let closeOk = Frame.method(0, .connection(.closeOk))
-            context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
-
-            self.shutdown(context: context, error: ClientError.connectionClosed(replyCode: replyCode, replyText: replyText))
-        case .closeOk:
-            if let promise =  responseQueue.popFirst() {
-                promise.succeed(.connection(.closed))
-            }
-
-            self.shutdown(context: context, error: ClientError.connectionClosed())
-        case .none:
-            ()
-        }
     }
 
     private func shutdown(context: ChannelHandlerContext, error: Error) {
