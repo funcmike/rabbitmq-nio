@@ -59,6 +59,18 @@ public final class AMQPChannel {
         }
     }
 
+    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))), immediate: true)
+        .flatMapThrowing { response in
+            guard case .channel(let channel) = response, case .closed = channel else {
+                throw ClientError.invalidResponse(response)
+            }
+            return response
+        }
+    }
+
     public func basicGet(queue: String, noAck: Bool = true) -> EventLoopFuture<AMQPMessage.Get?> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
@@ -277,18 +289,6 @@ public final class AMQPChannel {
             }
     }
 
-    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))), immediate: true)
-        .flatMapThrowing { response in
-            guard case .channel(let channel) = response, case .closed = channel else {
-                throw ClientError.invalidResponse(response)
-            }
-            return response
-        }
-    }
-
     /// Set prefetch limit to *count* messages,
     /// no more messages will be delivered to the consumer until one or more message have been acknowledged or rejected
     public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<AMQPResponse> {
@@ -306,27 +306,33 @@ public final class AMQPChannel {
         }        
     }
 
-    public func ack(deliveryTag: UInt64, multiple: Bool = false) {
-        return TODO("implement ack")
+    public func basicAck(deliveryTag: UInt64, multiple: Bool = false) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.ack(deliveryTag: deliveryTag, multiple: multiple))), immediate: true)
     }
 
-    public func ack(message: AMQPMessage.Delivery,  multiple: Bool = false) {
-        self.ack(deliveryTag: message.deliveryTag, multiple: multiple)
+    public func basicAck(message: AMQPMessage.Delivery,  multiple: Bool = false) -> EventLoopFuture<Void> {
+        return self.basicAck(deliveryTag: message.deliveryTag, multiple: multiple)
     }
 
-    public func nack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) {
-        return TODO("implement nack")
+    public func basicNack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))), immediate: true)
     }
 
-    public func nack(message: AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) {
-        self.nack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
+    public func basicNack(message: AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
+        return self.basicNack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
     }
 
-    public func reject(deliveryTag: UInt64, requeue: Bool = false) {
-        return TODO("implement reject")
+    public func basicReject(deliveryTag: UInt64, requeue: Bool = false) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.reject(deliveryTag: deliveryTag, requeue: requeue))), immediate: true)
     }
 
-    public func reject(message: AMQPMessage.Delivery, requeue: Bool = false) {
-        self.reject(deliveryTag: message.deliveryTag, requeue: requeue)
+    public func basicReject(message: AMQPMessage.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
+        return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
     }
 }

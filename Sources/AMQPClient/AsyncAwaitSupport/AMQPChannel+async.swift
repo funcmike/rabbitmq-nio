@@ -15,6 +15,10 @@ import NIO
 import AMQPProtocol
 
 public extension AMQPChannel {
+    func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
+        return try await self.close(reason: reason, code: code).get()
+    }
+
     func basicGet(queue: String, noAck: Bool = true) async throws -> AMQPMessage.Get? {
         return try await self.basicGet(queue: queue, noAck: noAck).get()
     }
@@ -87,7 +91,27 @@ public extension AMQPChannel {
         return try await self.basicQos(count: count, global: global).get()
     }
 
-    func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
-        return try await self.close(reason: reason, code: code).get()
+    func basicAck(deliveryTag: UInt64, multiple: Bool = false) async throws {
+        return try await self.basicAck(deliveryTag: deliveryTag, multiple: multiple).get()
+    }
+    
+    func basicAck(message: AMQPMessage.Delivery,  multiple: Bool = false) async throws {
+        return try await self.basicAck(message: message, multiple: multiple).get()
+    }
+
+    func basicNack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) async throws {
+        return try await self.basicNack(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue).get()
+    }
+
+    func basicNack(message: AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) async throws  {
+        return try await self.basicNack(message: message, multiple: multiple, requeue: requeue).get()
+    }
+
+    func basicReject(deliveryTag: UInt64, requeue: Bool = false) async throws {
+        return try await self.basicReject(deliveryTag: deliveryTag, requeue: requeue).get()
+    }
+
+    func basicReject(message: AMQPMessage.Delivery, requeue: Bool = false) async throws {
+        return try await self.basicReject(message: message, requeue: requeue).get()
     }
 }

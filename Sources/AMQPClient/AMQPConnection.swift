@@ -85,17 +85,13 @@ internal final class AMQPConnection {
         return sendFrame(eventLoop: eventLoop, outbound: .bytes(bytes), immediate: immediate)
     }
 
-    func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return sendFrame(eventLoop: eventLoop, outbound: .frame(frame), immediate: immediate)
-    }
-
-    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
-        let outboundData: OutboundCommandPayload = (AMQPOutbound.bulk(frames), nil)
+    func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<Void> {
+        let outboundData: OutboundCommandPayload = (.frame(frame), nil)
         return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
     }
 
-    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return sendFrame(eventLoop: eventLoop, outbound: .bulk(frames), immediate: immediate)
+    func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return sendFrame(eventLoop: eventLoop, outbound: .frame(frame), immediate: immediate)
     }
 
     private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
@@ -107,6 +103,15 @@ internal final class AMQPConnection {
 
         return writeFuture
             .flatMap{ promise.futureResult }
+    }
+
+    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
+        let outboundData: OutboundCommandPayload = (AMQPOutbound.bulk(frames), nil)
+        return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
+    }
+
+    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return sendFrame(eventLoop: eventLoop, outbound: .bulk(frames), immediate: immediate)
     }
 
     func close() -> EventLoopFuture<Void> {
