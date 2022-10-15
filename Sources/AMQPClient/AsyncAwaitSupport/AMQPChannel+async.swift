@@ -67,6 +67,18 @@ public extension AMQPChannel {
         return try await self.basicRecover(requeue: requeue).get()
     }
 
+    func txSelect() async throws -> AMQPResponse {
+        return try await self.txSelect().get()
+    }
+
+    func txCommit() async throws -> AMQPResponse {
+        return try await self.txCommit().get()
+    }
+
+    func txRollback() async throws -> AMQPResponse {
+        return try await self.txRollback().get()
+    }
+
     func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
         return try await self.close(reason: reason, code: code).get()
     }

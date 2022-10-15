@@ -138,7 +138,7 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.queue(.unbinded))
-            }         
+            }
     }
 
     public func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = true, autoDelete: Bool = false,  internal: Bool = false, noWait: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
@@ -150,7 +150,7 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.exchange(.declared))
-            }         
+            }
     }
 
     public func exchangeDelete(name: String, ifUnused: Bool = false) -> EventLoopFuture<AMQPResponse> {
@@ -162,7 +162,7 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.exchange(.deleted))
-            }         
+            }
     }
 
     public func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
@@ -174,7 +174,7 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.exchange(.binded))
-            }         
+            }
     }
 
     public func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
@@ -186,7 +186,7 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.exchange(.unbinded))
-            }         
+            }
     }
 
     /// Tell the broker to either deliver all unacknowledge messages again if *requeue* is false or rejecting all if *requeue* is true
@@ -201,6 +201,45 @@ public final class AMQPChannel {
                     throw ClientError.invalidResponse(response)
                 }
                 return .channel(.basic(.recovered))
+            }
+    }
+
+    /// Set the Channel in transaction mode
+    public func txSelect() -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .tx(.select)), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .tx(let tx) = channel, case .selected = tx else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.tx(.selected))
+            }
+    }
+
+    /// Commit a transaction
+    public func txCommit() -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .tx(.commit)), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .tx(let tx) = channel, case .committed = tx else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.tx(.committed))
+            }
+    }
+
+    /// Rollback a transaction
+    public func txRollback() -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .tx(.rollback)), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .tx(let tx) = channel, case .rollbacked = tx else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.tx(.rollbacked))
             }
     }
 

@@ -25,6 +25,7 @@ public enum AMQPResponse {
         case queue(Queue)
         case exchange(Exchange)
         case basic(Basic)
+        case tx(Tx)
 
         public enum Queue {
             case declared(queueName: String, messageCount: UInt32, consumerCount: UInt32)
@@ -45,6 +46,11 @@ public enum AMQPResponse {
             case recovered
         }
 
+        public enum Tx {
+            case selected
+            case committed
+            case rollbacked
+        }
     }
 
     public enum Connection {

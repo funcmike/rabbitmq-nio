@@ -96,6 +96,15 @@ func setupEventloop(arguments: [String]) async {
     let recover = try! await channelResult.basicRecover(requeue: true)
     print(recover)
 
+    // let txSelect = try! await channelResult.txSelect()
+    // print(txSelect)
+
+    // let txCommit = try! await channelResult.txCommit()
+    // print(txCommit)
+
+    // let txRollback = try! await channelResult.txRollback()
+    // print(txRollback)
+
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
     let startProduce = Date()

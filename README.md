@@ -25,3 +25,4 @@ AMQPClient is in prototyping phase: work on architecture using NIO and tests of 
 * basic get
 * queue operations
 * exchange operations
+* tx operations
