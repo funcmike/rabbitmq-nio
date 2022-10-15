@@ -84,6 +84,27 @@ internal final class AMQPChannelHandler {
                 default:
                     return
                 }
+            case .exchange(let exchange):
+                switch exchange {
+                case .declareOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.exchange(.declared)))
+                    }
+                case .deleteOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.exchange(.deleted)))
+                    }
+                case .bindOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.exchange(.binded)))
+                    }
+                case .unbindOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.exchange(.unbinded)))
+                    }
+                default:
+                    return
+                }                   
             default:
                 return
             }

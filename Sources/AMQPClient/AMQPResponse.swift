@@ -23,6 +23,7 @@ public enum AMQPResponse {
         case closed(Frame.ChannelID)
         case message(AMQPMessage)
         case queue(Queue)
+        case exchange(Exchange)
         case published
 
         public enum Queue {
@@ -32,6 +33,14 @@ public enum AMQPResponse {
             case deleted(messageCount: UInt32)
             case unbinded
         }
+        
+        public enum Exchange {
+            case declared
+            case deleted
+            case binded
+            case unbinded
+        }
+
     }
 
     public enum Connection {

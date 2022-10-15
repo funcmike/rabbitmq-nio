@@ -75,6 +75,24 @@ func setupEventloop(arguments: [String]) async {
     let queuePurge = try! await channelResult.queuePurge(name: "test")
     print(queuePurge)
 
+    let echangeDeclare1 = try! await channelResult.exchangeDeclare(name: "test1", type: "topic")
+    print(echangeDeclare1)
+
+    let echangeDeclare2 = try! await channelResult.exchangeDeclare(name: "test2", type: "topic")
+    print(echangeDeclare2)
+
+    let exchangeBind = try! await channelResult.exchangeBind(destination: "test1", source: "test2", routingKey: "test")
+    print(exchangeBind)
+
+    let exchangeUnbind = try! await channelResult.exchangeUnbind(destination: "test1", source: "test2", routingKey: "test")
+    print(exchangeUnbind)
+
+    let exchangeDelete1 = try! await channelResult.exchangeDelete(name: "test1")
+    print(exchangeDelete1)
+
+    let exchangeDelete2 = try! await channelResult.exchangeDelete(name: "test2")
+    print(exchangeDelete2)
+
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
     let startProduce = Date()

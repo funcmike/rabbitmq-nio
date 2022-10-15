@@ -47,6 +47,22 @@ public extension AMQPChannel {
         return try await self.queueUnbind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
+    func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = true, autoDelete: Bool = false,  internal: Bool = false, noWait: Bool = false, args arguments: Table = Table()) async throws -> AMQPResponse {
+        return try await self.exchangeDeclare(name: name, type: type, passive: passive, durable: durable, autoDelete: autoDelete,  internal: `internal`, noWait: noWait, args: arguments).get()
+    }
+
+    func exchangeDelete(name: String, ifUnused: Bool = false) async throws -> AMQPResponse {
+        return try await self.exchangeDelete(name: name, ifUnused: ifUnused).get()
+    }
+
+    func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) async throws -> AMQPResponse {
+        return try await self.exchangeBind(destination: destination, source: source, routingKey: routingKey, args: arguments).get()
+    }
+
+    func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) async throws -> AMQPResponse {
+        return try await self.exchangeUnbind(destination: destination, source: source, routingKey: routingKey, args: arguments).get()
+    }
+
     func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
         return try await self.close(reason: reason, code: code).get()
     }
