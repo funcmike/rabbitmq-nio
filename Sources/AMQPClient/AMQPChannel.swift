@@ -189,6 +189,21 @@ public final class AMQPChannel {
             }         
     }
 
+    /// Tell the broker to either deliver all unacknowledge messages again if *requeue* is false or rejecting all if *requeue* is true
+    ///
+    /// Unacknowledged messages retrived by `basic_get` are requeued regardless.
+    public func basicRecover(requeue: Bool) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.recover(requeue: requeue))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .recovered = basic else {
+                    throw ClientError.invalidResponse(response)
+                }
+                return .channel(.basic(.recovered))
+            }
+    }
+
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 

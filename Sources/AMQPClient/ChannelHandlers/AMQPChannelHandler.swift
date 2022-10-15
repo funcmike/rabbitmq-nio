@@ -40,6 +40,10 @@ internal final class AMQPChannelHandler {
                 switch basic {
                 case .getOk(let getOk):
                     self.nextMessage = (getOk: getOk, properties: nil)
+                case .recoverOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.basic(.recovered)))
+                    }
                 default:
                     return
                 }
@@ -104,7 +108,7 @@ internal final class AMQPChannelHandler {
                     }
                 default:
                     return
-                }                   
+                }
             default:
                 return
             }

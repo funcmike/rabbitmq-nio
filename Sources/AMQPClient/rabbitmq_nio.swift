@@ -93,6 +93,9 @@ func setupEventloop(arguments: [String]) async {
     let exchangeDelete2 = try! await channelResult.exchangeDelete(name: "test2")
     print(exchangeDelete2)
 
+    let recover = try! await channelResult.basicRecover(requeue: true)
+    print(recover)
+
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
     let startProduce = Date()

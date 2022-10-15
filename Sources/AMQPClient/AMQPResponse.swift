@@ -24,7 +24,7 @@ public enum AMQPResponse {
         case message(AMQPMessage)
         case queue(Queue)
         case exchange(Exchange)
-        case published
+        case basic(Basic)
 
         public enum Queue {
             case declared(queueName: String, messageCount: UInt32, consumerCount: UInt32)
@@ -39,6 +39,10 @@ public enum AMQPResponse {
             case deleted
             case binded
             case unbinded
+        }
+
+        public enum Basic {
+            case recovered
         }
 
     }
