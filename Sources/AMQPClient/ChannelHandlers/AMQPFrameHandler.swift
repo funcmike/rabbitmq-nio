@@ -197,8 +197,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 return false
             }
 
-            let closePromise = context.eventLoop.makePromise(of: Void.self)
-            self.channels[channelID] = AMQPChannelHandler(channelID: channelID, closePromise: closePromise)
+            self.channels[channelID] = AMQPChannelHandler(channelID: channelID)
         }
 
         return true

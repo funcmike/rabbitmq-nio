@@ -18,11 +18,9 @@ internal final class AMQPChannelHandler {
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var nextMessage: (getOk: Basic.GetOk, properties: Properties?)?
-    private var closePromise: EventLoopPromise<Void>
 
-    init(channelID: Frame.ChannelID, closePromise: EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
+    init(channelID: Frame.ChannelID, initialQueueCapacity: Int = 3) {
         self.channelID = channelID
-        self.closePromise = closePromise
         self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
     }
 
@@ -59,7 +57,7 @@ internal final class AMQPChannelHandler {
                 switch channel {   
                 case .openOk:
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.opened(channelID: channelID, closeFuture: closePromise.futureResult)))
+                        promise.succeed(.channel(.opened(channelID: channelID)))
                     }
                 case .close(let close):
                     self.shutdown(error: ClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
@@ -181,6 +179,5 @@ internal final class AMQPChannelHandler {
         self.responseQueue.removeAll()
 
         queue.forEach { $0.fail(error) }
-        closePromise.succeed(())
     }
 }

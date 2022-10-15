@@ -75,11 +75,11 @@ public final class AMQPClient {
 
         return connection.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
-                guard case .channel(let channel) = response, case .opened(let channelID, let closeFuture) = channel, id == channelID else {
+                guard case .channel(let channel) = response, case .opened(let channelID) = channel, id == channelID else {
                     throw ClientError.invalidResponse(response)
                 }
 
-                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, connection: connection, channelCloseFuture: closeFuture)
+                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, connection: connection)
             }
     }
 
@@ -88,7 +88,7 @@ public final class AMQPClient {
 
         return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))), immediate: true)
         .flatMapThrowing { response in
-            guard case .channel(let channel) = response, case .closed = channel else {
+            guard case .connection(let connection) = response, case .closed = connection else {
                 throw ClientError.invalidResponse(response)
             }
             return response

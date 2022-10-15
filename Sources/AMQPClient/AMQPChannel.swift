@@ -41,19 +41,13 @@ public final class AMQPChannel {
 
     private let prefetchCount = ManagedAtomic(UInt16(0))
 
-    init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection, channelCloseFuture: EventLoopFuture<Void>) {
+    init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection) {
         self.channelID = channelID
         self.eventLoopGroup = eventLoopGroup
         self.connection = connection
 
         connection.closeFuture().whenComplete { result in
             if self.connection === connection {
-                self.connection = nil
-            }
-        }
-
-        channelCloseFuture.whenComplete { result in
-                if self.connection === connection {
                 self.connection = nil
             }
         }

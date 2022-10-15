@@ -19,7 +19,7 @@ public enum AMQPResponse {
     case connection(Connection)
 
     public enum Channel {
-        case opened(channelID: Frame.ChannelID, closeFuture: EventLoopFuture<Void>)
+        case opened(channelID: Frame.ChannelID)
         case closed(Frame.ChannelID)
         case message(AMQPMessage)
         case queue(Queue)

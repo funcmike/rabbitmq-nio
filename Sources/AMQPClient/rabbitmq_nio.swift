@@ -140,6 +140,12 @@ func setupEventloop(arguments: [String]) async {
     // let txRollback = try! await channelResult.txRollback()
     // print(txRollback)
     
+    let channelClose = try! await channelResult.close()
+    print(channelClose)
+
+    // let clientClose = try! await client.close()
+    // print(clientClose)
+    
     try! client.closeFuture()?.wait()
     print("Client closed")
 }
