@@ -13,6 +13,7 @@
 
 import NIO
 import NIOConcurrencyHelpers
+import Atomics
 import AMQPProtocol
 
 public final class AMQPChannel {
@@ -33,6 +34,8 @@ public final class AMQPChannel {
             }
         }
     }
+
+    private let isConfirmMode = ManagedAtomic(false)
 
     init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection, channelCloseFuture: EventLoopFuture<Void>) {
         self.channelID = channelID
@@ -86,10 +89,10 @@ public final class AMQPChannel {
 
         return connection.sendFrame(frame: .method(self.channelID, .queue(.declare(.init(reserved1: 0, queueName: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: false, arguments: arguments)))), immediate: true)
             .flatMapThrowing { response in 
-                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared(let queueName, let messageCount, let consumerCount) = queue else {
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared = queue else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.queue(.declared(queueName: queueName, messageCount: messageCount, consumerCount: consumerCount)))
+                return response
             }
     }
 
@@ -98,10 +101,10 @@ public final class AMQPChannel {
 
         return connection.sendFrame(frame: .method(self.channelID, .queue(.delete(.init(reserved1: 0, queueName: name, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: false)))), immediate: true)
             .flatMapThrowing { response in 
-                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .deleted(let messageCount) = queue else {
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .deleted = queue else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.queue(.deleted(messageCount: messageCount)))
+                return response
             }
     }
 
@@ -110,10 +113,10 @@ public final class AMQPChannel {
 
         return connection.sendFrame(frame: .method(self.channelID, .queue(.purge(.init(reserved1: 0, queueName: name, noWait: false)))), immediate: true)
             .flatMapThrowing { response in 
-                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .purged(let messageCount) = queue else {
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .purged = queue else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.queue(.purged(messageCount: messageCount)))
+                return response
             }
     }
 
@@ -125,7 +128,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .binded = queue else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.queue(.binded))
+                return response
             }
     }
 
@@ -137,7 +140,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .unbinded = queue else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.queue(.unbinded))
+                return response
             }
     }
 
@@ -149,7 +152,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .declared = exchange else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.exchange(.declared))
+                return response
             }
     }
 
@@ -161,7 +164,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .deleted = exchange else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.exchange(.deleted))
+                return response
             }
     }
 
@@ -173,7 +176,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .binded = exchange else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.exchange(.binded))
+                return response
             }
     }
 
@@ -185,7 +188,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .unbinded = exchange else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.exchange(.unbinded))
+                return response
             }
     }
 
@@ -200,7 +203,27 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .recovered = basic else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.basic(.recovered))
+                return response
+            }
+    }
+
+    /// Sets the channel in publish confirm mode, each published message will be acked or nacked
+    public func confirmSelect() -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        guard !self.isConfirmMode.load(ordering: .relaxed) else {
+            return self.eventLoopGroup.any().makeSucceededFuture(.channel(.confirm(.alreadySelected)))
+        }
+
+        return connection.sendFrame(frame: .method(self.channelID, .confirm(.select(noWait: false))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .confirm(let confirm) = channel, case .selected = confirm else {
+                    throw ClientError.invalidResponse(response)
+                }
+
+                self.isConfirmMode.store(true, ordering: .relaxed)
+
+                return response
             }
     }
 
@@ -213,7 +236,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .selected = tx else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.tx(.selected))
+                return response
             }
     }
 
@@ -226,7 +249,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .committed = tx else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.tx(.committed))
+                return response
             }
     }
 
@@ -239,7 +262,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .rollbacked = tx else {
                     throw ClientError.invalidResponse(response)
                 }
-                return .channel(.tx(.rollbacked))
+                return response
             }
     }
 

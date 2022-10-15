@@ -109,7 +109,7 @@ func setupEventloop(arguments: [String]) async {
 
 
     let start = Date()
-    for _ in 1 ... 100000 + 2  {
+    for _ in 1 ... 10 + 2  {
         do
         {
             let _ = try await channelResult.basicGet(queue: "test")
@@ -122,15 +122,21 @@ func setupEventloop(arguments: [String]) async {
     let stop = Date()
     print(10.0/start.distance(to: stop))
 
+    let confirmSelect1 = try! await channelResult.confirmSelect()
+    print(confirmSelect1)
 
-    let txSelect = try! await channelResult.txSelect()
-    print(txSelect)
+    let confirmSelect2 = try! await channelResult.confirmSelect()
+    print(confirmSelect2)
 
-    let txCommit = try! await channelResult.txCommit()
-    print(txCommit)
 
-    let txRollback = try! await channelResult.txRollback()
-    print(txRollback)
+    // let txSelect = try! await channelResult.txSelect()
+    // print(txSelect)
+
+    // let txCommit = try! await channelResult.txCommit()
+    // print(txCommit)
+
+    // let txRollback = try! await channelResult.txRollback()
+    // print(txRollback)
 
     
     try! client.closeFuture()?.wait()

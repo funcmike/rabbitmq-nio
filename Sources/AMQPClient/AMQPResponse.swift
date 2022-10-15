@@ -25,6 +25,7 @@ public enum AMQPResponse {
         case queue(Queue)
         case exchange(Exchange)
         case basic(Basic)
+        case confirm(Confirm)
         case tx(Tx)
 
         public enum Queue {
@@ -44,6 +45,11 @@ public enum AMQPResponse {
 
         public enum Basic {
             case recovered
+        }
+
+        public enum Confirm {
+            case selected
+            case alreadySelected
         }
 
         public enum Tx {

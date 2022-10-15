@@ -67,6 +67,10 @@ public extension AMQPChannel {
         return try await self.basicRecover(requeue: requeue).get()
     }
 
+    func confirmSelect() async throws -> AMQPResponse {
+        return try await self.confirmSelect().get()
+    }
+
     func txSelect() async throws -> AMQPResponse {
         return try await self.txSelect().get()
     }

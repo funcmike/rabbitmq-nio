@@ -113,6 +113,15 @@ internal final class AMQPChannelHandler {
                 default:
                     return
                 }
+            case .confirm(let confirm):
+                switch confirm {
+                case .selectOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.confirm(.selected)))
+                    }
+                default:
+                    return
+                }
             case .tx(let tx):
                 switch tx {
                 case .selectOk:
