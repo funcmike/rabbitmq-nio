@@ -22,3 +22,6 @@ AMQPClient is in prototyping phase: work on architecture using NIO and tests of 
 * establishing connection with heartbeats
 * channel creation
 * basic publish
+* basic get
+* queue operations
+* exchange operations
