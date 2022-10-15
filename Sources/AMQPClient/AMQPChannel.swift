@@ -37,6 +37,8 @@ public final class AMQPChannel {
 
     private let isConfirmMode = ManagedAtomic(false)
 
+    private let isTxMode = ManagedAtomic(false)
+
     init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection, channelCloseFuture: EventLoopFuture<Void>) {
         self.channelID = channelID
         self.eventLoopGroup = eventLoopGroup
@@ -231,11 +233,18 @@ public final class AMQPChannel {
     public func txSelect() -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
+        guard !self.isTxMode.load(ordering: .relaxed) else {
+            return self.eventLoopGroup.any().makeSucceededFuture(.channel(.tx(.alreadySelected)))
+        }
+
         return connection.sendFrame(frame: .method(self.channelID, .tx(.select)), immediate: true)
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .selected = tx else {
                     throw ClientError.invalidResponse(response)
                 }
+
+                self.isTxMode.store(true, ordering: .relaxed)
+
                 return response
             }
     }

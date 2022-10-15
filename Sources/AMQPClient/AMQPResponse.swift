@@ -54,6 +54,7 @@ public enum AMQPResponse {
 
         public enum Tx {
             case selected
+            case alreadySelected
             case committed
             case rollbacked
         }
