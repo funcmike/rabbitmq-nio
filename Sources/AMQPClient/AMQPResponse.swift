@@ -45,6 +45,7 @@ public enum AMQPResponse {
 
         public enum Basic {
             case recovered
+            case qosed
         }
 
         public enum Confirm {

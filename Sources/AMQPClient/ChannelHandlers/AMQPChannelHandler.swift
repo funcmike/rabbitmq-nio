@@ -48,6 +48,10 @@ internal final class AMQPChannelHandler {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.recovered)))
                     }
+                case .qosOk:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.basic(.qosed)))
+                    }
                 default:
                     return
                 }

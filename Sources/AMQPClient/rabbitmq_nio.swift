@@ -128,6 +128,8 @@ func setupEventloop(arguments: [String]) async {
     let confirmSelect2 = try! await channelResult.confirmSelect()
     print(confirmSelect2)
 
+    let basicQos = try! await channelResult.basicQos(count: 1000)
+    print(basicQos)
 
     // let txSelect = try! await channelResult.txSelect()
     // print(txSelect)
@@ -137,7 +139,6 @@ func setupEventloop(arguments: [String]) async {
 
     // let txRollback = try! await channelResult.txRollback()
     // print(txRollback)
-
     
     try! client.closeFuture()?.wait()
     print("Client closed")

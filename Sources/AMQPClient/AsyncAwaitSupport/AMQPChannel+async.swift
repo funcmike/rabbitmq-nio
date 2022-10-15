@@ -83,6 +83,10 @@ public extension AMQPChannel {
         return try await self.txRollback().get()
     }
 
+    func basicQos(count: UInt16, global: Bool = false) async throws -> AMQPResponse {
+        return try await self.basicQos(count: count, global: global).get()
+    }
+
     func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
         return try await self.close(reason: reason, code: code).get()
     }

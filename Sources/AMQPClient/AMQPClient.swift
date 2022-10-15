@@ -86,7 +86,7 @@ public final class AMQPClient {
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
-        return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))
+        return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))), immediate: true)
         .flatMapThrowing { response in
             guard case .channel(let channel) = response, case .closed = channel else {
                 throw ClientError.invalidResponse(response)

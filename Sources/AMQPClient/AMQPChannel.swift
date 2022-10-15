@@ -39,6 +39,8 @@ public final class AMQPChannel {
 
     private let isTxMode = ManagedAtomic(false)
 
+    private let prefetchCount = ManagedAtomic(UInt16(0))
+
     init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection, channelCloseFuture: EventLoopFuture<Void>) {
         self.channelID = channelID
         self.eventLoopGroup = eventLoopGroup
@@ -278,13 +280,30 @@ public final class AMQPChannel {
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
-        return connection.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
+        return connection.sendFrame(frame: .method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))), immediate: true)
         .flatMapThrowing { response in
             guard case .channel(let channel) = response, case .closed = channel else {
                 throw ClientError.invalidResponse(response)
             }
             return response
         }
+    }
+
+    /// Set prefetch limit to *count* messages,
+    /// no more messages will be delivered to the consumer until one or more message have been acknowledged or rejected
+    public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))), immediate: true)
+        .flatMapThrowing { response in
+            guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosed = basic else {
+                throw ClientError.invalidResponse(response)
+            }
+            
+            self.prefetchCount.store(count, ordering: .relaxed)
+            
+            return response
+        }        
     }
 
     public func ack(deliveryTag: UInt64, multiple: Bool = false) {
