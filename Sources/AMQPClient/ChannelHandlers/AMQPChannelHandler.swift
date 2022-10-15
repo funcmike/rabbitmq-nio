@@ -38,6 +38,10 @@ internal final class AMQPChannelHandler {
             switch method {
             case .basic(let basic):
                 switch basic {
+                case .getEmpty:
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.message(.get())))
+                    }
                 case .getOk(let getOk):
                     self.nextMessage = (getOk: getOk, properties: nil)
                 case .recoverOk:

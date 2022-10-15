@@ -96,30 +96,20 @@ func setupEventloop(arguments: [String]) async {
     let recover = try! await channelResult.basicRecover(requeue: true)
     print(recover)
 
-    // let txSelect = try! await channelResult.txSelect()
-    // print(txSelect)
-
-    // let txCommit = try! await channelResult.txCommit()
-    // print(txCommit)
-
-    // let txRollback = try! await channelResult.txRollback()
-    // print(txRollback)
-
     let test  = [UInt8](arrayLiteral: 65, 77, 81, 80, 0, 0, 9, 1)
 
     let startProduce = Date()
 
-    for _ in 1 ... 100000  {
+    for _ in 1 ... 10  {
         try! await channelResult.basicPublish(body: test, exchange: "", routingKey: "test")
     }
 
     let stopProduce = Date()
-
-    print(100000.0/startProduce.distance(to: stopProduce))
+    print(10.0/startProduce.distance(to: stopProduce))
 
 
     let start = Date()
-    for _ in 1 ... 100000  {
+    for _ in 1 ... 100000 + 2  {
         do
         {
             let _ = try await channelResult.basicGet(queue: "test")
@@ -130,8 +120,18 @@ func setupEventloop(arguments: [String]) async {
     }
 
     let stop = Date()
+    print(10.0/start.distance(to: stop))
 
-    print(100000.0/start.distance(to: stop))
+
+    let txSelect = try! await channelResult.txSelect()
+    print(txSelect)
+
+    let txCommit = try! await channelResult.txCommit()
+    print(txCommit)
+
+    let txRollback = try! await channelResult.txRollback()
+    print(txRollback)
+
     
     try! client.closeFuture()?.wait()
     print("Client closed")

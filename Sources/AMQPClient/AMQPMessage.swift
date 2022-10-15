@@ -16,7 +16,7 @@ import AMQPProtocol
 
 public enum AMQPMessage {
     case delivery(Delivery)
-    case get(Get?)
+    case get(Get? = nil)
     case `return`(Return)
 
     public struct Delivery {
