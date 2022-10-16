@@ -96,7 +96,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             throw ProtocolError.incomplete(type: (UInt8, ChannelID, UInt32).self, need: 7, got: buffer.readableBytes)
         }
 
-        guard buffer.readableBytes >= size else {
+        guard buffer.readableBytes >= size + 1 else { //size + endFrame
             throw ProtocolError.incomplete(need: size, got: buffer.readableBytes)
         }
 
