@@ -158,7 +158,6 @@ public class AMQPListener: AsyncSequence {
     }
 
     deinit {
-        
         self.channel.removeConsumeListener(consumerTag: self.consumerTag)
         self.channel.removeCloseListener(consumerTag: self.consumerTag)
     }
