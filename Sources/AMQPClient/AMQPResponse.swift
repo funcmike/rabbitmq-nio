@@ -19,7 +19,7 @@ public enum AMQPResponse {
     case connection(Connection)
 
     public enum Channel {
-        case opened(channelID: Frame.ChannelID)
+        case opened(Opened)
         case closed(Frame.ChannelID)
         case message(AMQPMessage)
         case queue(Queue)
@@ -27,6 +27,16 @@ public enum AMQPResponse {
         case basic(Basic)
         case confirm(Confirm)
         case tx(Tx)
+
+        public struct Opened {
+            public let channelID: Frame.ChannelID
+            let notifier: Notifiable
+
+            internal init(channelID: Frame.ChannelID, notifier: Notifiable) {
+                self.channelID = channelID
+                self.notifier = notifier
+            }
+        }
 
         public enum Queue {
             case declared(queueName: String, messageCount: UInt32, consumerCount: UInt32)
@@ -46,6 +56,7 @@ public enum AMQPResponse {
         public enum Basic {
             case recovered
             case qosed
+            case consumed(consumerTag: String)
         }
 
         public enum Confirm {

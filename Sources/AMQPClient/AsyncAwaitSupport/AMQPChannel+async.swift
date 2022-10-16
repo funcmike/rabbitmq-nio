@@ -114,4 +114,56 @@ public extension AMQPChannel {
     func basicReject(message: AMQPMessage.Delivery, requeue: Bool = false) async throws {
         return try await self.basicReject(message: message, requeue: requeue).get()
     }
+
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) async throws -> AMQPResponse {
+        return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive:exclusive, args: arguments, listener: listener).get()
+    }
+
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPListener {
+        return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
+            .flatMapThrowing { response in
+                    guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumed(let tag) = basic else {
+                        throw ClientError.invalidResponse(response)
+                    }
+
+                    return .init(self, consumerTag: tag)
+                }.get()  
+    }
+}
+
+public class AMQPListener: AsyncSequence {
+    public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
+    public typealias Element = Result<AMQPMessage.Delivery, Error>
+
+    let channel: AMQPChannel
+    let stream: AsyncStream<Element>
+    let consumerTag: String
+
+    init(_ channel: AMQPChannel, consumerTag: String) {
+        self.channel = channel
+        self.consumerTag = consumerTag    
+        self.stream = AsyncStream { cont in
+            do {
+                try channel.addConsumeListener(consumerTag: consumerTag) { result in
+                    cont.yield(result)
+                }
+            } catch {
+                preconditionFailure("cannot add listener \(error)")
+            }
+
+            channel.addCloseListener(consumerTag: consumerTag) { _ in
+                cont.finish()
+            }
+        }
+    }
+
+    deinit {
+        
+        self.channel.removeConsumeListener(consumerTag: self.consumerTag)
+        self.channel.removeCloseListener(consumerTag: self.consumerTag)
+    }
+
+    public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {
+        return self.stream.makeAsyncIterator()
+    }
 }

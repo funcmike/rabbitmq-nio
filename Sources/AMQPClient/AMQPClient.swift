@@ -18,15 +18,15 @@ import NIOConcurrencyHelpers
 import AMQPProtocol
 
 public final class AMQPClient {
-    let eventLoopGroup: EventLoopGroup
-    let eventLoopGroupProvider: NIOEventLoopGroupProvider
-    let config: Configuration
+    private let eventLoopGroup: EventLoopGroup
+    private let eventLoopGroupProvider: NIOEventLoopGroupProvider
+    private let config: Configuration
 
     private let isShutdown = ManagedAtomic(false)
 
     private var lock = NIOLock()
     private var _connection: AMQPConnection?
-    var connection: AMQPConnection? {
+    private var connection: AMQPConnection? {
         get {
             self.lock.withLock {
                 _connection
@@ -75,11 +75,11 @@ public final class AMQPClient {
 
         return connection.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
-                guard case .channel(let channel) = response, case .opened(let channelID) = channel, id == channelID else {
+                guard case .channel(let channel) = response, case .opened(let opened) = channel, opened.channelID == id else {
                     throw ClientError.invalidResponse(response)
                 }
 
-                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, connection: connection)
+                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, notifier: opened.notifier, connection: connection)
             }
     }
 

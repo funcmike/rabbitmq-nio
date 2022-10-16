@@ -14,10 +14,17 @@
 import NIO
 import AMQPProtocol
 
-internal final class AMQPChannelHandler {
+internal protocol Notifiable {
+    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Delivery>.Listener)
+    func removeConsumeListener(named name: String)
+}
+
+internal final class AMQPChannelHandler: Notifiable {
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
-    private var nextMessage: (getOk: Basic.GetOk, properties: Properties?)?
+    private var nextMessage: (frame: Basic, properties: Properties?)?
+
+    private var consumeListeners = AMQPListeners<AMQPMessage.Delivery>()
 
     init(channelID: Frame.ChannelID, initialQueueCapacity: Int = 3) {
         self.channelID = channelID
@@ -26,6 +33,15 @@ internal final class AMQPChannelHandler {
 
     func append(promise: EventLoopPromise<AMQPResponse>) {
         return self.responseQueue.append(promise)
+    }
+
+    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Delivery>.Listener) {
+        print("dodaje", name)
+        return self.consumeListeners.addListener(named: name, listener: listener)
+    }
+
+    func removeConsumeListener(named name: String) {
+        return self.consumeListeners.removeListener(named: name)
     }
 
     func processFrame(frame: Frame) {
@@ -40,8 +56,8 @@ internal final class AMQPChannelHandler {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.message(.get())))
                     }
-                case .getOk(let getOk):
-                    self.nextMessage = (getOk: getOk, properties: nil)
+                case .deliver, .getOk:
+                    self.nextMessage = (frame: basic, properties: nil)
                 case .recoverOk:
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.recovered)))
@@ -50,6 +66,10 @@ internal final class AMQPChannelHandler {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.qosed)))
                     }
+                case .consumeOk(let consumerTag):
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.basic(.consumed(consumerTag: consumerTag))))
+                    }                    
                 default:
                     return
                 }
@@ -57,7 +77,7 @@ internal final class AMQPChannelHandler {
                 switch channel {   
                 case .openOk:
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.opened(channelID: channelID)))
+                        promise.succeed(.channel(.opened(.init(channelID: channelID, notifier: self))))
                     }
                 case .close(let close):
                     self.shutdown(error: ClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
@@ -150,25 +170,39 @@ internal final class AMQPChannelHandler {
             self.nextMessage?.properties = header.properties
         case .body(let channelID, let body):
             guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
-
-            if let promise = self.responseQueue.popFirst() {
                 guard let msg = nextMessage, let properties = msg.properties else {
-                    promise.fail(ClientError.invalidMessage)
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.fail(ClientError.invalidMessage)
+                    }
                     return
                 }
 
-                promise.succeed(.channel(.message(.get(.init(
-                    message: AMQPMessage.Delivery(
-                        exchange: msg.getOk.exchange,
-                        routingKey: msg.getOk.routingKey,
-                        deliveryTag: msg.getOk.deliveryTag,
-                        properties: properties,
-                        redelivered: msg.getOk.redelivered,
-                        body: body),
-                    messageCount: msg.getOk.messageCount)))))
+                switch msg.frame {
+                    case .getOk(let getOk):
+                            if let promise = self.responseQueue.popFirst() {
+                                    promise.succeed(.channel(.message(.get(.init(
+                                        message: AMQPMessage.Delivery(
+                                            exchange: getOk.exchange,
+                                            routingKey: getOk.routingKey,
+                                            deliveryTag: getOk.deliveryTag,
+                                            properties: properties,
+                                            redelivered: getOk.redelivered,
+                                            body: body),
+                                        messageCount: getOk.messageCount)))))
+                            }
+                    case .deliver(let deliver):
+                        consumeListeners.notify(named: deliver.consumerTag, .success(.init(
+                            exchange: deliver.exchange,
+                            routingKey: deliver.routingKey,
+                            deliveryTag: deliver.deliveryTag,
+                            properties: properties,
+                            redelivered: deliver.redelivered,
+                            body: body)))
+                    default:
+                        return
+                }
 
                 nextMessage = nil
-            }
         default:
             return
         }

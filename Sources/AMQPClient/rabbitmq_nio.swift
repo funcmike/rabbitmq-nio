@@ -100,36 +100,55 @@ func setupEventloop(arguments: [String]) async {
 
     let startProduce = Date()
 
-    for _ in 1 ... 10  {
+    for _ in 1 ... 100000  {
         try! await channelResult.basicPublish(body: test, exchange: "", routingKey: "test")
     }
 
     let stopProduce = Date()
-    print(10.0/startProduce.distance(to: stopProduce))
+    print(100000.0/startProduce.distance(to: stopProduce))
 
+
+    //let start = Date()
+    // for _ in 1 ... 10 + 2  {
+    //     do
+    //     {
+    //         let _ = try await channelResult.basicGet(queue: "test")
+    //         //print("got messge", message as Any)
+    //     } catch {
+    //         print("error", error)
+    //     }
+    // }
+    // let stop = Date()
+    // print(10.0/start.distance(to: stop))
+    // let basicConsume = try! await channelResult.basicConsume(queue: "test", listener: { result in 
+    //     print(result)
+    // })
+
+    // print(basicConsume)
 
     let start = Date()
-    for _ in 1 ... 10 + 2  {
-        do
-        {
-            let _ = try await channelResult.basicGet(queue: "test")
-            //print("got messge", message as Any)
-        } catch {
-            print("error", error)
+
+    var i = 0
+    let consumer = try! await channelResult.basicConsume(queue: "test")
+    for await result in consumer {
+        //print(result)
+        i += 1
+        if i == 100000 {
+            let stop = Date()
+            print("finished", 100000.0/start.distance(to: stop))
         }
     }
 
-    let stop = Date()
-    print(10.0/start.distance(to: stop))
 
-    let confirmSelect1 = try! await channelResult.confirmSelect()
-    print(confirmSelect1)
 
-    let confirmSelect2 = try! await channelResult.confirmSelect()
-    print(confirmSelect2)
+    // let confirmSelect1 = try! await channelResult.confirmSelect()
+    // print(confirmSelect1)
 
-    let basicQos = try! await channelResult.basicQos(count: 1000)
-    print(basicQos)
+    // let confirmSelect2 = try! await channelResult.confirmSelect()
+    // print(confirmSelect2)
+
+    // let basicQos = try! await channelResult.basicQos(count: 1000)
+    // print(basicQos)
 
     // let txSelect = try! await channelResult.txSelect()
     // print(txSelect)
@@ -140,8 +159,8 @@ func setupEventloop(arguments: [String]) async {
     // let txRollback = try! await channelResult.txRollback()
     // print(txRollback)
     
-    let channelClose = try! await channelResult.close()
-    print(channelClose)
+    // let channelClose = try! await channelResult.close()
+    // print(channelClose)
 
     // let clientClose = try! await client.close()
     // print(clientClose)

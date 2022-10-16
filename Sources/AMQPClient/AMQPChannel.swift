@@ -22,7 +22,7 @@ public final class AMQPChannel {
 
     private var lock = NIOLock()
     private var _connection: AMQPConnection?
-    var connection: AMQPConnection? {
+    private var connection: AMQPConnection? {
         get {
             self.lock.withLock {
                 _connection
@@ -35,21 +35,39 @@ public final class AMQPChannel {
         }
     }
 
+    private var _notifier: Notifiable?
+    private var notifier: Notifiable? {
+        get {
+            self.lock.withLock {
+                _notifier
+            }
+        }
+        set {
+            self.lock.withLock {
+                _notifier = newValue
+            }
+        }
+    }
+
+    private var closeListeners = AMQPListeners<Void>()
+
     private let isConfirmMode = ManagedAtomic(false)
-
     private let isTxMode = ManagedAtomic(false)
-
     private let prefetchCount = ManagedAtomic(UInt16(0))
 
-    init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, connection: AMQPConnection) {
+    init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, notifier: Notifiable, connection: AMQPConnection) {
         self.channelID = channelID
         self.eventLoopGroup = eventLoopGroup
+        self.notifier = notifier
         self.connection = connection
 
         connection.closeFuture().whenComplete { result in
             if self.connection === connection {
                 self.connection = nil
+                self.notifier = nil
             }
+
+            self.closeListeners.notify(result)
         }
     }
 
@@ -61,6 +79,11 @@ public final class AMQPChannel {
             guard case .channel(let channel) = response, case .closed = channel else {
                 throw ClientError.invalidResponse(response)
             }
+
+            self.notifier = nil
+
+            self.closeListeners.notify(.success(()))
+
             return response
         }
     }
@@ -289,15 +312,15 @@ public final class AMQPChannel {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(self.channelID, .basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))), immediate: true)
-        .flatMapThrowing { response in
-            guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosed = basic else {
-                throw ClientError.invalidResponse(response)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosed = basic else {
+                    throw ClientError.invalidResponse(response)
+                }
+
+                self.prefetchCount.store(count, ordering: .relaxed)
+
+                return response
             }
-            
-            self.prefetchCount.store(count, ordering: .relaxed)
-            
-            return response
-        }        
     }
 
     public func basicAck(deliveryTag: UInt64, multiple: Bool = false) -> EventLoopFuture<Void> {
@@ -328,5 +351,43 @@ public final class AMQPChannel {
 
     public func basicReject(message: AMQPMessage.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
         return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
+    }
+
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = true, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.consume(.init(reserved1: 0, queue: queue, consumerTag: consumerTag, noLocal: false, noAck: noAck, exclusive: exclusive, noWait: false, arguments: arguments)))), immediate: true)
+    }
+
+    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = true, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse> { 
+        return self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumed(let tag) = basic else {
+                    throw ClientError.invalidResponse(response)
+                }
+
+                try self.addConsumeListener(consumerTag: tag, listener: listener)
+                return response
+            }
+    }
+
+    func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
+
+        notifier.addConsumeListener(named: consumerTag, listener: listener)   
+    }
+
+    func removeConsumeListener(consumerTag: String) {
+        guard let notifier = self.notifier else { return }
+
+        notifier.removeConsumeListener(named: consumerTag)   
+    }
+
+    public func addCloseListener(consumerTag: String, listener: @escaping (Result<Void, Error>) -> Void)  {
+        return self.closeListeners.addListener(named: consumerTag, listener: listener)
+    }
+
+    public func removeCloseListener(consumerTag: String)  {
+        return self.closeListeners.removeListener(named: consumerTag)
     }
 }
