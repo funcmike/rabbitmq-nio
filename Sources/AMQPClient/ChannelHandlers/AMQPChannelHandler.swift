@@ -36,7 +36,6 @@ internal final class AMQPChannelHandler: Notifiable {
     }
 
     func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Delivery>.Listener) {
-        print("dodaje", name)
         return self.consumeListeners.addListener(named: name, listener: listener)
     }
 
