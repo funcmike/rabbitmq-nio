@@ -353,13 +353,13 @@ public final class AMQPChannel {
         return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
     }
 
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = true, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(self.channelID, .basic(.consume(.init(reserved1: 0, queue: queue, consumerTag: consumerTag, noLocal: false, noAck: noAck, exclusive: exclusive, noWait: false, arguments: arguments)))), immediate: true)
     }
 
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = true, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse> { 
+    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse> { 
         return self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumed(let tag) = basic else {
