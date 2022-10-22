@@ -53,7 +53,6 @@ public final class AMQPChannel {
 
     private let isConfirmMode = ManagedAtomic(false)
     private let isTxMode = ManagedAtomic(false)
-    private let prefetchCount = ManagedAtomic(UInt16(0))
     private let deliveryTag = ManagedAtomic(UInt64(1))
 
     init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, notifier: Notifiable, connection: AMQPConnection) {
@@ -337,8 +336,6 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosed = basic else {
                     throw ClientError.invalidResponse(response)
                 }
-
-                self.prefetchCount.store(count, ordering: .relaxed)
 
                 return response
             }
