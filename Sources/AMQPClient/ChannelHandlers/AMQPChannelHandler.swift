@@ -45,7 +45,7 @@ internal final class AMQPChannelHandler: Notifiable {
         self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
     }
 
-    func append(promise: EventLoopPromise<AMQPResponse>) {
+    func addResponse(promise: EventLoopPromise<AMQPResponse>) {
         return self.responseQueue.append(promise)
     }
 

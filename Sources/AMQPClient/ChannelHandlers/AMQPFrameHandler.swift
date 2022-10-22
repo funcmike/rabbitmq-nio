@@ -187,7 +187,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 if channelID == 0  {
                     self.responseQueue.append(responsePromise) 
                 } else if let channel = self.channels[channelID] {
-                    channel.append(promise: responsePromise)
+                    channel.addResponse(promise: responsePromise)
                 } else {
                     responsePromise.fail(ClientError.channelClosed())
                     promise?.fail(ClientError.channelClosed())
@@ -204,7 +204,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 if id == 0  {
                     self.responseQueue.append(responsePromise)
                 } else if let channel = self.channels[id] {
-                    channel.append(promise: responsePromise)
+                    channel.addResponse(promise: responsePromise)
                 } else {
                     responsePromise.fail(ClientError.channelClosed())
                     promise?.fail(ClientError.channelClosed())
