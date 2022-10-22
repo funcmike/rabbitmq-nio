@@ -100,12 +100,12 @@ func setupEventloop(arguments: [String]) async {
 
     let startProduce = Date()
 
-    for _ in 1 ... 100000  {
+    for _ in 1 ... 1000  {
         try! await channelResult.basicPublish(body: test, exchange: "", routingKey: "test")
     }
 
     let stopProduce = Date()
-    print(100000.0/startProduce.distance(to: stopProduce))
+    print(1000.0/startProduce.distance(to: stopProduce))
 
 
     //let start = Date()
@@ -126,16 +126,25 @@ func setupEventloop(arguments: [String]) async {
 
     // print(basicConsume)
 
+    // let flow1 = try! await channelResult.flow(active: false)
+    // print(flow1)
+
+    // let flow2 = try! await channelResult.flow(active: true)
+    // print(flow2)
+
+
     let start = Date()
 
     var i = 0
     let consumer = try! await channelResult.basicConsume(queue: "test")
-    for await result in consumer {
+    for await _ in consumer {
         //print(result)
         i += 1
-        if i == 100000 {
+        if i == 1000 {
             let stop = Date()
-            print("finished", 100000.0/start.distance(to: stop))
+            print("finished", 1000.0/start.distance(to: stop))
+            let cancel = try! await channelResult.cancel(consumerTag: consumer.consumerTag)
+            print(cancel)
         }
     }
 
@@ -165,6 +174,9 @@ func setupEventloop(arguments: [String]) async {
     // let clientClose = try! await client.close()
     // print(clientClose)
     
-    try! client.closeFuture()?.wait()
+    let flow = try! await channelResult.flow(active: true)
+    print(flow)
+
+    try! client.closeFuture?.wait()
     print("Client closed")
 }
