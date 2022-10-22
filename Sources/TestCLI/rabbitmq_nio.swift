@@ -14,13 +14,13 @@
 import NIO
 import NIOPosix
 import Foundation
-
+import AMQPClient
 @main
-public struct rabbitmq_nio {
+public struct TestCLI {
     public private(set) var text = "Hello, World!"
 
     public  static func main() async {
-        print(rabbitmq_nio().text)
+        print(TestCLI().text)
         await setupEventloop(arguments: CommandLine.arguments)
     }
 }

@@ -39,7 +39,7 @@ public final class AMQPClient {
         }
     }
 
-    var closeFuture: EventLoopFuture<Void>? {
+    public var closeFuture: EventLoopFuture<Void>? {
         get { return self._connection?.closeFuture }
     }
 

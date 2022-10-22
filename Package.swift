@@ -7,6 +7,7 @@ let package = Package(
     name: "rabbitmq-nio",
     products: [
         .library(name: "AMQPProtocol", targets: ["AMQPProtocol"]),
+        .library(name: "AMQPClient", targets: ["AMQPClient"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.43.1"),
@@ -18,7 +19,7 @@ let package = Package(
             dependencies: [
                 .product(name: "NIOCore", package: "swift-nio"),
             ]),
-        .executableTarget(
+        .target(
             name: "AMQPClient",
             dependencies: [
                 "AMQPProtocol",
@@ -26,6 +27,12 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
             ]),
+        .executableTarget(
+            name: "TestCLI",
+            dependencies: [
+                "AMQPClient"
+            ]
+        ),
         .testTarget(
             name: "rabbitmq-nioTests",
             dependencies: ["AMQPProtocol"]),
