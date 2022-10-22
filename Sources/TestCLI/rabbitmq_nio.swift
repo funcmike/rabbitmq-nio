@@ -42,9 +42,9 @@ func setupEventloop(arguments: [String]) async {
     let client: AMQPClient
 
     if let target = connectTarget {
-        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(Configuration.Server(host: target.0, port: target.1, user: "vxos", password: "vxos")))
+        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(AMQPClientConfiguration.Server(host: target.0, port: target.1, user: "vxos", password: "vxos")))
     } else {
-        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(Configuration.Server(user: "vxos", password: "vxos")))
+        client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(AMQPClientConfiguration.Server(user: "vxos", password: "vxos")))
     }
 
     defer {

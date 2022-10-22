@@ -28,15 +28,15 @@ internal final class AMQPConnection {
         self.eventLoopGroup = eventLoopGroup
     }
 
-    static func create(use eventLoopGroup: EventLoopGroup, from config: Configuration) -> EventLoopFuture<AMQPConnection> {
+    static func create(use eventLoopGroup: EventLoopGroup, from config: AMQPClientConfiguration) -> EventLoopFuture<AMQPConnection> {
         return self.boostrapChannel(use: eventLoopGroup, from: config)
             .map { AMQPConnection(channel: $0, eventLoopGroup: eventLoopGroup) }
     }
 
-    static func boostrapChannel(use eventLoopGroup: EventLoopGroup, from config: Configuration) -> EventLoopFuture<NIO.Channel> {
+    static func boostrapChannel(use eventLoopGroup: EventLoopGroup, from config: AMQPClientConfiguration) -> EventLoopFuture<NIO.Channel> {
         let eventLoop = eventLoopGroup.next()
         let channelPromise = eventLoop.makePromise(of: NIO.Channel.self)
-        let serverConfig: Configuration.Server
+        let serverConfig: AMQPClientConfiguration.Server
     
         switch config {
         case .tls(_, _, let server):
@@ -69,7 +69,7 @@ internal final class AMQPConnection {
         return channelPromise.futureResult        
     }
 
-    static func boostrapClient(use eventLoopGroup: EventLoopGroup, from config: Configuration) throws -> NIOClientTCPBootstrap {
+    static func boostrapClient(use eventLoopGroup: EventLoopGroup, from config: AMQPClientConfiguration) throws -> NIOClientTCPBootstrap {
         guard let clientBootstrap = ClientBootstrap(validatingGroup: eventLoopGroup) else {
             preconditionFailure("Cannot create bootstrap for the supplied EventLoop")
         }

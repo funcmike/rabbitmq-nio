@@ -15,7 +15,7 @@ import Foundation
 import NIOSSL
 import NIO
 
-public enum Configuration {
+public enum AMQPClientConfiguration {
     case tls(TLSConfiguration?, sniServerName: String?, Server)
     case plain(Server)
 

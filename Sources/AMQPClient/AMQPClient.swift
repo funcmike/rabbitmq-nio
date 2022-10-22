@@ -20,7 +20,7 @@ import AMQPProtocol
 public final class AMQPClient {
     private let eventLoopGroup: EventLoopGroup
     private let eventLoopGroupProvider: NIOEventLoopGroupProvider
-    private let config: Configuration
+    private let config: AMQPClientConfiguration
 
     private let isShutdown = ManagedAtomic(false)
 
@@ -43,7 +43,7 @@ public final class AMQPClient {
         get { return self._connection?.closeFuture }
     }
 
-    public init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: Configuration) {
+    public init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: AMQPClientConfiguration) {
         self.config = config
         self.eventLoopGroupProvider = eventLoopGroupProvider
 

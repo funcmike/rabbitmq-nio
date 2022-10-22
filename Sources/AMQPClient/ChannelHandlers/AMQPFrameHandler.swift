@@ -32,9 +32,9 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     private var channelMax: UInt16 = 0
     private var blocked: Bool = false
 
-    private let config: Configuration.Server
+    private let config: AMQPClientConfiguration.Server
 
-    init(config: Configuration.Server, initialQueueCapacity: Int = 3) {
+    init(config: AMQPClientConfiguration.Server, initialQueueCapacity: Int = 3) {
         self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
         self.config = config
     }
