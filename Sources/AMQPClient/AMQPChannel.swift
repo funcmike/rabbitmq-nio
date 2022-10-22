@@ -54,6 +54,7 @@ public final class AMQPChannel {
     private let isConfirmMode = ManagedAtomic(false)
     private let isTxMode = ManagedAtomic(false)
     private let prefetchCount = ManagedAtomic(UInt16(0))
+    private let deliveryTag = ManagedAtomic(UInt64(1))
 
     init(channelID: Frame.ChannelID, eventLoopGroup: EventLoopGroup, notifier: Notifiable, connection: AMQPConnection) {
         self.channelID = channelID
@@ -118,6 +119,23 @@ public final class AMQPChannel {
         let body = Frame.body(self.channelID, body: body)
 
         return connection.sendFrames(frames: [publish, header, body], immediate: true)
+    }
+
+    public func basicPublishConfirm(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
+        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.invalidBody) }
+
+        return self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+    }
+
+    public func basicPublishConfirm(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
+        guard self.isConfirmMode.load(ordering: .relaxed) else { return self.eventLoopGroup.next().makeFailedFuture( ClientError.channelNotInConfirmMode) }
+        
+        let response: EventLoopFuture<Void> = self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+        return response
+            .flatMap { _ in
+                let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
+                return self.eventLoopGroup.next().makeSucceededFuture(count)
+            }       
     }
 
     public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse>  {
@@ -428,21 +446,37 @@ public final class AMQPChannel {
         return notifier.addFlowListener(named: name, listener: listener)
     }
 
-    public func removeFlowListener(consumerTag: String)  {
+    public func removeFlowListener(named name: String)  {
         guard let notifier = self.notifier else { return }
 
-        return notifier.removeFlowListener(named: consumerTag)   
+        return notifier.removeFlowListener(named: name)   
     }
 
-    public func addReturnMessageListener(named name: String,  listener: @escaping (Result<AMQPMessage.Return, Error>) -> Void) throws {
+    public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPMessage.Return, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw ClientError.channelClosed() }
 
-        return notifier.addReturnMessageListener(named: name, listener: listener)
+        return notifier.addReturnListener(named: name, listener: listener)
     }
 
-    public func removeReturnMessageFlowListener(consumerTag: String)  {
+    public func removeReturnFlowListener(named name: String)  {
         guard let notifier = self.notifier else { return }
 
-        return notifier.removeReturnMessageListener(named: consumerTag)   
+        return notifier.removeReturnListener(named: name)   
+    }
+
+    public func addPublishListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
+
+        guard self.isConfirmMode.load(ordering: .relaxed) else {
+            throw ClientError.channelNotInConfirmMode
+        }
+
+        return notifier.addPublishListener(named: name, listener: listener)
+    }
+
+    public func removePublishListener(named name: String)  {
+        guard let notifier = self.notifier else { return }
+
+        return notifier.removePublishListener(named: name)
     }
 }

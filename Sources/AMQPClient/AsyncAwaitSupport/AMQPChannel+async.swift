@@ -23,12 +23,24 @@ public extension AMQPChannel {
         return try await self.basicGet(queue: queue, noAck: noAck).get()
     }
 
-    func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws {
+    func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> Void {
         return try await self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
     }
 
-    func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws  {
+    func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> Void  {
         return try await self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
+    }
+
+    func basicPublishConfirm(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> UInt64 {
+        return try await self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
+    }
+
+    func basicPublishConfirm(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> UInt64  {
+        return try await self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
+    }
+
+    func publishConsume(named name: String) async throws -> AMQPPublishListener {
+        return .init(self, named: name)
     }
 
     func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) async throws -> AMQPResponse {
@@ -119,7 +131,7 @@ public extension AMQPChannel {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive:exclusive, args: arguments, listener: listener).get()
     }
 
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPListener {
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPConsumeListener {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
             .flatMapThrowing { response in
                     guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumed(let tag) = basic else {
@@ -139,7 +151,7 @@ public extension AMQPChannel {
     }
 }
 
-public class AMQPListener: AsyncSequence {
+public class AMQPConsumeListener: AsyncSequence {
     public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
     public typealias Element = Result<AMQPMessage.Delivery, Error>
 
@@ -175,6 +187,50 @@ public class AMQPListener: AsyncSequence {
     deinit {
         self.channel.removeConsumeListener(consumerTag: self.consumerTag)
         self.channel.removeCloseListener(named: self.consumerTag)
+    }
+
+    public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {
+        return self.stream.makeAsyncIterator()
+    }
+}
+
+
+public class AMQPPublishListener: AsyncSequence {
+    public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
+    public typealias Element = Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>
+
+    let channel: AMQPChannel
+    let stream: AsyncStream<Element>
+    public let name: String
+
+    init(_ channel: AMQPChannel, named name: String) {
+        self.channel = channel
+        self.name = name
+        self.stream = AsyncStream { cont in
+            do {
+                try channel.addPublishListener(named: name) { result in
+                    guard case .success = result else {
+                        cont.yield(result)
+                        cont.finish()
+                        return
+                    }
+
+                    cont.yield(result)
+                }
+            } catch {
+                cont.finish()
+                return
+            }
+
+            channel.addCloseListener(named: name) { _ in
+                cont.finish()
+            }
+        }
+    }
+
+    deinit {
+        self.channel.removePublishListener(named: self.name)
+        self.channel.removeCloseListener(named: self.name)
     }
 
     public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {

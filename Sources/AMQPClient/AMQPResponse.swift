@@ -59,6 +59,12 @@ public enum AMQPResponse {
             case qosed
             case consumed(consumerTag: String)
             case canceled
+            case publishConfirm(PublishConfirm)
+
+            public enum PublishConfirm {
+                case ack(deliveryTag: UInt64, multiple: Bool)
+                case nack(deliveryTag: UInt64, multiple: Bool)
+            }
         }
 
         public enum Confirm {

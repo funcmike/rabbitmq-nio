@@ -18,6 +18,7 @@ public enum ClientError: Error {
     case tooManyOpenedChannels
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
+    case channelNotInConfirmMode
     case consumerCanceled
     case connectionBlocked
     case invalidBody

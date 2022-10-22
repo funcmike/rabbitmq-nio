@@ -19,8 +19,10 @@ internal protocol Notifiable {
     func removeConsumeListener(named name: String)
     func addFlowListener(named name: String, listener: @escaping  AMQPListeners<Bool>.Listener)
     func removeFlowListener(named name: String)
-    func addReturnMessageListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Return>.Listener)
-    func removeReturnMessageListener(named name: String)
+    func addReturnListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Return>.Listener)
+    func removeReturnListener(named name: String)
+    func addPublishListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener)
+    func removePublishListener(named name: String)
     var closeFuture: EventLoopFuture<Void> { get }
 
 }
@@ -37,7 +39,8 @@ internal final class AMQPChannelHandler: Notifiable {
 
     private var consumeListeners = AMQPListeners<AMQPMessage.Delivery>()
     private var flowListeners = AMQPListeners<Bool>()
-    private var returnMessageListeners = AMQPListeners<AMQPMessage.Return>()
+    private var returnListeners = AMQPListeners<AMQPMessage.Return>()
+    private var publishListeners = AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>()
 
     init(channelID: Frame.ChannelID, closePromise: NIOCore.EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
         self.channelID = channelID
@@ -65,12 +68,20 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.flowListeners.removeListener(named: name)
     }
 
-    func addReturnMessageListener(named name: String, listener: @escaping AMQPListeners<AMQPMessage.Return>.Listener) {
-        return self.returnMessageListeners.addListener(named: name, listener: listener)
+    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPMessage.Return>.Listener) {
+        return self.returnListeners.addListener(named: name, listener: listener)
     }
 
-    func removeReturnMessageListener(named name: String) {
-        return self.returnMessageListeners.removeListener(named: name)
+    func removeReturnListener(named name: String) {
+        return self.returnListeners.removeListener(named: name)
+    }
+
+    func addPublishListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener) {
+        return self.publishListeners.addListener(named: name, listener: listener)
+    }
+
+    func removePublishListener(named name: String) {
+        return self.publishListeners.removeListener(named: name)
     }
 
     func processIncomingFrame(frame: Frame) {
@@ -99,6 +110,10 @@ internal final class AMQPChannelHandler: Notifiable {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.consumed(consumerTag: consumerTag))))
                     }
+                case .ack(let deliveryTag, let multiple):
+                    self.publishListeners.notify(.success(.ack(deliveryTag: deliveryTag, multiple: multiple)))             
+                case .nack(let nack):
+                    self.publishListeners.notify(.success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))       
                 case .cancel(let cancel):
                     self.consumeListeners.notify(named: cancel.consumerTag, .failure(ClientError.consumerCanceled))
                 case .cancelOk(let consumerTag):
@@ -242,7 +257,7 @@ internal final class AMQPChannelHandler: Notifiable {
                             redelivered: deliver.redelivered,
                             body: body)))
                     case .return(let `return`):
-                        self.returnMessageListeners.notify(.success(.init(
+                        self.returnListeners.notify(.success(.init(
                             replyCode: `return`.replyCode,
                             replyText: `return`.replyText,
                             exchange: `return`.exchange,
