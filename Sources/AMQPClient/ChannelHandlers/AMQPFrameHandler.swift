@@ -92,13 +92,13 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     let closeOk = Frame.method(0, .connection(.closeOk))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
 
-                    self.shutdown(context: context, error: ClientError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
+                    self.shutdown(context: context, error: AMQPClientError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
                     if let promise =  responseQueue.popFirst() {
                         promise.succeed(.connection(.closed))
                     }
 
-                    self.shutdown(context: context, error: ClientError.connectionClosed())
+                    self.shutdown(context: context, error: AMQPClientError.connectionClosed())
                 case .blocked:
                     blocked = true
                 case .unblocked:
@@ -166,15 +166,15 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         switch outbound {
         case .frame(let frame):
             guard !blocked else {
-                responsePromise?.fail(ClientError.connectionBlocked)
-                promise?.fail(ClientError.connectionBlocked)
+                responsePromise?.fail(AMQPClientError.connectionBlocked)
+                promise?.fail(AMQPClientError.connectionBlocked)
                 return                
             }
 
             if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
                 guard (self.channelMax == 0 || self.channels.count < self.channelMax) else {
-                    responsePromise?.fail(ClientError.tooManyOpenedChannels)
-                    promise?.fail(ClientError.tooManyOpenedChannels)
+                    responsePromise?.fail(AMQPClientError.tooManyOpenedChannels)
+                    promise?.fail(AMQPClientError.tooManyOpenedChannels)
                     return
                 }
                 
@@ -189,14 +189,14 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 } else if let channel = self.channels[channelID] {
                     channel.addResponse(promise: responsePromise)
                 } else {
-                    responsePromise.fail(ClientError.channelClosed())
-                    promise?.fail(ClientError.channelClosed())
+                    responsePromise.fail(AMQPClientError.channelClosed())
+                    promise?.fail(AMQPClientError.channelClosed())
                 }
             }
         case .bulk(let frames):
             guard !blocked else {
-                responsePromise?.fail(ClientError.connectionBlocked)
-                promise?.fail(ClientError.connectionBlocked)
+                responsePromise?.fail(AMQPClientError.connectionBlocked)
+                promise?.fail(AMQPClientError.connectionBlocked)
                 return                
             }
 
@@ -206,13 +206,13 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 } else if let channel = self.channels[id] {
                     channel.addResponse(promise: responsePromise)
                 } else {
-                    responsePromise.fail(ClientError.channelClosed())
-                    promise?.fail(ClientError.channelClosed())
+                    responsePromise.fail(AMQPClientError.channelClosed())
+                    promise?.fail(AMQPClientError.channelClosed())
                 }
             }
         case .bytes(_):
             guard !blocked else {
-                responsePromise?.fail(ClientError.connectionBlocked)
+                responsePromise?.fail(AMQPClientError.connectionBlocked)
                 return                
             }
 

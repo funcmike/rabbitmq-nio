@@ -115,13 +115,13 @@ internal final class AMQPChannelHandler: Notifiable {
                 case .nack(let nack):
                     self.publishListeners.notify(.success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))       
                 case .cancel(let cancel):
-                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(ClientError.consumerCanceled))
+                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPClientError.consumerCanceled))
                 case .cancelOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.canceled)))
                     }
 
-                    self.consumeListeners.notify(named: consumerTag, .failure(ClientError.consumerCanceled))
+                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPClientError.consumerCanceled))
                 default:
                     preconditionUnexpectedFrame(frame)
                 }
@@ -132,12 +132,12 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.opened(.init(channelID: channelID, notifier: self))))
                     }
                 case .close(let close):
-                    self.shutdown(error: ClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
+                    self.shutdown(error: AMQPClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.closed(self.channelID)))
                     }
-                    self.shutdown(error: ClientError.channelClosed())
+                    self.shutdown(error: AMQPClientError.channelClosed())
                 case .flow(let active):
                     self.flowListeners.notify(.success(active))
                 case .flowOk(let active):
@@ -230,7 +230,7 @@ internal final class AMQPChannelHandler: Notifiable {
             guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
                 guard let msg = nextMessage, let properties = msg.properties else {
                     if let promise = self.responseQueue.popFirst() {
-                        promise.fail(ClientError.invalidMessage)
+                        promise.fail(AMQPClientError.invalidMessage)
                     }
                     return
                 }

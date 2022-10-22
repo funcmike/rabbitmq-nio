@@ -68,19 +68,19 @@ public final class AMQPClient {
             }
             .flatMapThrowing { response in
                 guard case .connection(let connection) = response, case .connected = connection else {
-                    throw ClientError.invalidResponse(response)
+                    throw AMQPClientError.invalidResponse(response)
                 }
                 return response
             }
     }
 
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
                 guard case .channel(let channel) = response, case .opened(let opened) = channel, opened.channelID == id else {
-                    throw ClientError.invalidResponse(response)
+                    throw AMQPClientError.invalidResponse(response)
                 }
 
                 return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, notifier: opened.notifier, connection: connection)
@@ -88,12 +88,12 @@ public final class AMQPClient {
     }
 
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))), immediate: true)
         .flatMapThrowing { response in
             guard case .connection(let connection) = response, case .closed = connection else {
-                throw ClientError.invalidResponse(response)
+                throw AMQPClientError.invalidResponse(response)
             }
             return response
         }
@@ -101,7 +101,7 @@ public final class AMQPClient {
 
     public func shutdown(queue: DispatchQueue = .global(), _ callback: @escaping (Error?) -> Void) {
         guard self.isShutdown.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
-            callback(ClientError.alreadyShutdown)
+            callback(AMQPClientError.alreadyShutdown)
             return
         }
 

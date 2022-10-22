@@ -13,7 +13,7 @@
 
 import AMQPProtocol
 
-public enum ClientError: Error {
+public enum AMQPClientError: Error {
     case alreadyShutdown
     case tooManyOpenedChannels
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
