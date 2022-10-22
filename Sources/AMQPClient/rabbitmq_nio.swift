@@ -143,7 +143,7 @@ func setupEventloop(arguments: [String]) async {
         if i == 1000 {
             let stop = Date()
             print("finished", 1000.0/start.distance(to: stop))
-            let cancel = try! await channelResult.cancel(consumerTag: consumer.consumerTag)
+            let cancel = try! await channelResult.cancel(consumerTag: consumer.name)
             print(cancel)
         }
     }

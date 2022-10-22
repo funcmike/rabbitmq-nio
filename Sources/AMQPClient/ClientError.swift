@@ -33,3 +33,7 @@ func preconditionUnexpectedFrame(_ frame: Frame) -> Never  {
 func preconditionUnexpectedChannel(_ channelID: Frame.ChannelID) -> Never  {
     return preconditionFailure("Unexepected channel: \(channelID)")
 }
+
+func preconditionUnexpectedListenerType(_ type: Any.Type) -> Never  {
+    return preconditionFailure("Unexpected listener type \(type)")
+}

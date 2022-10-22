@@ -39,7 +39,7 @@ public extension AMQPChannel {
         return try await self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
     }
 
-    func publishConsume(named name: String) async throws -> AMQPPublishListener {
+    func publishConsume(named name: String) async throws -> AMQPListener<AMQPResponse.Channel.Basic.PublishConfirm> {
         return .init(self, named: name)
     }
 
@@ -131,14 +131,14 @@ public extension AMQPChannel {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive:exclusive, args: arguments, listener: listener).get()
     }
 
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPConsumeListener {
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPListener<AMQPMessage.Delivery> {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
             .flatMapThrowing { response in
                     guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumed(let tag) = basic else {
                         throw ClientError.invalidResponse(response)
                     }
 
-                    return .init(self, consumerTag: tag)
+                    return .init(self, named: tag)
                 }.get()  
     }
 
@@ -149,55 +149,19 @@ public extension AMQPChannel {
     func cancel(consumerTag: String) async throws -> AMQPResponse { 
         return try await self.cancel(consumerTag: consumerTag).get()
     }
-}
 
-public class AMQPConsumeListener: AsyncSequence {
-    public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
-    public typealias Element = Result<AMQPMessage.Delivery, Error>
-
-    let channel: AMQPChannel
-    let stream: AsyncStream<Element>
-    public let consumerTag: String
-
-    init(_ channel: AMQPChannel, consumerTag: String) {
-        self.channel = channel
-        self.consumerTag = consumerTag    
-        self.stream = AsyncStream { cont in
-            do {
-                try channel.addConsumeListener(consumerTag: consumerTag) { result in
-                    guard case .success = result else {
-                        cont.yield(result)
-                        cont.finish()
-                        return
-                    }
-
-                    cont.yield(result)
-                }
-            } catch {
-                cont.finish()
-                return
-            }
-
-            channel.addCloseListener(named: consumerTag) { _ in
-                cont.finish()
-            }
-        }
+    func returnConsume(named name: String) async throws -> AMQPListener<AMQPMessage.Return> {
+        return .init(self, named: name)
     }
 
-    deinit {
-        self.channel.removeConsumeListener(consumerTag: self.consumerTag)
-        self.channel.removeCloseListener(named: self.consumerTag)
-    }
-
-    public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {
-        return self.stream.makeAsyncIterator()
+    func flowConsume(named name: String) async throws -> AMQPListener<Bool> {
+        return .init(self, named: name)
     }
 }
 
-
-public class AMQPPublishListener: AsyncSequence {
+public final class AMQPListener<Value>: AsyncSequence {
     public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
-    public typealias Element = Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>
+    public typealias Element = Result<Value, Error>
 
     let channel: AMQPChannel
     let stream: AsyncStream<Element>
@@ -208,7 +172,7 @@ public class AMQPPublishListener: AsyncSequence {
         self.name = name
         self.stream = AsyncStream { cont in
             do {
-                try channel.addPublishListener(named: name) { result in
+                try channel.addListener(type: Value.self, named: name) { result in
                     guard case .success = result else {
                         cont.yield(result)
                         cont.finish()
@@ -229,7 +193,7 @@ public class AMQPPublishListener: AsyncSequence {
     }
 
     deinit {
-        self.channel.removePublishListener(named: self.name)
+        self.channel.removeListener(type: Value.self, named: self.name)
         self.channel.removeCloseListener(named: self.name)
     }
 

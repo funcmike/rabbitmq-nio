@@ -429,37 +429,6 @@ public final class AMQPChannel {
         return notifier.removeConsumeListener(named: consumerTag)   
     }
 
-    public func addCloseListener(named name: String, listener: @escaping (Result<Void, Error>) -> Void)  {
-        return self.closeListeners.addListener(named: name, listener: listener)
-    }
-
-    public func removeCloseListener(named name: String)  {
-        return self.closeListeners.removeListener(named: name)
-    }
-
-    public func addFlowListener(named name: String,  listener: @escaping (Result<Bool, Error>) -> Void) throws {
-        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
-
-        return notifier.addFlowListener(named: name, listener: listener)
-    }
-
-    public func removeFlowListener(named name: String)  {
-        guard let notifier = self.notifier else { return }
-
-        return notifier.removeFlowListener(named: name)   
-    }
-
-    public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPMessage.Return, Error>) -> Void) throws {
-        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
-
-        return notifier.addReturnListener(named: name, listener: listener)
-    }
-
-    public func removeReturnFlowListener(named name: String)  {
-        guard let notifier = self.notifier else { return }
-
-        return notifier.removeReturnListener(named: name)   
-    }
 
     public func addPublishListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw ClientError.channelClosed() }
@@ -475,5 +444,68 @@ public final class AMQPChannel {
         guard let notifier = self.notifier else { return }
 
         return notifier.removePublishListener(named: name)
+    }
+
+    public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPMessage.Return, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
+
+        return notifier.addReturnListener(named: name, listener: listener)
+    }
+
+    public func removeReturnListener(named name: String)  {
+        guard let notifier = self.notifier else { return }
+
+        return notifier.removeReturnListener(named: name)   
+    }
+
+    public func addFlowListener(named name: String,  listener: @escaping (Result<Bool, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
+
+        return notifier.addFlowListener(named: name, listener: listener)
+    }
+
+    public func removeFlowListener(named name: String)  {
+        guard let notifier = self.notifier else { return }
+
+        return notifier.removeFlowListener(named: name)   
+    }
+
+    public func addCloseListener(named name: String, listener: @escaping (Result<Void, Error>) -> Void)  {
+        return self.closeListeners.addListener(named: name, listener: listener)
+    }
+
+    public func removeCloseListener(named name: String)  {
+        return self.closeListeners.removeListener(named: name)
+    }
+
+
+    func addListener<Value>(type: Value.Type, named name: String, listener: @escaping (Result<Value, Error>) -> Void) throws {
+        switch listener {
+            case let l as (Result<AMQPMessage.Delivery, Error>) -> Void:
+                return try addConsumeListener(consumerTag: name, listener: l)
+            case let l as (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
+                return try addPublishListener(named: name, listener: l)
+            case let l as (Result<AMQPMessage.Return, Error>) -> Void:
+                return try addReturnListener(named: name, listener: l)
+            case let l as (Result<Bool, Error>) -> Void:
+                return try addFlowListener(named: name, listener: l)
+            default:
+                preconditionUnexpectedListenerType(type)
+        }
+    }
+
+    func removeListener<Value>( type: Value.Type, named name: String) {
+        switch type {
+            case is AMQPMessage.Delivery.Type:
+                return removeConsumeListener(consumerTag: name)
+            case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
+                return removePublishListener(named: name)
+            case is AMQPMessage.Return.Type:
+                return removeReturnListener(named: name)
+            case is Bool.Type:
+                return removeFlowListener(named: name)
+            default:
+                preconditionUnexpectedListenerType(type)
+        }
     }
 }
