@@ -19,6 +19,10 @@ internal final class AMQPConnection {
     private let channel: NIO.Channel
     private let eventLoopGroup: EventLoopGroup
 
+    var closeFuture: NIOCore.EventLoopFuture<Void> {
+        get { return  self.channel.closeFuture }
+    }
+
     init(channel: NIO.Channel, eventLoopGroup: EventLoopGroup) {
         self.channel = channel
         self.eventLoopGroup = eventLoopGroup
@@ -119,9 +123,5 @@ internal final class AMQPConnection {
             return self.channel.close()
         } 
         return self.channel.eventLoop.makeSucceededFuture(())
-    }
-
-    func closeFuture() -> EventLoopFuture<Void> {
-        return self.channel.closeFuture
     }
 }

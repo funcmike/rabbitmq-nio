@@ -27,6 +27,7 @@ public enum AMQPResponse {
         case basic(Basic)
         case confirm(Confirm)
         case tx(Tx)
+        case flowed(active: Bool)
 
         public struct Opened {
             public let channelID: Frame.ChannelID
@@ -74,6 +75,7 @@ public enum AMQPResponse {
 
     public enum Connection {
         case connected(channelMax: UInt16)
+        case blocked
         case closed
     }
 }

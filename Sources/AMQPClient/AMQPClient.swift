@@ -39,6 +39,10 @@ public final class AMQPClient {
         }
     }
 
+    var closeFuture: EventLoopFuture<Void>? {
+        get { return self._connection?.closeFuture }
+    }
+
     public init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: Configuration) {
         self.config = config
         self.eventLoopGroupProvider = eventLoopGroupProvider
@@ -55,7 +59,7 @@ public final class AMQPClient {
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connection = connection
-                connection.closeFuture().whenComplete { result in
+                connection.closeFuture.whenComplete { result in
                     if self.connection === connection {
                         self.connection = nil
                     }
@@ -139,10 +143,6 @@ public final class AMQPClient {
         case .createNew:
             self.eventLoopGroup.shutdownGracefully(queue: queue, callback)
         }
-    }
-
-    public func closeFuture() -> EventLoopFuture<Void>? {
-        return self._connection?.closeFuture()
     }
 
     deinit {

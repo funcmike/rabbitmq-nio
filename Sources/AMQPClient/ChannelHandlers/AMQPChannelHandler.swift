@@ -17,17 +17,28 @@ import AMQPProtocol
 internal protocol Notifiable {
     func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Delivery>.Listener)
     func removeConsumeListener(named name: String)
+    func addFlowListener(named name: String, listener: @escaping  AMQPListeners<Bool>.Listener)
+    func removeFlowListener(named name: String)
+    var closeFuture: EventLoopFuture<Void> { get }
+
 }
 
 internal final class AMQPChannelHandler: Notifiable {
+    var closeFuture: NIOCore.EventLoopFuture<Void> {
+        get { return self.closePromise.futureResult }
+    }
+
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var nextMessage: (frame: Basic, properties: Properties?)?
+    var closePromise: NIOCore.EventLoopPromise<Void>
 
     private var consumeListeners = AMQPListeners<AMQPMessage.Delivery>()
+    private var flowListeners = AMQPListeners<Bool>()
 
-    init(channelID: Frame.ChannelID, initialQueueCapacity: Int = 3) {
+    init(channelID: Frame.ChannelID, closePromise: NIOCore.EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
         self.channelID = channelID
+        self.closePromise = closePromise
         self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
     }
 
@@ -43,10 +54,18 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.consumeListeners.removeListener(named: name)
     }
 
-    func processFrame(frame: Frame) {
+    func addFlowListener(named name: String, listener: @escaping AMQPListeners<Bool>.Listener) {
+        return self.flowListeners.addListener(named: name, listener: listener)   
+    }
+
+    func removeFlowListener(named name: String) {
+        return self.flowListeners.removeListener(named: name)
+    }
+
+    func processIncomingFrame(frame: Frame) {
         switch frame {
         case .method(let channelID, let method): 
-            guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
+            guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
 
             switch method {
             case .basic(let basic):
@@ -68,9 +87,9 @@ internal final class AMQPChannelHandler: Notifiable {
                 case .consumeOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.consumed(consumerTag: consumerTag))))
-                    }                    
+                    }                
                 default:
-                    return
+                    preconditionUnexpectedFrame(frame)
                 }
             case .channel(let channel):
                 switch channel {   
@@ -85,8 +104,14 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.closed(self.channelID)))
                     }
                     self.shutdown(error: ClientError.channelClosed())
+                case .flow(let active):
+                    self.flowListeners.notify(.success(active))
+                case .flowOk(let active):
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.flowed(active: active)))
+                    }
                 default:
-                    return
+                    preconditionUnexpectedFrame(frame)
                 }
             case .queue(let queue):
                 switch queue {
@@ -111,7 +136,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.queue(.unbinded)))
                     }
                 default:
-                    return
+                    preconditionUnexpectedFrame(frame)
                 }
             case .exchange(let exchange):
                 switch exchange {
@@ -132,7 +157,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.exchange(.unbinded)))
                     }
                 default:
-                    return
+                    preconditionUnexpectedFrame(frame)
                 }
             case .confirm(let confirm):
                 switch confirm {
@@ -141,7 +166,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.confirm(.selected)))
                     }
                 default:
-                    return
+                    preconditionUnexpectedFrame(frame)
                 }
             case .tx(let tx):
                 switch tx {
@@ -158,17 +183,17 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.tx(.rollbacked)))
                     }
                 default:
-                    return                                 
+                    preconditionUnexpectedFrame(frame)  
                 }
             default:
-                return
+                preconditionUnexpectedFrame(frame)
             }
         case .header(let channelID, let header):
-            guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
+            guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
 
             self.nextMessage?.properties = header.properties
         case .body(let channelID, let body):
-            guard self.channelID == channelID else { preconditionFailure("Invalid channelID") }
+            guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
                 guard let msg = nextMessage, let properties = msg.properties else {
                     if let promise = self.responseQueue.popFirst() {
                         promise.fail(ClientError.invalidMessage)
@@ -198,12 +223,12 @@ internal final class AMQPChannelHandler: Notifiable {
                             redelivered: deliver.redelivered,
                             body: body)))
                     default:
-                        return
+                        preconditionUnexpectedFrame(frame)
                 }
 
                 nextMessage = nil
         default:
-            return
+            preconditionUnexpectedFrame(frame)
         }
     }
 
@@ -212,5 +237,7 @@ internal final class AMQPChannelHandler: Notifiable {
         self.responseQueue.removeAll()
 
         queue.forEach { $0.fail(error) }
+
+        closePromise.fail(error)
     }
 }

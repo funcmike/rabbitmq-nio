@@ -29,7 +29,8 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var channels: [Frame.ChannelID: AMQPChannelHandler] = [:]
-    private var channelMax: UInt16?
+    private var channelMax: UInt16 = 0
+    private var blocked: Bool = false
 
     private let config: Configuration.Server
 
@@ -83,12 +84,8 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
                     context.writeAndFlush(self.wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
-                    guard let limit = channelMax else {
-                        preconditionFailure("Required channelMax")
-                    }
-
                     if let promise =  responseQueue.popFirst() {
-                        promise.succeed(.connection(.connected(channelMax: limit)))
+                        promise.succeed(.connection(.connected(channelMax: channelMax)))
                     }
                     
                 case .close(let close):
@@ -102,38 +99,46 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     }
 
                     self.shutdown(context: context, error: ClientError.connectionClosed())
-                case .blocked, .unblocked:
-                    //TODO: implement
-                    return
+                case .blocked:
+                    blocked = true
+                case .unblocked:
+                    blocked = false
                 default:
-                    return
+                    preconditionUnexpectedFrame(frame)
                 }
             case .channel(let channel):
                 switch channel {
                 case .close:
                     if let channel = self.channels.removeValue(forKey: channelID) {
-                        channel.processFrame(frame: frame)
+                        channel.processIncomingFrame(frame: frame)
                     }
 
                     let closeOk = Frame.method(channelID, .channel(.closeOk))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
                 case .closeOk:
                     if let channel = self.channels.removeValue(forKey: channelID) {
-                        channel.processFrame(frame: frame)
-                    }                       
+                        channel.processIncomingFrame(frame: frame)
+                    }
+                case .flow(let active):
+                    if let channel = self.channels.removeValue(forKey: channelID) {
+                        channel.processIncomingFrame(frame: frame)
+                    }
+
+                    let flowOk = Frame.method(0, .channel(.flowOk(active: active)))
+                    context.writeAndFlush(self.wrapOutboundOut(.frame(flowOk)), promise: nil)
                 default:
                     if let channel = self.channels[channelID] {
-                        channel.processFrame(frame: frame)
+                        channel.processIncomingFrame(frame: frame)
                     }
                 }
             default:
                 if let channel = self.channels[channelID] {
-                    channel.processFrame(frame: frame)
+                    channel.processIncomingFrame(frame: frame)
                 }
             }
         case .header(let channelID, _), .body(let channelID, _):
             if let channel = self.channels[channelID] {
-                channel.processFrame(frame: frame)
+                channel.processIncomingFrame(frame: frame)
             }
         case .heartbeat(let channelID):
             let heartbeat = Frame.heartbeat(channelID)
@@ -145,37 +150,58 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         let (outbound, responsePromise) = self.unwrapOutboundIn(data)
 
         switch outbound {
-        case .frame(let frame):     
-            guard self.processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
-                return
+        case .frame(let frame):
+            guard !blocked else {
+                responsePromise?.fail(ClientError.connectionBlocked)
+                promise?.fail(ClientError.connectionBlocked)
+                return                
+            }
+
+            if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
+                guard (self.channelMax == 0 || self.channels.count < self.channelMax) else {
+                    responsePromise?.fail(ClientError.tooManyOpenedChannels)
+                    promise?.fail(ClientError.tooManyOpenedChannels)
+                    return
+                }
+                
+                self.channels[channelID] = AMQPChannelHandler(channelID: channelID, closePromise: context.eventLoop.makePromise())
             }
 
             let channelID = frame.channelID
 
-            if let promise = responsePromise {
+            if let responsePromise = responsePromise {
                 if channelID == 0  {
-                    self.responseQueue.append(promise) 
+                    self.responseQueue.append(responsePromise) 
                 } else if let channel = self.channels[channelID] {
-                    channel.append(promise: promise)
+                    channel.append(promise: responsePromise)
+                } else {
+                    responsePromise.fail(ClientError.channelClosed())
+                    promise?.fail(ClientError.channelClosed())
                 }
             }
-        case .bulk(let frames):            
-            let channelID = frames.first?.channelID
-
-            for frame in frames {
-                guard self.processChannelOpen(context: context, frame: frame, responsePromise: responsePromise, promise: promise) else {
-                    return
-                }
+        case .bulk(let frames):
+            guard !blocked else {
+                responsePromise?.fail(ClientError.connectionBlocked)
+                promise?.fail(ClientError.connectionBlocked)
+                return                
             }
 
-            if let promise = responsePromise, let id = channelID {
+            if let responsePromise = responsePromise, let id = frames.first?.channelID {
                 if id == 0  {
-                    self.responseQueue.append(promise)
+                    self.responseQueue.append(responsePromise)
                 } else if let channel = self.channels[id] {
-                    channel.append(promise: promise)
+                    channel.append(promise: responsePromise)
+                } else {
+                    responsePromise.fail(ClientError.channelClosed())
+                    promise?.fail(ClientError.channelClosed())
                 }
             }
         case .bytes(_):
+            guard !blocked else {
+                responsePromise?.fail(ClientError.connectionBlocked)
+                return                
+            }
+
             if let promise = responsePromise {
                 self.responseQueue.append(promise)
             }
@@ -186,21 +212,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         return self.shutdown(context: context, error: error)
-    }
-
-    private func processChannelOpen(context: ChannelHandlerContext, frame: Frame, responsePromise: EventLoopPromise<AMQPResponse>?, promise:  EventLoopPromise<Void>?) -> Bool {
-        if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
-
-            guard let limit = self.channelMax, (limit == 0 || self.channels.count < limit) else {
-                responsePromise?.fail(ClientError.tooManyOpenedChannels)
-                promise?.fail(ClientError.tooManyOpenedChannels)
-                return false
-            }
-
-            self.channels[channelID] = AMQPChannelHandler(channelID: channelID)
-        }
-
-        return true
     }
 
     private func shutdown(context: ChannelHandlerContext, error: Error) {

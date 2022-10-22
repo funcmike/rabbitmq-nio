@@ -18,7 +18,16 @@ public enum ClientError: Error {
     case tooManyOpenedChannels
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
+    case connectionBlocked
     case invalidBody
     case invalidMessage
     case invalidResponse(AMQPResponse)
+}
+
+func preconditionUnexpectedFrame(_ frame: Frame) -> Never  {
+    return preconditionFailure("Unexepected frame:\(frame)")
+}
+
+func preconditionUnexpectedChannel(_ channelID: Frame.ChannelID) -> Never  {
+    return preconditionFailure("Unexepected channel: \(channelID)")
 }

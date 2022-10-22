@@ -61,12 +61,15 @@ public final class AMQPChannel {
         self.notifier = notifier
         self.connection = connection
 
-        connection.closeFuture().whenComplete { result in
-            if self.connection === connection {
-                self.connection = nil
-                self.notifier = nil
-            }
+        connection.closeFuture.whenComplete { result in
+            self.connection = nil
+            
+            self.notifier = nil
+            self.closeListeners.notify(result)
+        }
 
+        notifier.closeFuture.whenComplete { result in
+            self.notifier = nil
             self.closeListeners.notify(result)
         }
     }
@@ -353,6 +356,21 @@ public final class AMQPChannel {
         return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
     }
 
+    /// Stop/start the flow of messages to consumers
+    /// Not supported by all brokers
+    public func flow(active: Bool) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .channel(.flow(active: active))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .flowed = channel else {
+                    throw ClientError.invalidResponse(response)
+                }
+
+                return response
+            }
+    }
+
     func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
@@ -374,13 +392,13 @@ public final class AMQPChannel {
     func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw ClientError.channelClosed() }
 
-        notifier.addConsumeListener(named: consumerTag, listener: listener)   
+        return notifier.addConsumeListener(named: consumerTag, listener: listener)   
     }
 
     func removeConsumeListener(consumerTag: String) {
         guard let notifier = self.notifier else { return }
 
-        notifier.removeConsumeListener(named: consumerTag)   
+        return notifier.removeConsumeListener(named: consumerTag)   
     }
 
     public func addCloseListener(consumerTag: String, listener: @escaping (Result<Void, Error>) -> Void)  {
@@ -389,5 +407,17 @@ public final class AMQPChannel {
 
     public func removeCloseListener(consumerTag: String)  {
         return self.closeListeners.removeListener(named: consumerTag)
+    }
+
+    public func addFlowListener(named name: String,  listener: @escaping (Result<Bool, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
+
+        return notifier.addFlowListener(named: name, listener: listener)
+    }
+
+    public func removeFlowListener(consumerTag: String)  {
+        guard let notifier = self.notifier else { return }
+
+        return notifier.removeFlowListener(named: consumerTag)   
     }
 }

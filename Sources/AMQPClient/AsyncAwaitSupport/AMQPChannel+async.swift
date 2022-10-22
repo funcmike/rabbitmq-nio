@@ -129,6 +129,10 @@ public extension AMQPChannel {
                     return .init(self, consumerTag: tag)
                 }.get()  
     }
+
+    func flow(active: Bool) async throws -> AMQPResponse { 
+        return try await self.flow(active: active).get()
+    }
 }
 
 public class AMQPListener: AsyncSequence {
@@ -148,7 +152,8 @@ public class AMQPListener: AsyncSequence {
                     cont.yield(result)
                 }
             } catch {
-                preconditionFailure("cannot add listener \(error)")
+                cont.finish()
+                return
             }
 
             channel.addCloseListener(consumerTag: consumerTag) { _ in
