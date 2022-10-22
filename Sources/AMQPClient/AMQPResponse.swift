@@ -21,7 +21,7 @@ public enum AMQPResponse {
     public enum Channel {
         case opened(Opened)
         case closed(Frame.ChannelID)
-        case message(AMQPMessage)
+        case message(Message)
         case queue(Queue)
         case exchange(Exchange)
         case basic(Basic)
@@ -83,7 +83,7 @@ public enum AMQPResponse {
             case rollbacked
         }
 
-        public enum AMQPMessage {
+        public enum Message {
             case delivery(Delivery)
             case get(Get? = nil)
             case `return`(Return)

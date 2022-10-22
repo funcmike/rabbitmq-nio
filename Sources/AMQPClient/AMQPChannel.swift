@@ -91,7 +91,7 @@ public final class AMQPChannel {
         }
     }
 
-    public func basicGet(queue: String, noAck: Bool = true) -> EventLoopFuture<AMQPResponse.Channel.AMQPMessage.Get?> {
+    public func basicGet(queue: String, noAck: Bool = true) -> EventLoopFuture<AMQPResponse.Channel.Message.Get?> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
 
         return connection.sendFrame(frame: .method(self.channelID, .basic(.get(.init(reserved1: 0, queue: queue, noAck: noAck)))), immediate: true)
@@ -347,7 +347,7 @@ public final class AMQPChannel {
         return connection.sendFrame(frame: .method(self.channelID, .basic(.ack(deliveryTag: deliveryTag, multiple: multiple))), immediate: true)
     }
 
-    public func basicAck(message: AMQPResponse.Channel.AMQPMessage.Delivery,  multiple: Bool = false) -> EventLoopFuture<Void> {
+    public func basicAck(message: AMQPResponse.Channel.Message.Delivery,  multiple: Bool = false) -> EventLoopFuture<Void> {
         return self.basicAck(deliveryTag: message.deliveryTag, multiple: multiple)
     }
 
@@ -357,7 +357,7 @@ public final class AMQPChannel {
         return connection.sendFrame(frame: .method(self.channelID, .basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))), immediate: true)
     }
 
-    public func basicNack(message: AMQPResponse.Channel.AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
+    public func basicNack(message: AMQPResponse.Channel.Message.Delivery, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
         return self.basicNack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
     }
 
@@ -367,7 +367,7 @@ public final class AMQPChannel {
         return connection.sendFrame(frame: .method(self.channelID, .basic(.reject(deliveryTag: deliveryTag, requeue: requeue))), immediate: true)
     }
 
-    public func basicReject(message: AMQPResponse.Channel.AMQPMessage.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
+    public func basicReject(message: AMQPResponse.Channel.Message.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
         return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
     }
 
@@ -398,7 +398,7 @@ public final class AMQPChannel {
             }
     }
 
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.AMQPMessage.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
+    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
         let response: EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> = self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
         return response
             .flatMapThrowing { response in
@@ -420,7 +420,7 @@ public final class AMQPChannel {
             }
     }
 
-    public func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPResponse.Channel.AMQPMessage.Delivery, Error>) -> Void) throws {
+    public func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw ClientError.channelClosed() }
 
         return notifier.addConsumeListener(named: consumerTag, listener: listener)   
@@ -449,7 +449,7 @@ public final class AMQPChannel {
         return notifier.removePublishListener(named: name)
     }
 
-    public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.AMQPMessage.Return, Error>) -> Void) throws {
+    public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw ClientError.channelClosed() }
 
         return notifier.addReturnListener(named: name, listener: listener)
@@ -484,11 +484,11 @@ public final class AMQPChannel {
 
     func addListener<Value>(type: Value.Type, named name: String, listener: @escaping (Result<Value, Error>) -> Void) throws {
         switch listener {
-            case let l as (Result<AMQPResponse.Channel.AMQPMessage.Delivery, Error>) -> Void:
+            case let l as (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void:
                 return try addConsumeListener(consumerTag: name, listener: l)
             case let l as (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
                 return try addPublishListener(named: name, listener: l)
-            case let l as (Result<AMQPResponse.Channel.AMQPMessage.Return, Error>) -> Void:
+            case let l as (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void:
                 return try addReturnListener(named: name, listener: l)
             case let l as (Result<Bool, Error>) -> Void:
                 return try addFlowListener(named: name, listener: l)
@@ -499,11 +499,11 @@ public final class AMQPChannel {
 
     func removeListener<Value>( type: Value.Type, named name: String) {
         switch type {
-            case is AMQPResponse.Channel.AMQPMessage.Delivery.Type:
+            case is AMQPResponse.Channel.Message.Delivery.Type:
                 return removeConsumeListener(consumerTag: name)
             case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
                 return removePublishListener(named: name)
-            case is AMQPResponse.Channel.AMQPMessage.Return.Type:
+            case is AMQPResponse.Channel.Message.Return.Type:
                 return removeReturnListener(named: name)
             case is Bool.Type:
                 return removeFlowListener(named: name)

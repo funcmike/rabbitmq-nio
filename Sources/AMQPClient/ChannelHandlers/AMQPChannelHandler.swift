@@ -15,11 +15,11 @@ import NIO
 import AMQPProtocol
 
 internal protocol Notifiable {
-    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.AMQPMessage.Delivery>.Listener)
+    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener)
     func removeConsumeListener(named name: String)
     func addFlowListener(named name: String, listener: @escaping  AMQPListeners<Bool>.Listener)
     func removeFlowListener(named name: String)
-    func addReturnListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.AMQPMessage.Return>.Listener)
+    func addReturnListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener)
     func removeReturnListener(named name: String)
     func addPublishListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener)
     func removePublishListener(named name: String)
@@ -37,9 +37,9 @@ internal final class AMQPChannelHandler: Notifiable {
     private var nextMessage: (frame: Basic, properties: Properties?)?
     var closePromise: NIOCore.EventLoopPromise<Void>
 
-    private var consumeListeners = AMQPListeners<AMQPResponse.Channel.AMQPMessage.Delivery>()
+    private var consumeListeners = AMQPListeners<AMQPResponse.Channel.Message.Delivery>()
     private var flowListeners = AMQPListeners<Bool>()
-    private var returnListeners = AMQPListeners<AMQPResponse.Channel.AMQPMessage.Return>()
+    private var returnListeners = AMQPListeners<AMQPResponse.Channel.Message.Return>()
     private var publishListeners = AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>()
 
     init(channelID: Frame.ChannelID, closePromise: NIOCore.EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
@@ -52,7 +52,7 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.responseQueue.append(promise)
     }
 
-    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.AMQPMessage.Delivery>.Listener) {
+    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener) {
         return self.consumeListeners.addListener(named: name, listener: listener)
     }
 
@@ -68,7 +68,7 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.flowListeners.removeListener(named: name)
     }
 
-    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.AMQPMessage.Return>.Listener) {
+    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener) {
         return self.returnListeners.addListener(named: name, listener: listener)
     }
 
@@ -239,7 +239,7 @@ internal final class AMQPChannelHandler: Notifiable {
                     case .getOk(let getOk):
                             if let promise = self.responseQueue.popFirst() {
                                     promise.succeed(.channel(.message(.get(.init(
-                                        message: AMQPResponse.Channel.AMQPMessage.Delivery(
+                                        message: AMQPResponse.Channel.Message.Delivery(
                                             exchange: getOk.exchange,
                                             routingKey: getOk.routingKey,
                                             deliveryTag: getOk.deliveryTag,
