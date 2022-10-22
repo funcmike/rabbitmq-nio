@@ -420,4 +420,16 @@ public final class AMQPChannel {
 
         return notifier.removeFlowListener(named: consumerTag)   
     }
+
+    public func addReturnMessageListener(named name: String,  listener: @escaping (Result<AMQPMessage.Return, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw ClientError.channelClosed() }
+
+        return notifier.addReturnMessageListener(named: name, listener: listener)
+    }
+
+    public func removeReturnMessageFlowListener(consumerTag: String)  {
+        guard let notifier = self.notifier else { return }
+
+        return notifier.removeReturnMessageListener(named: consumerTag)   
+    }
 }

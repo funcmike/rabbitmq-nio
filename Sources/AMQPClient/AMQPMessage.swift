@@ -34,7 +34,7 @@ public enum AMQPMessage {
     }
 
     public struct Return  {
-        public let replyCode: String
+        public let replyCode: UInt16
         public let replyText: String
         public let exchange: String
         public let routingKey: String

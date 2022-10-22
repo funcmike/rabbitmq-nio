@@ -19,6 +19,8 @@ internal protocol Notifiable {
     func removeConsumeListener(named name: String)
     func addFlowListener(named name: String, listener: @escaping  AMQPListeners<Bool>.Listener)
     func removeFlowListener(named name: String)
+    func addReturnMessageListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Return>.Listener)
+    func removeReturnMessageListener(named name: String)
     var closeFuture: EventLoopFuture<Void> { get }
 
 }
@@ -35,6 +37,7 @@ internal final class AMQPChannelHandler: Notifiable {
 
     private var consumeListeners = AMQPListeners<AMQPMessage.Delivery>()
     private var flowListeners = AMQPListeners<Bool>()
+    private var returnMessageListeners = AMQPListeners<AMQPMessage.Return>()
 
     init(channelID: Frame.ChannelID, closePromise: NIOCore.EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
         self.channelID = channelID
@@ -55,11 +58,19 @@ internal final class AMQPChannelHandler: Notifiable {
     }
 
     func addFlowListener(named name: String, listener: @escaping AMQPListeners<Bool>.Listener) {
-        return self.flowListeners.addListener(named: name, listener: listener)   
+        return self.flowListeners.addListener(named: name, listener: listener)
     }
 
     func removeFlowListener(named name: String) {
         return self.flowListeners.removeListener(named: name)
+    }
+
+    func addReturnMessageListener(named name: String, listener: @escaping AMQPListeners<AMQPMessage.Return>.Listener) {
+        return self.returnMessageListeners.addListener(named: name, listener: listener)
+    }
+
+    func removeReturnMessageListener(named name: String) {
+        return self.returnMessageListeners.removeListener(named: name)
     }
 
     func processIncomingFrame(frame: Frame) {
@@ -74,7 +85,7 @@ internal final class AMQPChannelHandler: Notifiable {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.message(.get())))
                     }
-                case .deliver, .getOk:
+                case .deliver, .getOk, .return:
                     self.nextMessage = (frame: basic, properties: nil)
                 case .recoverOk:
                     if let promise = self.responseQueue.popFirst() {
@@ -215,13 +226,21 @@ internal final class AMQPChannelHandler: Notifiable {
                                         messageCount: getOk.messageCount)))))
                             }
                     case .deliver(let deliver):
-                        consumeListeners.notify(named: deliver.consumerTag, .success(.init(
+                        self.consumeListeners.notify(named: deliver.consumerTag, .success(.init(
                             exchange: deliver.exchange,
                             routingKey: deliver.routingKey,
                             deliveryTag: deliver.deliveryTag,
                             properties: properties,
                             redelivered: deliver.redelivered,
                             body: body)))
+                    case .return(let `return`):
+                        self.returnMessageListeners.notify(.success(.init(
+                            replyCode: `return`.replyCode,
+                            replyText: `return`.replyText,
+                            exchange: `return`.exchange,
+                            routingKey: `return`.routingKey,
+                            properties: properties,
+                            body: body)))                   
                     default:
                         preconditionUnexpectedFrame(frame)
                 }
