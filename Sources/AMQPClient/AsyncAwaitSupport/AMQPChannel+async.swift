@@ -19,7 +19,7 @@ public extension AMQPChannel {
         return try await self.close(reason: reason, code: code).get()
     }
 
-    func basicGet(queue: String, noAck: Bool = true) async throws -> AMQPMessage.Get? {
+    func basicGet(queue: String, noAck: Bool = true) async throws -> AMQPResponse.Channel.AMQPMessage.Get? {
         return try await self.basicGet(queue: queue, noAck: noAck).get()
     }
 
@@ -107,7 +107,7 @@ public extension AMQPChannel {
         return try await self.basicAck(deliveryTag: deliveryTag, multiple: multiple).get()
     }
     
-    func basicAck(message: AMQPMessage.Delivery,  multiple: Bool = false) async throws {
+    func basicAck(message: AMQPResponse.Channel.AMQPMessage.Delivery,  multiple: Bool = false) async throws {
         return try await self.basicAck(message: message, multiple: multiple).get()
     }
 
@@ -115,7 +115,7 @@ public extension AMQPChannel {
         return try await self.basicNack(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue).get()
     }
 
-    func basicNack(message: AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) async throws  {
+    func basicNack(message: AMQPResponse.Channel.AMQPMessage.Delivery, multiple: Bool = false, requeue: Bool = false) async throws  {
         return try await self.basicNack(message: message, multiple: multiple, requeue: requeue).get()
     }
 
@@ -123,23 +123,19 @@ public extension AMQPChannel {
         return try await self.basicReject(deliveryTag: deliveryTag, requeue: requeue).get()
     }
 
-    func basicReject(message: AMQPMessage.Delivery, requeue: Bool = false) async throws {
+    func basicReject(message: AMQPResponse.Channel.AMQPMessage.Delivery, requeue: Bool = false) async throws {
         return try await self.basicReject(message: message, requeue: requeue).get()
     }
 
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) async throws -> AMQPResponse {
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.AMQPMessage.Delivery, Error>) -> Void) async throws -> AMQPResponse.Channel.Basic.ConsumeOk {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive:exclusive, args: arguments, listener: listener).get()
     }
 
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPListener<AMQPMessage.Delivery> {
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPListener<AMQPResponse.Channel.AMQPMessage.Delivery> {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
             .flatMapThrowing { response in
-                    guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumed(let tag) = basic else {
-                        throw ClientError.invalidResponse(response)
-                    }
-
-                    return .init(self, named: tag)
-                }.get()  
+                return .init(self, named: response.consumerTag)
+            }.get()
     }
 
     func flow(active: Bool) async throws -> AMQPResponse { 
@@ -150,7 +146,7 @@ public extension AMQPChannel {
         return try await self.cancel(consumerTag: consumerTag).get()
     }
 
-    func returnConsume(named name: String) async throws -> AMQPListener<AMQPMessage.Return> {
+    func returnConsume(named name: String) async throws -> AMQPListener<AMQPResponse.Channel.AMQPMessage.Return> {
         return .init(self, named: name)
     }
 

@@ -15,11 +15,11 @@ import NIO
 import AMQPProtocol
 
 internal protocol Notifiable {
-    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Delivery>.Listener)
+    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.AMQPMessage.Delivery>.Listener)
     func removeConsumeListener(named name: String)
     func addFlowListener(named name: String, listener: @escaping  AMQPListeners<Bool>.Listener)
     func removeFlowListener(named name: String)
-    func addReturnListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Return>.Listener)
+    func addReturnListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.AMQPMessage.Return>.Listener)
     func removeReturnListener(named name: String)
     func addPublishListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener)
     func removePublishListener(named name: String)
@@ -37,9 +37,9 @@ internal final class AMQPChannelHandler: Notifiable {
     private var nextMessage: (frame: Basic, properties: Properties?)?
     var closePromise: NIOCore.EventLoopPromise<Void>
 
-    private var consumeListeners = AMQPListeners<AMQPMessage.Delivery>()
+    private var consumeListeners = AMQPListeners<AMQPResponse.Channel.AMQPMessage.Delivery>()
     private var flowListeners = AMQPListeners<Bool>()
-    private var returnListeners = AMQPListeners<AMQPMessage.Return>()
+    private var returnListeners = AMQPListeners<AMQPResponse.Channel.AMQPMessage.Return>()
     private var publishListeners = AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>()
 
     init(channelID: Frame.ChannelID, closePromise: NIOCore.EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
@@ -52,7 +52,7 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.responseQueue.append(promise)
     }
 
-    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPMessage.Delivery>.Listener) {
+    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.AMQPMessage.Delivery>.Listener) {
         return self.consumeListeners.addListener(named: name, listener: listener)
     }
 
@@ -68,7 +68,7 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.flowListeners.removeListener(named: name)
     }
 
-    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPMessage.Return>.Listener) {
+    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.AMQPMessage.Return>.Listener) {
         return self.returnListeners.addListener(named: name, listener: listener)
     }
 
@@ -104,11 +104,11 @@ internal final class AMQPChannelHandler: Notifiable {
                     }
                 case .qosOk:
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.basic(.qosed)))
+                        promise.succeed(.channel(.basic(.qosOk)))
                     }
                 case .consumeOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.basic(.consumed(consumerTag: consumerTag))))
+                        promise.succeed(.channel(.basic(.consumeOk(.init(consumerTag: consumerTag)))))
                     }
                 case .ack(let deliveryTag, let multiple):
                     self.publishListeners.notify(.success(.ack(deliveryTag: deliveryTag, multiple: multiple)))             
@@ -239,7 +239,7 @@ internal final class AMQPChannelHandler: Notifiable {
                     case .getOk(let getOk):
                             if let promise = self.responseQueue.popFirst() {
                                     promise.succeed(.channel(.message(.get(.init(
-                                        message: AMQPMessage.Delivery(
+                                        message: AMQPResponse.Channel.AMQPMessage.Delivery(
                                             exchange: getOk.exchange,
                                             routingKey: getOk.routingKey,
                                             deliveryTag: getOk.deliveryTag,

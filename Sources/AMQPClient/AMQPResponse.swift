@@ -56,14 +56,18 @@ public enum AMQPResponse {
 
         public enum Basic {
             case recovered
-            case qosed
-            case consumed(consumerTag: String)
+            case qosOk
+            case consumeOk(ConsumeOk)
             case canceled
             case publishConfirm(PublishConfirm)
 
             public enum PublishConfirm {
                 case ack(deliveryTag: UInt64, multiple: Bool)
                 case nack(deliveryTag: UInt64, multiple: Bool)
+            }
+
+            public struct ConsumeOk {
+                public let consumerTag: String
             }
         }
 
@@ -77,6 +81,35 @@ public enum AMQPResponse {
             case alreadySelected
             case committed
             case rollbacked
+        }
+
+        public enum AMQPMessage {
+            case delivery(Delivery)
+            case get(Get? = nil)
+            case `return`(Return)
+
+            public struct Delivery {
+                public let exchange: String
+                public let routingKey: String
+                public let deliveryTag: UInt64
+                public let properties: Properties
+                public let redelivered: Bool
+                public let body: [UInt8]
+            }
+
+            public struct Get {
+                public let message: Delivery
+                public let messageCount: UInt32
+            }
+
+            public struct Return  {
+                public let replyCode: UInt16
+                public let replyText: String
+                public let exchange: String
+                public let routingKey: String
+                public let properties: Properties
+                public let body: [UInt8]
+            }
         }
     }
 
