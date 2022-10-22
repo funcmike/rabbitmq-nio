@@ -335,8 +335,6 @@ extension Table: PayloadDecodable {
                 throw ProtocolError.decode(type: [String: Any].self, kind: kind, context: self, inner: error)
             }
         case .decimal:
-            // TODO(check how to convert to Decimal type in swift)
-            // possible: Decimal(value) / pow(10, Int(scale))
             guard let (scale, value) = buffer.readMultipleIntegers(as: (UInt8, UInt32).self) else {
                 throw ProtocolError.decode(type: UInt8.self, context: self)
             }
