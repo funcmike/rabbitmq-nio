@@ -389,24 +389,37 @@ public final class AMQPChannel {
             }
     }
 
-    func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) throws {
+    public func cancel(consumerTag: String) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(ClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .canceled = basic else {
+                    throw ClientError.invalidResponse(response)
+                }
+
+                return response
+            }
+    }
+
+    public func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPMessage.Delivery, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw ClientError.channelClosed() }
 
         return notifier.addConsumeListener(named: consumerTag, listener: listener)   
     }
 
-    func removeConsumeListener(consumerTag: String) {
+    public func removeConsumeListener(consumerTag: String) {
         guard let notifier = self.notifier else { return }
 
         return notifier.removeConsumeListener(named: consumerTag)   
     }
 
-    public func addCloseListener(consumerTag: String, listener: @escaping (Result<Void, Error>) -> Void)  {
-        return self.closeListeners.addListener(named: consumerTag, listener: listener)
+    public func addCloseListener(named name: String, listener: @escaping (Result<Void, Error>) -> Void)  {
+        return self.closeListeners.addListener(named: name, listener: listener)
     }
 
-    public func removeCloseListener(consumerTag: String)  {
-        return self.closeListeners.removeListener(named: consumerTag)
+    public func removeCloseListener(named name: String)  {
+        return self.closeListeners.removeListener(named: name)
     }
 
     public func addFlowListener(named name: String,  listener: @escaping (Result<Bool, Error>) -> Void) throws {

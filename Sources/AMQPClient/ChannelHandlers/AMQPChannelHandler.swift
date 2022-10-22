@@ -98,7 +98,15 @@ internal final class AMQPChannelHandler: Notifiable {
                 case .consumeOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.consumed(consumerTag: consumerTag))))
-                    }                
+                    }
+                case .cancel(let cancel):
+                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(ClientError.consumerCanceled))
+                case .cancelOk(let consumerTag):
+                    if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.basic(.canceled)))
+                    }
+
+                    self.consumeListeners.notify(named: consumerTag, .failure(ClientError.consumerCanceled))
                 default:
                     preconditionUnexpectedFrame(frame)
                 }

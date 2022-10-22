@@ -58,6 +58,7 @@ public enum AMQPResponse {
             case recovered
             case qosed
             case consumed(consumerTag: String)
+            case canceled
         }
 
         public enum Confirm {

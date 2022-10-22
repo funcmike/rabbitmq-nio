@@ -131,6 +131,20 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                         channel.processIncomingFrame(frame: frame)
                     }
                 }
+            case .basic(let basic):
+                switch basic {
+                case .cancel(let cancel):
+                    if let channel = self.channels[channelID] {
+                        channel.processIncomingFrame(frame: frame)
+                    }
+
+                    let cancelOk = Frame.method(0, .basic(.cancelOk(consumerTag: cancel.consumerTag)))
+                    context.writeAndFlush(self.wrapOutboundOut(.frame(cancelOk)), promise: nil)
+                default:
+                    if let channel = self.channels[channelID] {
+                        channel.processIncomingFrame(frame: frame)
+                    }            
+                }
             default:
                 if let channel = self.channels[channelID] {
                     channel.processIncomingFrame(frame: frame)

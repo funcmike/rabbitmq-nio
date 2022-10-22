@@ -133,6 +133,10 @@ public extension AMQPChannel {
     func flow(active: Bool) async throws -> AMQPResponse { 
         return try await self.flow(active: active).get()
     }
+
+    func cancel(consumerTag: String) async throws -> AMQPResponse { 
+        return try await self.cancel(consumerTag: consumerTag).get()
+    }
 }
 
 public class AMQPListener: AsyncSequence {
@@ -141,7 +145,7 @@ public class AMQPListener: AsyncSequence {
 
     let channel: AMQPChannel
     let stream: AsyncStream<Element>
-    let consumerTag: String
+    public let consumerTag: String
 
     init(_ channel: AMQPChannel, consumerTag: String) {
         self.channel = channel
@@ -149,6 +153,12 @@ public class AMQPListener: AsyncSequence {
         self.stream = AsyncStream { cont in
             do {
                 try channel.addConsumeListener(consumerTag: consumerTag) { result in
+                    guard case .success = result else {
+                        cont.yield(result)
+                        cont.finish()
+                        return
+                    }
+
                     cont.yield(result)
                 }
             } catch {
@@ -156,7 +166,7 @@ public class AMQPListener: AsyncSequence {
                 return
             }
 
-            channel.addCloseListener(consumerTag: consumerTag) { _ in
+            channel.addCloseListener(named: consumerTag) { _ in
                 cont.finish()
             }
         }
@@ -164,7 +174,7 @@ public class AMQPListener: AsyncSequence {
 
     deinit {
         self.channel.removeConsumeListener(consumerTag: self.consumerTag)
-        self.channel.removeCloseListener(consumerTag: self.consumerTag)
+        self.channel.removeCloseListener(named: self.consumerTag)
     }
 
     public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {
