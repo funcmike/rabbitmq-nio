@@ -18,11 +18,5 @@ Please don't use it until first release! <br>
 
 AMQPProtocol library currently should cover all of AMQP 0.9.1 specification.
 
-AMQPClient is in prototyping phase: work on architecture using NIO and tests of AMQP basic operations:
-* establishing connection with heartbeats
-* channel creation
-* basic publish
-* basic get
-* queue operations
-* exchange operations
-* tx operations
+AMQPClient library's basic architecture using NIO Channels is already done and all of AMQP operations (without WebSockets) should be supported.
+Current work is focused on testing, fixing bugs, documentation and benchmarking.
