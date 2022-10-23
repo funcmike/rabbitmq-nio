@@ -64,7 +64,6 @@ public final class AMQPChannel {
         connection.closeFuture.whenComplete { result in
             self.connection = nil
             
-            self.notifier = nil
             self.closeListeners.notify(result)
         }
 

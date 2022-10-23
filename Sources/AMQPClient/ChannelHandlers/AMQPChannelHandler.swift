@@ -282,4 +282,10 @@ internal final class AMQPChannelHandler: Notifiable {
 
         closePromise.fail(error)
     }
+
+    deinit {
+        if !self.responseQueue.isEmpty {
+            assertionFailure("AMQP Channel Handler deinit when queue is not empty! Queue size: \(self.responseQueue.count)")
+        }
+    }
 }

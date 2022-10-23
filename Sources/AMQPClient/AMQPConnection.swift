@@ -13,11 +13,38 @@
 
 import NIO
 import NIOSSL
+import NIOConcurrencyHelpers
 import AMQPProtocol
 
 internal final class AMQPConnection {
+    internal enum ConnectionState {
+        case open
+        case shuttingDown
+        case closed
+        
+        var isConnected: Bool {
+            switch self {
+            case .open: return true
+            default: return false
+            }
+        }
+    }
+
     private let channel: NIO.Channel
     private let eventLoopGroup: EventLoopGroup
+
+    private let _stateLock = NIOLock()
+    private var _state = ConnectionState.open
+    private var state: ConnectionState {
+        get { return _stateLock.withLock { self._state } }
+        set(newValue) { _stateLock.withLockVoid { self._state = newValue } }
+    }
+
+    public var isConnected: Bool {
+        // `Channel.isActive` is set to false before the `closeFuture` resolves in cases where the channel might be
+        // closed, or closing, before our state has been updated
+        return self.channel.isActive && self.state.isConnected
+    }
 
     var closeFuture: NIOCore.EventLoopFuture<Void> {
         get { return  self.channel.closeFuture }
@@ -85,21 +112,25 @@ internal final class AMQPConnection {
         }        
     }
 
-    func sendBytes(eventLoop: EventLoop? = nil, bytes: [UInt8], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return sendFrame(eventLoop: eventLoop, outbound: .bytes(bytes), immediate: immediate)
+    func sendBytes(bytes: [UInt8], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return self.sendFrame(outbound: .bytes(bytes), immediate: immediate)
     }
 
-    func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<Void> {
+    func sendFrame(frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<Void> {
+        guard self.isConnected else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
         let outboundData: OutboundCommandPayload = (.frame(frame), nil)
         return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
     }
 
-    func sendFrame(eventLoop: EventLoop? = nil, frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return sendFrame(eventLoop: eventLoop, outbound: .frame(frame), immediate: immediate)
+    func sendFrame(frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return self.sendFrame(outbound: .frame(frame), immediate: immediate)
     }
 
-    private func sendFrame(eventLoop: EventLoop? = nil, outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        let eventLoop = eventLoop ?? self.eventLoopGroup.any()
+    private func sendFrame(outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        guard self.isConnected else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        let eventLoop = self.eventLoopGroup.any()
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
         let outboundData: OutboundCommandPayload = (outbound, promise)
 
@@ -107,21 +138,27 @@ internal final class AMQPConnection {
 
         return writeFuture
             .flatMap{ promise.futureResult }
+            .hop(to: eventLoop)
     }
 
-    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
+    func sendFrames(frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
+        guard self.isConnected else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
         let outboundData: OutboundCommandPayload = (AMQPOutbound.bulk(frames), nil)
         return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
     }
 
-    func sendFrames(eventLoop: EventLoop? = nil, frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return sendFrame(eventLoop: eventLoop, outbound: .bulk(frames), immediate: immediate)
+    func sendFrames(frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return self.sendFrame(outbound: .bulk(frames), immediate: immediate)
     }
 
     func close() -> EventLoopFuture<Void> {
-        if self.channel.isActive {
-            return self.channel.close()
-        } 
-        return self.channel.eventLoop.makeSucceededFuture(())
+        guard self.isConnected else { return self.channel.closeFuture }
+
+        self.state = .shuttingDown
+
+        let result = self.channel.close()
+        result.whenSuccess { self.state = .closed }
+        return result
     }
 }

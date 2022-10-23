@@ -27,14 +27,8 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
             ]),
-        .executableTarget(
-            name: "TestCLI",
-            dependencies: [
-                "AMQPClient"
-            ]
-        ),
         .testTarget(
-            name: "rabbitmq-nioTests",
-            dependencies: ["AMQPProtocol"]),
+            name: "AMQPClientTests",
+            dependencies: ["AMQPClient"]),
     ]
 )

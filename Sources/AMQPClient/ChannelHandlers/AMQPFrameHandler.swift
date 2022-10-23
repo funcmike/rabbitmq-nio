@@ -23,6 +23,10 @@ public enum AMQPOutbound {
 public typealias OutboundCommandPayload = (outbound: AMQPOutbound, responsePromise: EventLoopPromise<AMQPResponse>?)
 
 internal final class AMQPFrameHandler: ChannelDuplexHandler  {
+    private enum State {
+        case unblocked, blocked(Error), error(Error)
+    }
+
     public typealias InboundIn = Frame
     public typealias OutboundIn = OutboundCommandPayload
     public typealias OutboundOut = AMQPOutbound
@@ -30,7 +34,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
     private var channels: [Frame.ChannelID: AMQPChannelHandler] = [:]
     private var channelMax: UInt16 = 0
-    private var blocked: Bool = false
+    private var state: State = .unblocked
 
     private let config: AMQPClientConfiguration.Server
 
@@ -46,6 +50,15 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         // since we want to make sure that upstream handlers know about the active connection before
         // it receives a         
         return context.fireChannelActive()
+    }
+
+    public func channelInactive(context: ChannelHandlerContext) {
+        switch self.state {
+            case .error(let error):
+                return self.failAllResponses(because: error)
+            default:
+                return self.failAllResponses(because: AMQPClientError.connectionClosed())
+        }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
@@ -92,17 +105,15 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     let closeOk = Frame.method(0, .connection(.closeOk))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
 
-                    self.shutdown(context: context, error: AMQPClientError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
+                    self.state = .error(AMQPClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
                     if let promise =  responseQueue.popFirst() {
                         promise.succeed(.connection(.closed))
                     }
-
-                    self.shutdown(context: context, error: AMQPClientError.connectionClosed())
                 case .blocked:
-                    blocked = true
+                    self.state = .blocked(AMQPClientError.connectionBlocked)
                 case .unblocked:
-                    blocked = false
+                    self.state = .unblocked
                 default:
                     preconditionUnexpectedFrame(frame)
                 }
@@ -163,77 +174,77 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let (outbound, responsePromise) = self.unwrapOutboundIn(data)
 
-        switch outbound {
-        case .frame(let frame):
-            guard !blocked else {
-                responsePromise?.fail(AMQPClientError.connectionBlocked)
-                promise?.fail(AMQPClientError.connectionBlocked)
-                return                
-            }
+        switch self.state {
+        case .error(let e), .blocked(let e): promise?.fail(e); responsePromise?.fail(e);
+        default:
+            switch outbound {
+            case .frame(let frame):
+                if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
+                    guard (self.channelMax == 0 || self.channels.count < self.channelMax) else {
+                        responsePromise?.fail(AMQPClientError.tooManyOpenedChannels)
+                        promise?.fail(AMQPClientError.tooManyOpenedChannels)
+                        return
+                    }
 
-            if case .method(let channelID, let method) = frame, case .channel(let channel) = method, case .open = channel {
-                guard (self.channelMax == 0 || self.channels.count < self.channelMax) else {
-                    responsePromise?.fail(AMQPClientError.tooManyOpenedChannels)
-                    promise?.fail(AMQPClientError.tooManyOpenedChannels)
-                    return
+                    self.channels[channelID] = AMQPChannelHandler(channelID: channelID, closePromise: context.eventLoop.makePromise())
                 }
-                
-                self.channels[channelID] = AMQPChannelHandler(channelID: channelID, closePromise: context.eventLoop.makePromise())
-            }
 
-            let channelID = frame.channelID
+                let channelID = frame.channelID
 
-            if let responsePromise = responsePromise {
-                if channelID == 0  {
-                    self.responseQueue.append(responsePromise) 
-                } else if let channel = self.channels[channelID] {
-                    channel.addResponse(promise: responsePromise)
-                } else {
-                    responsePromise.fail(AMQPClientError.channelClosed())
-                    promise?.fail(AMQPClientError.channelClosed())
+                if let responsePromise = responsePromise {
+                    if channelID == 0  {
+                        self.responseQueue.append(responsePromise) 
+                    } else if let channel = self.channels[channelID] {
+                        channel.addResponse(promise: responsePromise)
+                    } else {
+                        responsePromise.fail(AMQPClientError.channelClosed())
+                        promise?.fail(AMQPClientError.channelClosed())
+                        return
+                    }
                 }
-            }
-        case .bulk(let frames):
-            guard !blocked else {
-                responsePromise?.fail(AMQPClientError.connectionBlocked)
-                promise?.fail(AMQPClientError.connectionBlocked)
-                return                
-            }
-
-            if let responsePromise = responsePromise, let id = frames.first?.channelID {
-                if id == 0  {
-                    self.responseQueue.append(responsePromise)
-                } else if let channel = self.channels[id] {
-                    channel.addResponse(promise: responsePromise)
-                } else {
-                    responsePromise.fail(AMQPClientError.channelClosed())
-                    promise?.fail(AMQPClientError.channelClosed())
+            case .bulk(let frames):
+                if let responsePromise = responsePromise, let id = frames.first?.channelID {
+                    if id == 0  {
+                        self.responseQueue.append(responsePromise)
+                    } else if let channel = self.channels[id] {
+                        channel.addResponse(promise: responsePromise)
+                    } else {
+                        responsePromise.fail(AMQPClientError.channelClosed())
+                        promise?.fail(AMQPClientError.channelClosed())
+                        return
+                    }
+                }
+            case .bytes(_):
+                if let promise = responsePromise {
+                    self.responseQueue.append(promise)
                 }
             }
-        case .bytes(_):
-            guard !blocked else {
-                responsePromise?.fail(AMQPClientError.connectionBlocked)
-                return                
-            }
-
-            if let promise = responsePromise {
-                self.responseQueue.append(promise)
-            }
+            return context.write(self.wrapOutboundOut(outbound), promise: promise)
         }
-
-        return context.write(self.wrapOutboundOut(outbound), promise: promise)
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        return self.shutdown(context: context, error: error)
+        self.failAllResponses(because: error)
+        return context.close(promise: nil)
     }
 
-    private func shutdown(context: ChannelHandlerContext, error: Error) {
+    private func failAllResponses(because error: Error) {
+        self.state = .error(error)
+
         let queue = self.responseQueue
         self.responseQueue.removeAll()
 
         queue.forEach { $0.fail(error) }
 
-        return context.close(promise: nil)
+        let channels = self.channels
+        self.channels.removeAll()
+
+        channels.forEach { $1.shutdown(error: error) }
+    }
+
+    deinit {
+        if !self.responseQueue.isEmpty {
+            assertionFailure("AMQP Frame handler deinit when queue is not empty! Queue size: \(self.responseQueue.count)")
+        }
     }
 }
