@@ -131,13 +131,10 @@ internal final class AMQPChannelHandler: Notifiable {
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.opened(.init(channelID: channelID, notifier: self))))
                     }
-                case .close(let close):
-                    self.shutdown(error: AMQPClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.closed(self.channelID)))
                     }
-                    self.shutdown(error: AMQPClientError.channelClosed())
                 case .flow(let active):
                     self.flowListeners.notify(.success(active))
                 case .flowOk(let active):
@@ -274,13 +271,13 @@ internal final class AMQPChannelHandler: Notifiable {
         }
     }
 
-    func shutdown(error: Error) {
+    func close(error: Error) {
         let queue = self.responseQueue
         self.responseQueue.removeAll()
 
         queue.forEach { $0.fail(error) }
 
-        closePromise.fail(error)
+        closePromise.succeed(())
     }
 
     deinit {

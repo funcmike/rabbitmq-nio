@@ -119,9 +119,9 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 }
             case .channel(let channel):
                 switch channel {
-                case .close:
+                case .close(let close):
                     if let channel = self.channels.removeValue(forKey: channelID) {
-                        channel.processIncomingFrame(frame: frame)
+                        channel.close(error: AMQPClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                     }
 
                     let closeOk = Frame.method(channelID, .channel(.closeOk))
@@ -129,6 +129,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                 case .closeOk:
                     if let channel = self.channels.removeValue(forKey: channelID) {
                         channel.processIncomingFrame(frame: frame)
+                        channel.close(error: AMQPClientError.channelClosed())
                     }
                 case .flow(let active):
                     if let channel = self.channels.removeValue(forKey: channelID) {
@@ -239,7 +240,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         let channels = self.channels
         self.channels.removeAll()
 
-        channels.forEach { $1.shutdown(error: error) }
+        channels.forEach { $1.close(error: error) }
     }
 
     deinit {
