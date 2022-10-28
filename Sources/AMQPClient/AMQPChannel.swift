@@ -73,6 +73,11 @@ public final class AMQPChannel {
         }
     }
 
+    /// Close the channel
+    /// - Parameters:
+    ///     - reason: any message - might be logged by the server
+    ///     - code: any number - might be logged by the server
+    /// - Returns: EventLoopFuture with response
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
@@ -90,6 +95,60 @@ public final class AMQPChannel {
         }
     }
 
+    /// Publish a ByteBuffer message to exchange or queue
+    /// - Parameters:
+    ///     - body: Message payload that can be read from ByteBuffer.
+    ///     - exchange: Name of exchange on which the message is published. Can be empty.
+    ///     - routingKey: Name of routingKey that will be attached to the message.
+    ///                   An exchange looks at the routingKey while deciding how the message has to be routed.
+    ///                   When exchange parameter is empty routingKey is used as queueName.
+    ///     - mandatory: When a published message cannot be routed to any queue and mendatory is true, the message will be returned to publisher.
+    //                      Returned message must be handled with returnListner or returnConsumer.
+    ///                  When a published message cannot be routed to any queue and mendatory is false, the message is discarded or republished to an alternate exchange, if any.
+    ///     - immediate: When matching queue has a least one or more consumers and immediate is set to true, message is delivered to them immediately.
+    ///                  When mathing queue has zero active consumers and immediate is set to true, message is returned to publisher.
+    ///                  When mathing queue has zero active consumers and immediate is set to false, message will be delivered to the queue.
+    ///     - properties: Additional Message properties.
+    /// - Returns: EventLoopFuture waiting for message write to the server.
+    public func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
+        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.invalidBody) }
+
+        return self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+    }
+
+    /// Publish a Byte message to exchange or queue.
+    /// - Parameters: (same as above)
+    /// - Returns: (same as above)
+    public func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
+        let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.count), properties: properties))
+        let body = Frame.body(self.channelID, body: body)
+
+        return connection.sendFrames(frames: [publish, header, body], immediate: true)
+    }
+
+    /// Publish a ByteBuffer message to exchange or queue when confirm mode is selected on a channel.
+    /// - Returns: deliveryTag that can be used to match incoming confirmations.
+    public func basicPublishConfirm(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false, immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
+        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.invalidBody) }
+
+        return self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+    }
+
+    /// Publish a Byte message to exchange or queue when confirm mode is selected on a channel.
+    public func basicPublishConfirm(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false, immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
+        guard self.isConfirmMode.load(ordering: .relaxed) else { return self.eventLoopGroup.next().makeFailedFuture( AMQPClientError.channelNotInConfirmMode) }
+        
+        let response: EventLoopFuture<Void> = self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+        return response
+            .flatMap { _ in
+                let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
+                return self.eventLoopGroup.next().makeSucceededFuture(count)
+            }       
+    }
+
     public func basicGet(queue: String, noAck: Bool = true) -> EventLoopFuture<AMQPResponse.Channel.Message.Get?> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
@@ -102,38 +161,114 @@ public final class AMQPChannel {
             }
     }
 
-
-    public func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
-        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.invalidBody) }
-
-        return self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
-    }
-
-    public func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
+    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
-        let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
-        let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.count), properties: properties))
-        let body = Frame.body(self.channelID, body: body)
-
-        return connection.sendFrames(frames: [publish, header, body], immediate: true)
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.consume(.init(reserved1: 0, queue: queue, consumerTag: consumerTag, noLocal: false, noAck: noAck, exclusive: exclusive, noWait: false, arguments: arguments)))), immediate: true)
+                .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumeOk(let consumeOk) = basic else {
+                    throw AMQPClientError.invalidResponse(response)
+                }
+                return consumeOk
+            }
     }
 
-    public func basicPublishConfirm(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
-        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.invalidBody) }
-
-        return self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
-    }
-
-    public func basicPublishConfirm(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
-        guard self.isConfirmMode.load(ordering: .relaxed) else { return self.eventLoopGroup.next().makeFailedFuture( AMQPClientError.channelNotInConfirmMode) }
-        
-        let response: EventLoopFuture<Void> = self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
+        let response: EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> = self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
         return response
-            .flatMap { _ in
-                let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
-                return self.eventLoopGroup.next().makeSucceededFuture(count)
-            }       
+            .flatMapThrowing { response in
+                try self.addConsumeListener(consumerTag: response.consumerTag, listener: listener)
+                return response
+            }
+    }
+
+    public func cancel(consumerTag: String) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .canceled = basic else {
+                    throw AMQPClientError.invalidResponse(response)
+                }
+
+                return response
+            }
+    }
+
+    public func basicAck(deliveryTag: UInt64, multiple: Bool = false) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.ack(deliveryTag: deliveryTag, multiple: multiple))), immediate: true)
+    }
+
+    public func basicAck(message: AMQPResponse.Channel.Message.Delivery,  multiple: Bool = false) -> EventLoopFuture<Void> {
+        return self.basicAck(deliveryTag: message.deliveryTag, multiple: multiple)
+    }
+
+    public func basicNack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))), immediate: true)
+    }
+
+    public func basicNack(message: AMQPResponse.Channel.Message.Delivery, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
+        return self.basicNack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
+    }
+
+    public func basicReject(deliveryTag: UInt64, requeue: Bool = false) -> EventLoopFuture<Void> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.reject(deliveryTag: deliveryTag, requeue: requeue))), immediate: true)
+    }
+
+    public func basicReject(message: AMQPResponse.Channel.Message.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
+        return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
+    }
+
+
+    /// Tell the broker to either deliver all unacknowledge messages again if *requeue* is false or rejecting all if *requeue* is true
+    ///
+    /// Unacknowledged messages retrived by `basic_get` are requeued regardless.
+    public func basicRecover(requeue: Bool) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.recover(requeue: requeue))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .recovered = basic else {
+                    throw AMQPClientError.invalidResponse(response)
+                }
+                return response
+            }
+    }
+
+    /// Set prefetch limit to *count* messages,
+    /// no more messages will be delivered to the consumer until one or more message have been acknowledged or rejected
+    public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosOk = basic else {
+                    throw AMQPClientError.invalidResponse(response)
+                }
+
+                return response
+            }
+    }
+
+    /// Stop/start the flow of messages to consumers
+    /// Not supported by all brokers
+    public func flow(active: Bool) -> EventLoopFuture<AMQPResponse> {
+        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+
+        return connection.sendFrame(frame: .method(self.channelID, .channel(.flow(active: active))), immediate: true)
+            .flatMapThrowing { response in
+                guard case .channel(let channel) = response, case .flowed = channel else {
+                    throw AMQPClientError.invalidResponse(response)
+                }
+
+                return response
+            }
     }
 
     public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse>  {
@@ -244,21 +379,6 @@ public final class AMQPChannel {
             }
     }
 
-    /// Tell the broker to either deliver all unacknowledge messages again if *requeue* is false or rejecting all if *requeue* is true
-    ///
-    /// Unacknowledged messages retrived by `basic_get` are requeued regardless.
-    public func basicRecover(requeue: Bool) -> EventLoopFuture<AMQPResponse> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.recover(requeue: requeue))), immediate: true)
-            .flatMapThrowing { response in
-                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .recovered = basic else {
-                    throw AMQPClientError.invalidResponse(response)
-                }
-                return response
-            }
-    }
-
     /// Sets the channel in publish confirm mode, each published message will be acked or nacked
     public func confirmSelect() -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
@@ -325,112 +445,13 @@ public final class AMQPChannel {
             }
     }
 
-    /// Set prefetch limit to *count* messages,
-    /// no more messages will be delivered to the consumer until one or more message have been acknowledged or rejected
-    public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))), immediate: true)
-            .flatMapThrowing { response in
-                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosOk = basic else {
-                    throw AMQPClientError.invalidResponse(response)
-                }
-
-                return response
-            }
+    public func addCloseListener(named name: String, listener: @escaping (Result<Void, Error>) -> Void)  {
+        return self.closeListeners.addListener(named: name, listener: listener)
     }
 
-    public func basicAck(deliveryTag: UInt64, multiple: Bool = false) -> EventLoopFuture<Void> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.ack(deliveryTag: deliveryTag, multiple: multiple))), immediate: true)
+    public func removeCloseListener(named name: String)  {
+        return self.closeListeners.removeListener(named: name)
     }
-
-    public func basicAck(message: AMQPResponse.Channel.Message.Delivery,  multiple: Bool = false) -> EventLoopFuture<Void> {
-        return self.basicAck(deliveryTag: message.deliveryTag, multiple: multiple)
-    }
-
-    public func basicNack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))), immediate: true)
-    }
-
-    public func basicNack(message: AMQPResponse.Channel.Message.Delivery, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
-        return self.basicNack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
-    }
-
-    public func basicReject(deliveryTag: UInt64, requeue: Bool = false) -> EventLoopFuture<Void> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.reject(deliveryTag: deliveryTag, requeue: requeue))), immediate: true)
-    }
-
-    public func basicReject(message: AMQPResponse.Channel.Message.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
-        return self.basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
-    }
-
-    /// Stop/start the flow of messages to consumers
-    /// Not supported by all brokers
-    public func flow(active: Bool) -> EventLoopFuture<AMQPResponse> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .channel(.flow(active: active))), immediate: true)
-            .flatMapThrowing { response in
-                guard case .channel(let channel) = response, case .flowed = channel else {
-                    throw AMQPClientError.invalidResponse(response)
-                }
-
-                return response
-            }
-    }
-
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.consume(.init(reserved1: 0, queue: queue, consumerTag: consumerTag, noLocal: false, noAck: noAck, exclusive: exclusive, noWait: false, arguments: arguments)))), immediate: true)
-                .flatMapThrowing { response in
-                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumeOk(let consumeOk) = basic else {
-                    throw AMQPClientError.invalidResponse(response)
-                }
-                return consumeOk
-            }
-    }
-
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
-        let response: EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> = self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
-        return response
-            .flatMapThrowing { response in
-                try self.addConsumeListener(consumerTag: response.consumerTag, listener: listener)
-                return response
-            }
-    }
-
-    public func cancel(consumerTag: String) -> EventLoopFuture<AMQPResponse> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.sendFrame(frame: .method(self.channelID, .basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))), immediate: true)
-            .flatMapThrowing { response in
-                guard case .channel(let channel) = response, case .basic(let basic) = channel, case .canceled = basic else {
-                    throw AMQPClientError.invalidResponse(response)
-                }
-
-                return response
-            }
-    }
-
-    public func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) throws {
-        guard let notifier = self.notifier else { throw AMQPClientError.channelClosed() }
-
-        return notifier.addConsumeListener(named: consumerTag, listener: listener)   
-    }
-
-    public func removeConsumeListener(consumerTag: String) {
-        guard let notifier = self.notifier else { return }
-
-        return notifier.removeConsumeListener(named: consumerTag)   
-    }
-
 
     public func addPublishListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void) throws {
         guard let notifier = self.notifier else { throw AMQPClientError.channelClosed() }
@@ -446,6 +467,18 @@ public final class AMQPChannel {
         guard let notifier = self.notifier else { return }
 
         return notifier.removePublishListener(named: name)
+    }
+
+    public func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) throws {
+        guard let notifier = self.notifier else { throw AMQPClientError.channelClosed() }
+
+        return notifier.addConsumeListener(named: consumerTag, listener: listener)   
+    }
+
+    public func removeConsumeListener(consumerTag: String) {
+        guard let notifier = self.notifier else { return }
+
+        return notifier.removeConsumeListener(named: consumerTag)   
     }
 
     public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void) throws {
@@ -471,15 +504,6 @@ public final class AMQPChannel {
 
         return notifier.removeFlowListener(named: name)   
     }
-
-    public func addCloseListener(named name: String, listener: @escaping (Result<Void, Error>) -> Void)  {
-        return self.closeListeners.addListener(named: name, listener: listener)
-    }
-
-    public func removeCloseListener(named name: String)  {
-        return self.closeListeners.removeListener(named: name)
-    }
-
 
     func addListener<Value>(type: Value.Type, named name: String, listener: @escaping (Result<Value, Error>) -> Void) throws {
         switch listener {
