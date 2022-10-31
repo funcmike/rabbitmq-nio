@@ -109,27 +109,27 @@ public final class AMQPChannel {
     ///                  When mathing queue has zero active consumers and immediate is set to true, message is returned to publisher.
     ///                  When mathing queue has zero active consumers and immediate is set to false, message will be delivered to the queue.
     ///     - properties: Additional Message properties.
-    /// - Returns: EventLoopFuture waiting for message write to the server.
-    public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
+    /// - Returns: EventLoopFuture with deliveryTag waiting for message write to the server.
+    ///     DeliveryTag is 0 when channel is not in confirm mode.
+    ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
+    public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
+
+        //TODO: maybe make Method kind enum as public and use it's rawValue here instead of 60
         let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.readableBytes), properties: properties))
         let body = Frame.body(self.channelID, body: body)
 
-        return connection.sendFrames(frames: [publish, header, body], immediate: true)
-    }
-
-    /// Publish a ByteBuffer message to exchange or queue when confirm mode is selected on a channel.
-    /// - Returns: deliveryTag that can be used to match incoming confirmations.
-    public func basicPublishConfirm(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false, immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
-        guard self.isConfirmMode.load(ordering: .relaxed) else { return self.eventLoopGroup.next().makeFailedFuture( AMQPClientError.channelNotInConfirmMode) }
-        
-        let response: EventLoopFuture<Void> = self.basicPublish(from: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+        let response: EventLoopFuture<Void> = connection.sendFrames(frames: [publish, header, body], immediate: true)
         return response
-            .flatMap { _ in
-                let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
-                return self.eventLoopGroup.next().makeSucceededFuture(count)
+            .map { _ in
+                if self.isConfirmMode.load(ordering: .relaxed) {
+                    let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
+                    return count
+                } else {
+                    return 0
+                }
             }
     }
 
