@@ -16,7 +16,7 @@ import Foundation
 
 public typealias Table = [String:Field]
 
-public enum Field {
+public enum Field: Equatable {
     case bool(Bool)
     case int8(Int8)
     case uInt8(UInt8)
