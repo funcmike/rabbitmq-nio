@@ -94,7 +94,7 @@ public enum AMQPResponse {
                 public let deliveryTag: UInt64
                 public let properties: Properties
                 public let redelivered: Bool
-                public let body: [UInt8]
+                public let body: ByteBuffer
             }
 
             public struct Get {
@@ -108,7 +108,7 @@ public enum AMQPResponse {
                 public let exchange: String
                 public let routingKey: String
                 public let properties: Properties
-                public let body: [UInt8]
+                public let body: ByteBuffer
             }
         }
     }

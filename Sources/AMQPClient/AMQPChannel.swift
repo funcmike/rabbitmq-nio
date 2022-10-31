@@ -110,20 +110,11 @@ public final class AMQPChannel {
     ///                  When mathing queue has zero active consumers and immediate is set to false, message will be delivered to the queue.
     ///     - properties: Additional Message properties.
     /// - Returns: EventLoopFuture waiting for message write to the server.
-    public func basicPublish(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
-        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.invalidBody) }
-
-        return self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
-    }
-
-    /// Publish a Byte message to exchange or queue.
-    /// - Parameters: (same as above)
-    /// - Returns: (same as above)
-    public func basicPublish(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
+    public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
-        let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.count), properties: properties))
+        let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.readableBytes), properties: properties))
         let body = Frame.body(self.channelID, body: body)
 
         return connection.sendFrames(frames: [publish, header, body], immediate: true)
@@ -131,22 +122,15 @@ public final class AMQPChannel {
 
     /// Publish a ByteBuffer message to exchange or queue when confirm mode is selected on a channel.
     /// - Returns: deliveryTag that can be used to match incoming confirmations.
-    public func basicPublishConfirm(body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false, immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
-        guard let body = body.getBytes(at: 0, length: body.readableBytes) else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.invalidBody) }
-
-        return self.basicPublishConfirm(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
-    }
-
-    /// Publish a Byte message to exchange or queue when confirm mode is selected on a channel.
-    public func basicPublishConfirm(body: [UInt8], exchange: String, routingKey: String, mandatory: Bool = false, immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
+    public func basicPublishConfirm(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false, immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
         guard self.isConfirmMode.load(ordering: .relaxed) else { return self.eventLoopGroup.next().makeFailedFuture( AMQPClientError.channelNotInConfirmMode) }
         
-        let response: EventLoopFuture<Void> = self.basicPublish(body: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
+        let response: EventLoopFuture<Void> = self.basicPublish(from: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory,  immediate: immediate, properties: properties)
         return response
             .flatMap { _ in
                 let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
                 return self.eventLoopGroup.next().makeSucceededFuture(count)
-            }       
+            }
     }
 
     public func basicGet(queue: String, noAck: Bool = true) -> EventLoopFuture<AMQPResponse.Channel.Message.Get?> {

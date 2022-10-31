@@ -26,7 +26,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
     case method(ChannelID, Method)
     case header(ChannelID, Header)
-    case body(ChannelID, body: [UInt8])
+    case body(ChannelID, body: ByteBuffer)
     case heartbeat(ChannelID)
 
     public var channelID: ChannelID {
@@ -112,7 +112,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         case .header:
             frame = try Self.header(channelID, .decode(from: &buffer))
         case .body:
-            guard let body = buffer.readBytes(length: Int(size)) else {
+            guard let body = buffer.readSlice(length: Int(size)) else {
                 throw ProtocolError.decode(type: [UInt8].self, context: self)
             }
             frame = Self.body(channelID, body: body)
@@ -156,9 +156,9 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
         case .body(let channelID, let body):
-            let size = UInt32(body.count)
+            let size = UInt32(body.readableBytes)
             buffer.writeMultipleIntegers(channelID, size)
-            buffer.writeBytes(body)
+            buffer.writeImmutableBuffer(body)
         case .heartbeat(let channelID):
             let size = UInt32(0)
             buffer.writeMultipleIntegers(channelID, size)
