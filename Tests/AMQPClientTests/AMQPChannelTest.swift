@@ -1,5 +1,8 @@
 import XCTest
 import AMQPClient
+import AMQPProtocol
+import NIO
+
 @testable import AMQPClient
 
 final class AMQPChannelTest: XCTestCase {
@@ -73,6 +76,58 @@ final class AMQPChannelTest: XCTestCase {
         guard case .channel(let ch) = try await channel.exchangeDelete(name: "test2"), case .exchange(let exchange) = ch, case .deleted = exchange else {
             return  XCTFail()            
         }
+
+        let _ = try await channel.close()
+    }
+
+    func testBasicPublish() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        let _ = try await channel.queueDeclare(name: "test", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "{}")
+
+        try await channel.basicPublish(from: body, exchange: "", routingKey: "test")
+
+        let _ = try await channel.queueDelete(name: "test")
+
+        let _ = try await channel.close()
+    }
+
+    func testBasicGet() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        let _ = try await channel.queueDeclare(name: "test", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "{}")
+
+        let properties: Properties = .init(
+            contentType: "application/json",
+            contentEncoding: "UTF-8",
+            headers: ["test": .longString("test")],
+            deliveryMode: 1,
+            priority: 1,
+            correlationID: "correlationID",
+            replyTo: "replyTo",
+            expiration: "60000",
+            messageID: "messageID",
+            timestamp: 100,
+            type: "type",
+            userID: "guest",
+            appID: "appID"
+        )
+
+        try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: properties)
+
+        guard let msg = try await channel.basicGet(queue: "test") else {
+            return  XCTFail()
+        }
+
+        XCTAssertEqual(msg.messageCount, 0)
+        XCTAssertEqual(msg.message.body.getString(at: 0, length: msg.message.body.readableBytes), "{}")
+        XCTAssertEqual(properties, msg.message.properties)
+
+        let _ = try await channel.queueDelete(name: "test")
 
         let _ = try await channel.close()
     }
