@@ -34,7 +34,7 @@ internal final class AMQPChannelHandler: Notifiable {
 
     private let channelID: Frame.ChannelID
     private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
-    private var nextMessage: (frame: Basic, properties: Properties?)?
+    private var nextMessage: (frame: Frame.Method.Basic, properties: Properties?)?
     var closePromise: NIOCore.EventLoopPromise<Void>
 
     private var consumeListeners = AMQPListeners<AMQPResponse.Channel.Message.Delivery>()
