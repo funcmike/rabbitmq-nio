@@ -15,16 +15,15 @@ import NIO
 import AMQPProtocol
 
 internal protocol Notifiable {
-    func addConsumeListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener)
+    func addConsumeListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener)
     func removeConsumeListener(named name: String)
-    func addFlowListener(named name: String, listener: @escaping  AMQPListeners<Bool>.Listener)
+    func addFlowListener(named name: String, listener: @escaping AMQPListeners<Bool>.Listener)
     func removeFlowListener(named name: String)
-    func addReturnListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener)
+    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener)
     func removeReturnListener(named name: String)
-    func addPublishListener(named name: String, listener: @escaping  AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener)
+    func addPublishListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener)
     func removePublishListener(named name: String)
     var closeFuture: EventLoopFuture<Void> { get }
-
 }
 
 internal final class AMQPChannelHandler: Notifiable {
