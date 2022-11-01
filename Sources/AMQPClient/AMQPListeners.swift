@@ -25,8 +25,6 @@ struct AMQPListeners<ReturnType> {
         self.lock.withLock {
             if let listener = self.listeners[name] {
                 return listener(result)
-            } else {
-
             }
         }
     }
