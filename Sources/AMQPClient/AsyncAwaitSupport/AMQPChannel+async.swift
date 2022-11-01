@@ -32,7 +32,7 @@ public extension AMQPChannel {
         return .init(self, named: name)
     }
 
-    func basicGet(queue: String, noAck: Bool = true) async throws -> AMQPResponse.Channel.Message.Get? {
+    func basicGet(queue: String, noAck: Bool = false) async throws -> AMQPResponse.Channel.Message.Get? {
         return try await self.basicGet(queue: queue, noAck: noAck).get()
     }
 
@@ -111,7 +111,7 @@ public extension AMQPChannel {
         return try await self.queueUnbind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
-    func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = true, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) async throws -> AMQPResponse {
+    func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) async throws -> AMQPResponse {
         return try await self.exchangeDeclare(name: name, type: type, passive: passive, durable: durable, autoDelete: autoDelete,  internal: `internal`, args: arguments).get()
     }
 
