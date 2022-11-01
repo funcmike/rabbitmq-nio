@@ -23,7 +23,6 @@ public extension AMQPChannel {
         return try await self.basicPublish(from: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
     }
 
-
     func publishConsume(named name: String) async throws -> AMQPListener<AMQPResponse.Channel.Basic.PublishConfirm> {
         return .init(self, named: name)
     }
