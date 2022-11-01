@@ -2096,7 +2096,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     let (consumerTag, _) = try buffer.readShortString()
 
                     guard let deliveryTag = buffer.readInteger(as: UInt64.self) else {
-                        throw ProtocolError.decode(type: UInt8.self, context: self)
+                        throw ProtocolError.decode(type: UInt64.self, context: self)
                     }
 
                     guard let redelivered = buffer.readInteger(as: UInt8.self) else {
