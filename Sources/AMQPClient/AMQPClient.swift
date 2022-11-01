@@ -64,7 +64,9 @@ public final class AMQPClient {
                         self.connection = nil
                     }
                 }
-                return connection.sendBytes(bytes: PROTOCOL_START_0_9_1, immediate: true)
+
+                let response: EventLoopFuture<AMQPResponse> = connection.write(channelID: 0, outbound: .bytes(PROTOCOL_START_0_9_1), immediate: true)
+                return response
             }
             .flatMapThrowing { response in
                 guard case .connection(let connection) = response, case .connected = connection else {
@@ -77,7 +79,7 @@ public final class AMQPClient {
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
-        return connection.sendFrame(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
+        return connection.openChannel(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
                 guard case .channel(let channel) = response, case .opened(let opened) = channel, opened.channelID == id else {
                     throw AMQPClientError.invalidResponse(response)
@@ -90,7 +92,7 @@ public final class AMQPClient {
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
-        return connection.sendFrame(frame: .method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))), immediate: true)
+        return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
         .flatMapThrowing { response in
             guard case .connection(let connection) = response, case .closed = connection else {
                 throw AMQPClientError.invalidResponse(response)

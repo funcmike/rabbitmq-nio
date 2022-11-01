@@ -112,27 +112,24 @@ internal final class AMQPConnection {
         }        
     }
 
-    func sendBytes(bytes: [UInt8], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return self.sendFrame(outbound: .bytes(bytes), immediate: immediate)
+    func openChannel(frame: Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return self.write(command: .openChannel(frame), immediate: immediate)
     }
 
-    func sendFrame(frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<Void> {
-        guard self.isConnected else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        let outboundData: OutboundCommandPayload = (.frame(frame), nil)
-        return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
+    func write(channelID: Frame.ChannelID, outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+        return self.write(command: .write(channelID, outbound), immediate: immediate)
     }
 
-    func sendFrame(frame: AMQPProtocol.Frame, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return self.sendFrame(outbound: .frame(frame), immediate: immediate)
+    func write(channelID: Frame.ChannelID, outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<Void> {
+        return self.write(command: .write(channelID, outbound), immediate: immediate)
     }
 
-    private func sendFrame(outbound: AMQPOutbound, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
+    private func write(command: CommandPayload, immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
         guard self.isConnected else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         let eventLoop = self.eventLoopGroup.any()
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
-        let outboundData: OutboundCommandPayload = (outbound, promise)
+        let outboundData: OutboundCommandPayload = (command, promise)
 
         let writeFuture = immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
 
@@ -141,15 +138,11 @@ internal final class AMQPConnection {
             .hop(to: eventLoop)
     }
 
-    func sendFrames(frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<Void> {
+    private func write(command: CommandPayload, immediate: Bool = false) -> EventLoopFuture<Void> {
         guard self.isConnected else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
-        let outboundData: OutboundCommandPayload = (AMQPOutbound.bulk(frames), nil)
+        let outboundData: OutboundCommandPayload = (command, nil)
         return immediate ? self.channel.writeAndFlush(outboundData) : self.channel.write(outboundData)
-    }
-
-    func sendFrames(frames: [AMQPProtocol.Frame], immediate: Bool = false) -> EventLoopFuture<AMQPResponse> {
-        return self.sendFrame(outbound: .bulk(frames), immediate: immediate)
     }
 
     func close() -> EventLoopFuture<Void> {

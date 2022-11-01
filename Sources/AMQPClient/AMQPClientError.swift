@@ -21,7 +21,6 @@ public enum AMQPClientError: Error {
     case channelNotInConfirmMode
     case consumerCanceled
     case connectionBlocked
-    case invalidBody
     case invalidMessage
     case invalidResponse(AMQPResponse)
 }

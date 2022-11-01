@@ -87,7 +87,9 @@ final class AMQPChannelTest: XCTestCase {
 
         let body = ByteBufferAllocator().buffer(string: "{}")
 
-        try await channel.basicPublish(from: body, exchange: "", routingKey: "test")
+        let deliveryTag = try await channel.basicPublish(from: body, exchange: "", routingKey: "test")
+
+        XCTAssertEqual(deliveryTag, 0)
 
         let _ = try await channel.queueDelete(name: "test")
 
@@ -117,7 +119,7 @@ final class AMQPChannelTest: XCTestCase {
             appID: "appID"
         )
 
-        try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: properties)
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: properties)
 
         guard let msg = try await channel.basicGet(queue: "test") else {
             return  XCTFail()
