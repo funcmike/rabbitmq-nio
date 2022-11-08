@@ -46,8 +46,8 @@ public extension AMQPChannel {
             }.get()
     }
 
-    func cancel(consumerTag: String) async throws -> AMQPResponse { 
-        return try await self.cancel(consumerTag: consumerTag).get()
+    func basicCancel(consumerTag: String) async throws -> AMQPResponse { 
+        return try await self.basicCancel(consumerTag: consumerTag).get()
     }
 
     func basicAck(deliveryTag: UInt64, multiple: Bool = false) async throws {
