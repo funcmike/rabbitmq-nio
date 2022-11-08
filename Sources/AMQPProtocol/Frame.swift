@@ -42,7 +42,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    var kind: Kind {
+    public var kind: Kind {
         switch self {
         case .method:
             return .method
@@ -55,13 +55,13 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    enum Kind {
+    public enum Kind {
         case method
         case header
         case body
         case heartbeat
 
-        init?(rawValue: UInt8)
+        public init?(rawValue: UInt8)
         {
             switch rawValue {
             case 1:
@@ -77,7 +77,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        var rawValue: UInt8 {
+        public var rawValue: UInt8 {
             switch self {
             case .method:
                 return 1
@@ -205,7 +205,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         case confirm(Confirm)
         case tx(Tx)
 
-        var kind: Kind {
+        public var kind: Kind {
             switch self {
             case .connection:
                 return .connection
@@ -224,7 +224,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        enum Kind {
+        public enum Kind {
             case connection
             case channel
             case exchange
@@ -233,7 +233,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case confirm
             case tx
 
-            init?(rawValue: UInt16)
+            public init?(rawValue: UInt16)
             {
                 switch rawValue {
                 case 10:
@@ -255,7 +255,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            var rawValue: UInt16 {
+            public var rawValue: UInt16 {
                 switch self {
                 case .connection:
                     return 10
@@ -338,7 +338,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case unblocked
 
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .start:
                     return .start
@@ -367,7 +367,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case start
                 case startOk
                 case secure
@@ -381,7 +381,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 case blocked
                 case unblocked
 
-                init?(rawValue: UInt16)
+                public init?(rawValue: UInt16)
                 {
                     switch rawValue {
                     case 10:
@@ -413,7 +413,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .start:
                         return 10
@@ -671,7 +671,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case close(Close)
             case closeOk
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .open:
                     return .open
@@ -688,7 +688,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case open
                 case openOk
                 case flow
@@ -696,7 +696,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 case close
                 case closeOk
 
-                init?(rawValue: UInt16)
+                public init?(rawValue: UInt16)
                 {
                     switch rawValue {
                     case 10:
@@ -716,7 +716,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .open:
                         return 10
@@ -831,7 +831,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case unbind(Unbind)
             case unbindOk
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .declare:
                     return .declare
@@ -852,7 +852,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case declare
                 case declareOk
                 case delete
@@ -862,7 +862,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 case unbind
                 case unbindOk
 
-                init?(rawValue: UInt16)
+                public init?(rawValue: UInt16)
                 {
                     switch rawValue {
                     case 10:
@@ -886,7 +886,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .declare:
                         return 10
@@ -1190,7 +1190,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case unbind(Unbind)
             case unbindOk
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .declare:
                     return .declare
@@ -1215,7 +1215,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case declare
                 case declareOk
                 case bind
@@ -1227,7 +1227,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 case unbind
                 case unbindOk
 
-                init?(rawValue: UInt16)
+                public init?(rawValue: UInt16)
                 {
                     switch rawValue {
                     case 10:
@@ -1255,7 +1255,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .declare:
                         return 10
@@ -1641,7 +1641,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case recoverOk
             case nack(Nack)
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .qos:
                     return .qos
@@ -1682,7 +1682,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case qos
                 case qosOk
                 case consume
@@ -1702,7 +1702,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 case recoverOk
                 case nack
 
-                init?(rawValue: UInt16) {
+                public init?(rawValue: UInt16) {
                     switch rawValue {
                     case 10:
                         self = .qos
@@ -1745,7 +1745,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .qos:
                         return 10
@@ -2237,7 +2237,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case select(noWait: Bool)
             case selectOk
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .select:
                     return .select
@@ -2246,11 +2246,11 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case select
                 case selectOk
 
-                init?(rawValue: UInt16) {
+                public init?(rawValue: UInt16) {
                     switch rawValue {
                     case 10:
                         self = .select
@@ -2261,7 +2261,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .select:
                         return 10
@@ -2311,7 +2311,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             case rollback
             case rollbackOk
 
-            var kind: Kind {
+            public var kind: Kind {
                 switch self {
                 case .select:
                     return .select
@@ -2328,7 +2328,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            enum Kind {
+            public enum Kind {
                 case select
                 case selectOk
                 case commit
@@ -2336,7 +2336,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 case rollback
                 case rollbackOk
 
-                init?(rawValue: UInt16) {
+                public init?(rawValue: UInt16) {
                     switch rawValue {
                     case 10:
                         self = .select
@@ -2355,7 +2355,7 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                     }
                 }
 
-                var rawValue: UInt16 {
+                public var rawValue: UInt16 {
                     switch self {
                     case .select:
                         return 10
