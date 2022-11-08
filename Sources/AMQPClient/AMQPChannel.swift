@@ -115,10 +115,11 @@ public final class AMQPChannel {
     public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
-        let publish = Frame.method(self.channelID, .basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate))))
+        let basic = Frame.Method.basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)))
+        let classID = basic.kind.rawValue
+        let publish = Frame.method(self.channelID, basic)
 
-        //TODO: maybe make Method kind enum as public and use it's rawValue here instead of 60
-        let header = Frame.header(self.channelID, .init(classID: 60, weight: 0, bodySize: UInt64(body.readableBytes), properties: properties))
+        let header = Frame.header(self.channelID, .init(classID: classID, weight: 0, bodySize: UInt64(body.readableBytes), properties: properties))
         let body = Frame.body(self.channelID, body: body)
 
         let response: EventLoopFuture<Void> = connection.write(channelID: self.channelID, outbound: .bulk([publish, header, body]), immediate: true)
