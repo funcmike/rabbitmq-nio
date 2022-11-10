@@ -15,21 +15,35 @@ import Foundation
 import AMQPProtocol
 
 public extension AMQPClient {
+    /// Connect to broker.
+    /// - Returns: Response confirming that broker has accepted a request.
     func connect() async throws -> AMQPResponse {
         return try await self.connect().get()
     }
 
+    /// Open new channel.
+    /// Can be used only when connection is connected.
+    /// - Parameters:
+    ///     - id: Channel Identifer must be unique and greater then 0.
     func openChannel(id: Frame.ChannelID) async throws -> AMQPChannel {
         return try await self.openChannel(id: id).get()
     }
 
+    /// Close a connection.
+    /// - Parameters:
+    ///     - reason: Reason that can be logged by broker.
+    ///     - code: Code that can be logged by broker.
+    /// - Returns: Response confirming that broker has accepted a request.
     func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
         return try await self.close(reason: reason, code: code).get()
     }
 
+    /// Shutdown a connection with eventloop.
+    /// - Parameters:
+    ///     - queue: DispatchQueue for eventloop shutdown.
     func shutdown(queue: DispatchQueue = .global()) async throws {
         return try await withUnsafeThrowingContinuation { cont in
-            shutdown(queue: queue) { error in
+            self.shutdown(queue: queue) { error in
                 if let error = error {
                     cont.resume(throwing: error)
                 } else {
