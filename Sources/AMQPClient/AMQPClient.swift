@@ -156,7 +156,6 @@ public final class AMQPClient {
         }
     }
 
-    /// shutdown EventLoopGroup
     private func shutdownEventLoopGroup(queue: DispatchQueue, _ callback: @escaping (Error?) -> Void) {
         switch self.eventLoopGroupProvider {
         case .shared:
