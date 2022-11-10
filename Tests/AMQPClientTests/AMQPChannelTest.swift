@@ -133,4 +133,23 @@ final class AMQPChannelTest: XCTestCase {
 
         let _ = try await channel.close()
     }
+
+    func testBasicTx() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        guard case .channel(let ch) = try await channel.txSelect(), case .tx(let exchange) = ch, case .selected = exchange else {
+            return  XCTFail() 
+        }
+
+        guard case .channel(let ch) = try await channel.txCommit(), case .tx(let exchange) = ch, case .committed = exchange else {
+            return  XCTFail() 
+        }
+
+        guard case .channel(let ch) = try await channel.txRollback(), case .tx(let exchange) = ch, case .rollbacked = exchange else {
+            return  XCTFail() 
+        }
+
+        let _ = try await channel.close()
+    }
+
 }
