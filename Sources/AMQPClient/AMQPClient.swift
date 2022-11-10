@@ -39,8 +39,10 @@ public final class AMQPClient {
         }
     }
 
+    /// EventLoop used by a connection.
     public var eventLoop: EventLoop? { return self.connection?.eventLoop }
 
+    /// Future that resolves when connection is closed.
     public var closeFuture: EventLoopFuture<Void>? {
         get { return self._connection?.closeFuture }
     }
@@ -57,6 +59,8 @@ public final class AMQPClient {
         }
     }
 
+    /// Connect to broker.
+    /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     public func connect() ->  EventLoopFuture<AMQPResponse> {
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
@@ -78,6 +82,11 @@ public final class AMQPClient {
             }
     }
 
+    /// Open new channel.
+    /// Can be used only when connection is connected.
+    /// - Parameters:
+    ///     - id: Channel Identifer must be unique and greater then 0.
+    /// - Returns: EventLoopFuture with AMQP Channel.
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
@@ -91,6 +100,11 @@ public final class AMQPClient {
             }
     }
 
+    /// Close a connection.
+    /// - Parameters:
+    ///     - reason: Reason that can be logged by broker.
+    ///     - code: Code that can be logged by broker.
+    /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
@@ -103,6 +117,11 @@ public final class AMQPClient {
         }
     }
 
+    /// Shutdown a connection with eventloop.
+    /// - Parameters:
+    ///     - queue: DispatchQueue for eventloop shutdown.
+    ///     - callback: Function that will be executed after stop.
+    /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     public func shutdown(queue: DispatchQueue = .global(), _ callback: @escaping (Error?) -> Void) {
         guard self.isShutdown.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
             callback(AMQPClientError.alreadyShutdown)

@@ -102,11 +102,11 @@ public extension AMQPChannel {
         return try await self.queuePurge(name: name).get()
     }
 
-    func queueBind(queue: String, exchange: String, routingKey: String, args arguments: Table =  Table()) async throws -> AMQPResponse {
+    func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table =  Table()) async throws -> AMQPResponse {
         return try await self.queueBind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
-    func queueUnbind(queue: String, exchange: String, routingKey: String, args arguments: Table =  Table()) async throws -> AMQPResponse {
+    func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table =  Table()) async throws -> AMQPResponse {
         return try await self.queueUnbind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
