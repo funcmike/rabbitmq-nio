@@ -50,10 +50,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
     func channelActive(context: ChannelHandlerContext) {
         print("Client connected to \(context.remoteAddress as Any)")
-        
-        // `fireChannelActive` needs to be called BEFORE we set the state machine to connected,
-        // since we want to make sure that upstream handlers know about the active connection before
-        // it receives a         
+       
         return context.fireChannelActive()
     }
 
