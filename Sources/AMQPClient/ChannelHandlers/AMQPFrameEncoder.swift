@@ -26,6 +26,6 @@ public final class AMQPFrameEncoder: MessageToByteEncoder {
             }
         case .bytes(let bytes):
             _ = out.writeBytes(bytes)
-        }        
+        }
     }
 }

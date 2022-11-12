@@ -248,7 +248,7 @@ final class AMQPChannelTest: XCTestCase {
         }
 
         guard case .channel(let ch) = try await channel.basicRecover(requeue: true), case .basic(let basic) = ch, case .recovered = basic else {
-            return  XCTFail() 
+            return XCTFail() 
         }
 
         let _ = try await channel.queueDelete(name: "test")
