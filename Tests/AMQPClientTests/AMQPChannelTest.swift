@@ -175,4 +175,18 @@ final class AMQPChannelTest: XCTestCase {
 
         let _ = try await channel.close()
     }
+
+    func testBasicQos() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        guard case .channel(let ch) = try await channel.basicQos(count: 100, global: true), case .basic(let basic) = ch, case.qosOk = basic else {
+            return  XCTFail() 
+        }
+
+        guard case .channel(let ch) = try await channel.basicQos(count: 100, global: false), case .basic(let basic) = ch, case.qosOk = basic else {
+            return  XCTFail() 
+        }
+
+        let _ = try await channel.close()
+    }
 }
