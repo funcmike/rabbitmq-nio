@@ -13,7 +13,7 @@ Swift-NIO related code is based on other NIO projects like:
 
 **!!! WARNING !!!** <br>
 This project is in very early stage and still under heavy development so everything can change in the near future. <br>
-Please don't use it until first release! <br>
+Please don't use it on production until first release! <br>
 **!!! WARNING !!!**
 
 AMQPProtocol library currently should cover all of AMQP 0.9.1 specification.
@@ -108,7 +108,7 @@ Close a channel, client and eventloop.
 do {
     let _ = try await channel.close()
     let _ = try await client.close()
-    let _ = try await client.shutdown()
+    try await client.shutdown()
 
     print("Succesfully closed", msg)
 } catch {
