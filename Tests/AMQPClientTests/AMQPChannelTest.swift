@@ -197,12 +197,9 @@ final class AMQPChannelTest: XCTestCase {
 
         let body = ByteBufferAllocator().buffer(string: "{}")
 
-        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
-        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
-        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
-        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
-        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
-        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        for _ in  1...6 {
+            let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        }
 
         do {
             guard let msg = try await channel.basicGet(queue: "test") else {
@@ -286,6 +283,36 @@ final class AMQPChannelTest: XCTestCase {
 
         let _ = try await channel.queueDelete(name: "test_publish")
 
+        let _ = try await channel.close()
+    }
+
+    func testBasicConsume() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        let _ = try await channel.queueDeclare(name: "test_consume", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "{}")
+        
+        for _ in  1...100 {
+            let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test_consume", properties: .init())
+        }
+
+        let consumer = try await channel.basicConsume(queue: "test_consume")
+
+        var count = 0
+        for await msg in consumer {
+            guard case .success = msg else {
+                return XCTFail()
+            }
+            count += 1
+            if count == 100 { break }
+        }
+
+        guard case .channel(let ch) = try await channel.basicCancel(consumerTag: consumer.name), case .basic(let basic) = ch, case .canceled = basic else {
+            return XCTFail() 
+        }
+
+        let _ = try await channel.queueDelete(name: "test_consume")
         let _ = try await channel.close()
     }
 }

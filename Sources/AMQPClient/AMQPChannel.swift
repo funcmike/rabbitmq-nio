@@ -679,7 +679,7 @@ public final class AMQPChannel {
         }
     }
 
-    func removeListener<Value>( type: Value.Type, named name: String) {
+    func removeListener<Value>(type: Value.Type, named name: String) {
         switch type {
             case is AMQPResponse.Channel.Message.Delivery.Type:
                 return removeConsumeListener(consumerTag: name)
