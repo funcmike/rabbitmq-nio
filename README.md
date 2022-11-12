@@ -20,3 +20,98 @@ AMQPProtocol library currently should cover all of AMQP 0.9.1 specification.
 
 AMQPClient library's basic architecture using NIO Channels is already done and all of AMQP operations (without WebSockets) should be supported.
 Current work is focused on testing, fixing bugs, documentation and benchmarking.
+
+## Basic usage
+Create a client and connect to the AMQP broker.
+```swift
+var client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(.init()))
+
+do {
+    try await client.connect()
+
+    print("Succesfully connected")
+} catch {
+    print("Error while connecting", error)
+}
+```
+
+Open a channel.
+```swift
+do {
+    let channel = try await client.openChannel(id: 1)
+
+    print("Succesfully opened a channel")
+} catch {
+    print("Error while opening a channel", error)
+}
+```
+
+Declare a queue.
+```swift
+do {
+    try await channel.queueDeclare(name: "test", durable: false)
+
+    print("Succesfully created queue")
+} catch {
+    print("Error while creating queue", error)
+}
+```
+
+Publish a message to queue.
+```swift
+do {
+    let deliveryTag = try await channel.basicPublish(
+        from: ByteBuffer(string: "{}"),
+        exchange: "",
+        routingKey: "test"
+    )
+
+    print("Succesfully publish a message")
+} catch {
+    print("Error while publishing a message", error)
+}
+```
+
+Consume a single message.
+```swift
+do {
+    guard let msg = try await channel.basicGet(queue: "test") else {
+        print("No message currently available")
+        return
+    }
+
+    print("Succesfully consumed a message", msg)
+} catch {
+    print("Error while consuming a message", error)
+}
+```
+
+Consume a multiple message as AsynStream.
+```swift
+let consumer = try await channel.basicConsume(queue: "test")
+
+for await msg in consumer {
+    guard case .success(let delivery) = msg else {
+        print("Delivery failure", msg)
+        return
+    }
+
+    print("Succesfully consumed a message", delivery)
+    break
+}
+
+try await channel.basicCancel(consumerTag: consumer.name)
+```
+
+Close a channel, client and eventloop.
+```swift
+do {
+    let _ = try await channel.close()
+    let _ = try await client.close()
+    let _ = try await client.shutdown()
+
+    print("Succesfully closed", msg)
+} catch {
+    print("Error while closing", error)
+}
+```
