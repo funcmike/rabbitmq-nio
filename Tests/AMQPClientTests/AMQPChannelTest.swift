@@ -152,4 +152,17 @@ final class AMQPChannelTest: XCTestCase {
         let _ = try await channel.close()
     }
 
+    func testConfirm() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        guard case .channel(let ch) = try await channel.confirmSelect(), case .confirm(let confirm) = ch, case .selected = confirm else {
+            return  XCTFail() 
+        }
+
+        guard case .channel(let ch) = try await channel.confirmSelect(), case .confirm(let confirm) = ch, case .alreadySelected = confirm else {
+            return  XCTFail() 
+        }
+
+        let _ = try await channel.close()
+    }
 }
