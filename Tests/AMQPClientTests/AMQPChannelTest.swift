@@ -189,4 +189,70 @@ final class AMQPChannelTest: XCTestCase {
 
         let _ = try await channel.close()
     }
+
+    func testConsumeConfirms() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        let _ = try await channel.queueDeclare(name: "test", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "{}")
+
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+        let _ = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+
+        do {
+            guard let msg = try await channel.basicGet(queue: "test") else {
+                return  XCTFail()
+            }
+    
+            try await channel.basicAck(deliveryTag: msg.message.deliveryTag)
+
+            guard let msg = try await channel.basicGet(queue: "test") else {
+                return  XCTFail()
+            }
+
+            try await channel.basicAck(message: msg.message)
+        }
+
+
+        do {
+            guard let msg = try await channel.basicGet(queue: "test") else {
+                return  XCTFail()
+            }
+            
+            try await channel.basicNack(deliveryTag: msg.message.deliveryTag)
+    
+            guard let msg = try await channel.basicGet(queue: "test") else {
+                return  XCTFail()
+            }
+
+            try await channel.basicNack(message: msg.message)
+        }
+
+        do {
+            guard let msg = try await channel.basicGet(queue: "test") else {
+                return XCTFail()
+            }
+
+            try await channel.basicReject(deliveryTag: msg.message.deliveryTag)
+
+            guard let msg = try await channel.basicGet(queue: "test") else {
+                return  XCTFail()
+            }
+
+            try await channel.basicReject(message: msg.message)
+        }
+
+        guard case .channel(let ch) = try await channel.basicRecover(requeue: true), case .basic(let basic) = ch, case .recovered = basic else {
+            return  XCTFail() 
+        }
+
+        let _ = try await channel.queueDelete(name: "test")
+
+        let _ = try await channel.close()
+    }
 }
