@@ -255,4 +255,37 @@ final class AMQPChannelTest: XCTestCase {
 
         let _ = try await channel.close()
     }
+
+    func testPublishConsume() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        let _ = try await channel.queueDeclare(name: "test_publish", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "{}")
+
+        let _ = try await channel.confirmSelect()
+        
+        Task {
+            for i in  1...100 {
+                let deliveryTag = try await channel.basicPublish(from: body, exchange: "", routingKey: "test", properties: .init())
+                
+                XCTAssertEqual(UInt64(i), deliveryTag)
+            }
+        }
+
+        let consumer = try await channel.publishConsume(named: "test")
+
+        var count = 0
+        for await msg in consumer {
+            guard case .success = msg else {
+                return XCTFail()
+            }
+            count += 1
+            if count == 2 { break }
+        }
+
+        let _ = try await channel.queueDelete(name: "test_publish")
+
+        let _ = try await channel.close()
+    }
 }
