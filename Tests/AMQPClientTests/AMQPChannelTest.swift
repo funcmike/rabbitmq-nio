@@ -165,4 +165,14 @@ final class AMQPChannelTest: XCTestCase {
 
         let _ = try await channel.close()
     }
+
+    func testFlow() async throws {
+        let channel = try await client.openChannel(id: 1)
+
+        guard case .channel(let ch) = try await channel.flow(active: true), case .flowed(let active) = ch, active else {
+            return  XCTFail() 
+        }
+
+        let _ = try await channel.close()
+    }
 }
