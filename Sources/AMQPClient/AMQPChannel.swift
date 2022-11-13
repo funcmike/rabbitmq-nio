@@ -127,7 +127,7 @@ public final class AMQPChannel {
         return response
             .map { _ in
                 if self.isConfirmMode.load(ordering: .relaxed) {
-                    let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .acquiring)
+                    let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .sequentiallyConsistent)
                     return count
                 } else {
                     return 0
