@@ -27,7 +27,7 @@ public enum AMQPResponse {
         case basic(Basic)
         case confirm(Confirm)
         case tx(Tx)
-        case flowed(active: Bool)
+        case flowed(Flowed)
 
         public struct Opened {
             public let channelID: Frame.ChannelID
@@ -40,11 +40,25 @@ public enum AMQPResponse {
         }
 
         public enum Queue {
-            case declared(queueName: String, messageCount: UInt32, consumerCount: UInt32)
+            case declared(Declared)
             case binded
-            case purged(messageCount: UInt32)
-            case deleted(messageCount: UInt32)
+            case purged(Purged)
+            case deleted(Deleted)
             case unbinded
+
+            public struct Declared {
+                public let queueName: String
+                public let messageCount: UInt32
+                public let consumerCount: UInt32
+            }
+
+            public struct Purged {
+                public let messageCount: UInt32
+            }
+
+            public struct Deleted {
+                public let messageCount: UInt32
+            }
         }
         
         public enum Exchange {
@@ -60,6 +74,7 @@ public enum AMQPResponse {
             case consumeOk(ConsumeOk)
             case canceled
             case publishConfirm(PublishConfirm)
+            case published(Published)
 
             public enum PublishConfirm {
                 case ack(deliveryTag: UInt64, multiple: Bool)
@@ -69,18 +84,24 @@ public enum AMQPResponse {
             public struct ConsumeOk {
                 public let consumerTag: String
             }
+
+            public struct Published {
+                public let deliveryTag: UInt64
+            }
         }
 
         public enum Confirm {
             case selected
-            case alreadySelected
         }
 
         public enum Tx {
             case selected
-            case alreadySelected
             case committed
             case rollbacked
+        }
+
+        public struct Flowed {
+            public let active: Bool
         }
 
         public enum Message {

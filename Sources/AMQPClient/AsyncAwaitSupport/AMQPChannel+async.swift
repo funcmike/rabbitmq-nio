@@ -22,8 +22,7 @@ public extension AMQPChannel {
     /// - Parameters:
     ///     - reason: any message - might be logged by the server.
     ///     - code: any number - might be logged by the server.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
+    func close(reason: String = "", code: UInt16 = 200) async throws {
         return try await self.close(reason: reason, code: code).get()
     }
 
@@ -44,7 +43,8 @@ public extension AMQPChannel {
     /// - Returns: DeliveryTag waiting for message write to the server.
     ///     DeliveryTag is 0 when channel is not in confirm mode.
     ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
-    func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> UInt64 {
+    @discardableResult
+    func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> AMQPResponse.Channel.Basic.Published {
         return try await self.basicPublish(from: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
     }
 
@@ -106,8 +106,7 @@ public extension AMQPChannel {
     /// Cancel sending messages from server to consumer.
     /// - Parameters:
     ///     - consumerTag: name of the consumer.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func basicCancel(consumerTag: String) async throws -> AMQPResponse { 
+    func basicCancel(consumerTag: String) async throws { 
         return try await self.basicCancel(consumerTag: consumerTag).get()
     }
 
@@ -164,8 +163,7 @@ public extension AMQPChannel {
     /// Tell the broker what to do with all unacknowledge messages.
     /// Unacknowledged messages retrived by `basicGet` are requeued regardless.
     /// - Parameters:
-    ///     - requeue: controls whether to requeue all messages after rejecting them.
-    func basicRecover(requeue: Bool) async throws -> AMQPResponse {
+    func basicRecover(requeue: Bool) async throws {
         return try await self.basicRecover(requeue: requeue).get()
     }
 
@@ -174,8 +172,7 @@ public extension AMQPChannel {
     /// - Parameters:
     ///     - count: size of the limit.
     ///     - global: whether the limit will be shared across all consumers on the channel.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func basicQos(count: UInt16, global: Bool = false) async throws -> AMQPResponse {
+    func basicQos(count: UInt16, global: Bool = false) async throws {
         return try await self.basicQos(count: count, global: global).get()
     }
 
@@ -184,7 +181,8 @@ public extension AMQPChannel {
     /// - Parameters:
     ///     - active: flow enabled or disabled.
     /// - Returns: Response confirming that broker has accepted a request.
-    func flow(active: Bool) async throws -> AMQPResponse { 
+    @discardableResult
+    func flow(active: Bool) async throws -> AMQPResponse.Channel.Flowed { 
         return try await self.flow(active: active).get()
     }
 
@@ -207,7 +205,8 @@ public extension AMQPChannel {
     ///     - auto_delete: if enabled queue will be deleted when the last consumer has stopped consuming.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: Response confirming that broker has accepted a request.
-    func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) async throws -> AMQPResponse {
+    @discardableResult
+    func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) async throws -> AMQPResponse.Channel.Queue.Declared {
         return try await self.queueDeclare(name: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, args: arguments).get()
     }
 
@@ -217,7 +216,8 @@ public extension AMQPChannel {
     ///     - ifUnused: If enabled queue will be deleted only when there is no consumers subscribed to it.
     ///     - ifEmpty: if enabled queue will be deleted only when it's empty.
     /// - Returns: Response confirming that broker has accepted a request.
-    func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) async throws -> AMQPResponse {
+    @discardableResult
+    func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) async throws -> AMQPResponse.Channel.Queue.Deleted {
         return try await self.queueDelete(name: name, ifUnused: ifUnused, ifEmpty: ifEmpty).get()
     }
 
@@ -225,7 +225,8 @@ public extension AMQPChannel {
     /// - Parameters:
     ///     - name: Name of the queue.
     /// - Returns: Response confirming that broker has accepted a request.
-    func queuePurge(name: String) async throws -> AMQPResponse {
+    @discardableResult
+    func queuePurge(name: String) async throws -> AMQPResponse.Channel.Queue.Purged {
         return try await self.queuePurge(name: name).get()
     }
 
@@ -235,8 +236,7 @@ public extension AMQPChannel {
     ///     - exchange: Name of the exchange.
     ///     - routingKey: Bind only to messages matching routingKey.
     ///     - arguments: Bind only to message matching given options.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table =  Table()) async throws -> AMQPResponse {
+    func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table =  Table()) async throws {
         return try await self.queueBind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
@@ -246,8 +246,7 @@ public extension AMQPChannel {
     ///     - exchange: Name of the exchange.
     ///     - routingKey: Unbind only from messages matching routingKey.
     ///     - arguments: Unbind only from messages matching given options.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table =  Table()) async throws -> AMQPResponse {
+    func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table =  Table()) async throws {
         return try await self.queueUnbind(queue: queue, exchange: exchange, routingKey: routingKey, args: arguments).get()
     }
 
@@ -259,8 +258,7 @@ public extension AMQPChannel {
     ///     - auto_delete: if enabled exchange will be deleted when the last consumer has stopped consuming.
     ///     - internal: Whether the exchange cannot be directly published to client.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
-    /// - Returns: Response confirming that broker has accepted a request.
-    func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) async throws -> AMQPResponse {
+    func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) async throws {
         return try await self.exchangeDeclare(name: name, type: type, passive: passive, durable: durable, autoDelete: autoDelete,  internal: `internal`, args: arguments).get()
     }
 
@@ -268,8 +266,7 @@ public extension AMQPChannel {
     /// - Parameters:
     ///     - name: Name of the queue.
     ///     - ifUnused: if enabled exchange will be deleted only when it's not used.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func exchangeDelete(name: String, ifUnused: Bool = false) async throws -> AMQPResponse {
+    func exchangeDelete(name: String, ifUnused: Bool = false) async throws {
         return try await self.exchangeDelete(name: name, ifUnused: ifUnused).get()
     }
 
@@ -279,8 +276,7 @@ public extension AMQPChannel {
     ///     - source: Input exchange.
     ///     - routingKey: Bind only to messages matching routingKey.
     ///     - arguments: Bind only to message matching given options.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) async throws -> AMQPResponse {
+    func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) async throws {
         return try await self.exchangeBind(destination: destination, source: source, routingKey: routingKey, args: arguments).get()
     }
 
@@ -290,32 +286,27 @@ public extension AMQPChannel {
     ///     - source: Input exchange.
     ///     - routingKey: Unbind only from messages matching routingKey.
     ///     - arguments: Unbind only from message matching given options.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) async throws -> AMQPResponse {
+    func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) async throws {
         return try await self.exchangeUnbind(destination: destination, source: source, routingKey: routingKey, args: arguments).get()
     }
 
     /// Sets the channel in publish confirm mode, each published message will be acked or nacked.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func confirmSelect() async throws -> AMQPResponse {
+    func confirmSelect() async throws {
         return try await self.confirmSelect().get()
     }
 
     /// Set the Channel in transaction mode.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func txSelect() async throws -> AMQPResponse {
+    func txSelect() async throws {
         return try await self.txSelect().get()
     }
 
     /// Commit a transaction.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func txCommit() async throws -> AMQPResponse {
+    func txCommit() async throws {
         return try await self.txCommit().get()
     }
 
     /// Rollback a transaction.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func txRollback() async throws -> AMQPResponse {
+    func txRollback() async throws {
         return try await self.txRollback().get()
     }
 }

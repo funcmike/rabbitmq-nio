@@ -138,7 +138,7 @@ internal final class AMQPChannelHandler: Notifiable {
                     self.flowListeners.notify(.success(active))
                 case .flowOk(let active):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.flowed(active: active)))
+                        promise.succeed(.channel(.flowed(.init(active: active))))
                     }
                 default:
                     preconditionUnexpectedFrame(frame)
@@ -147,7 +147,7 @@ internal final class AMQPChannelHandler: Notifiable {
                 switch queue {
                 case .declareOk(let declareOk):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.queue(.declared(queueName: declareOk.queueName, messageCount: declareOk.messageCount, consumerCount: declareOk.consumerCount))))
+                        promise.succeed(.channel(.queue(.declared(.init(queueName: declareOk.queueName, messageCount: declareOk.messageCount, consumerCount: declareOk.consumerCount)))))
                     }
                 case .bindOk:
                     if let promise = self.responseQueue.popFirst() {
@@ -155,11 +155,11 @@ internal final class AMQPChannelHandler: Notifiable {
                     }
                 case .purgeOk(let messageCount):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.queue(.purged(messageCount: messageCount))))
+                        promise.succeed(.channel(.queue(.purged(.init(messageCount: messageCount)))))
                     }
                 case .deleteOk(let messageCount):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.queue(.deleted(messageCount: messageCount))))
+                        promise.succeed(.channel(.queue(.deleted(.init(messageCount: messageCount)))))
                     }
                 case .unbindOk:
                     if let promise = self.responseQueue.popFirst() {

@@ -78,8 +78,9 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - reason: any message - might be logged by the server.
     ///     - code: any number - might be logged by the server.
-    /// - Returns: EventLoopFuture with response.
-    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for close response.
+    @discardableResult
+    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0))))), immediate: true)
@@ -92,7 +93,7 @@ public final class AMQPChannel {
 
             self.closeListeners.notify(.success(()))
 
-            return response
+            return ()
         }
     }
 
@@ -113,7 +114,8 @@ public final class AMQPChannel {
     /// - Returns: EventLoopFuture with deliveryTag waiting for message write to the server.
     ///     DeliveryTag is 0 when channel is not in confirm mode.
     ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
-    public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<UInt64> {
+    @discardableResult
+    public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<AMQPResponse.Channel.Basic.Published> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         let basic = Frame.Method.basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)))
@@ -128,9 +130,9 @@ public final class AMQPChannel {
             .map { _ in
                 if self.isConfirmMode.load(ordering: .relaxed) {
                     let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .sequentiallyConsistent)
-                    return count
+                    return .init(deliveryTag: count)
                 } else {
-                    return 0
+                    return .init(deliveryTag: 0)
                 }
             }
     }
@@ -193,8 +195,8 @@ public final class AMQPChannel {
     /// Cancel sending messages from server to consumer.
     /// - Parameters:
     ///     - consumerTag: name of the consumer.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func basicCancel(consumerTag: String) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for cancel response.
+    public func basicCancel(consumerTag: String) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .basic(.cancel(.init(consumerTag: consumerTag, noWait: false))))), immediate: true)
@@ -203,7 +205,7 @@ public final class AMQPChannel {
                     throw AMQPClientError.invalidResponse(response)
                 }
 
-                return response
+                return ()
             }
     }
 
@@ -274,8 +276,8 @@ public final class AMQPChannel {
     /// Unacknowledged messages retrived by `basicGet` are requeued regardless.
     /// - Parameters:
     ///     - requeue: controls whether to requeue all messages after rejecting them.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func basicRecover(requeue: Bool) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for recover response.
+    public func basicRecover(requeue: Bool) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .basic(.recover(requeue: requeue)))), immediate: true)
@@ -283,7 +285,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .recovered = basic else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
@@ -292,8 +294,8 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - count: size of the limit.
     ///     - global: whether the limit will be shared across all consumers on the channel.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for qos response.
+    public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .basic(.qos(prefetchSize: 0, prefetchCount: count, global: global)))), immediate: true)
@@ -302,7 +304,7 @@ public final class AMQPChannel {
                     throw AMQPClientError.invalidResponse(response)
                 }
 
-                return response
+                return ()
             }
     }
 
@@ -311,16 +313,17 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - active: flow enabled or disabled.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func flow(active: Bool) -> EventLoopFuture<AMQPResponse> {
+    @discardableResult
+    public func flow(active: Bool) -> EventLoopFuture<AMQPResponse.Channel.Flowed> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .channel(.flow(active: active)))), immediate: true)
             .flatMapThrowing { response in
-                guard case .channel(let channel) = response, case .flowed = channel else {
+                guard case .channel(let channel) = response, case .flowed(let flowed) = channel else {
                     throw AMQPClientError.invalidResponse(response)
                 }
 
-                return response
+                return flowed
             }
     }
 
@@ -333,15 +336,16 @@ public final class AMQPChannel {
     ///     - auto_delete: if enabled queue will be deleted when the last consumer has stopped consuming.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse>  {
+    @discardableResult
+    public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse.Channel.Queue.Declared>  {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .queue(.declare(.init(reserved1: 0, queueName: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: false, arguments: arguments))))), immediate: true)
             .flatMapThrowing { response in 
-                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared = queue else {
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared(let declared) = queue else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return declared
             }
     }
 
@@ -351,15 +355,16 @@ public final class AMQPChannel {
     ///     - ifUnused: If enabled queue will be deleted only when there is no consumers subscribed to it.
     ///     - ifEmpty: if enabled queue will be deleted only when it's empty.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) -> EventLoopFuture<AMQPResponse> {
+    @discardableResult
+    public func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) -> EventLoopFuture<AMQPResponse.Channel.Queue.Deleted> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .queue(.delete(.init(reserved1: 0, queueName: name, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: false))))), immediate: true)
             .flatMapThrowing { response in 
-                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .deleted = queue else {
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .deleted(let deleted) = queue else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return deleted
             }
     }
 
@@ -367,15 +372,16 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: Name of the queue.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func queuePurge(name: String) -> EventLoopFuture<AMQPResponse> {
+    @discardableResult
+    public func queuePurge(name: String) -> EventLoopFuture<AMQPResponse.Channel.Queue.Purged> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .queue(.purge(.init(reserved1: 0, queueName: name, noWait: false))))), immediate: true)
             .flatMapThrowing { response in 
-                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .purged = queue else {
+                guard case .channel(let channel) = response, case .queue(let queue) = channel, case .purged(let purged) = queue else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return purged
             }
     }
 
@@ -385,8 +391,8 @@ public final class AMQPChannel {
     ///     - exchange: Name of the exchange.
     ///     - routingKey: Bind only to messages matching routingKey.
     ///     - arguments: Bind only to message matching given options.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for bind response.
+    public func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .queue(.bind(.init(reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, noWait: false, arguments: arguments))))), immediate: true)
@@ -394,7 +400,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .binded = queue else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
@@ -404,8 +410,8 @@ public final class AMQPChannel {
     ///     - exchange: Name of the exchange.
     ///     - routingKey: Unbind only from messages matching routingKey.
     ///     - arguments: Unbind only from messages matching given options.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuturewaiting for bind response unbind response.
+    public func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .queue(.unbind(.init(reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, arguments: arguments))))), immediate: true)
@@ -413,7 +419,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .unbinded = queue else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
@@ -425,8 +431,8 @@ public final class AMQPChannel {
     ///     - auto_delete: if enabled exchange will be deleted when the last consumer has stopped consuming.
     ///     - internal: Whether the exchange cannot be directly published to client.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for declare response.
+    public func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .exchange(.declare(.init(reserved1: 0, exchangeName: name, exchangeType: type, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: false, arguments: arguments))))), immediate: true)
@@ -434,7 +440,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .declared = exchange else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
@@ -442,8 +448,8 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: Name of the queue.
     ///     - ifUnused: if enabled exchange will be deleted only when it's not used.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func exchangeDelete(name: String, ifUnused: Bool = false) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for delete response.
+    public func exchangeDelete(name: String, ifUnused: Bool = false) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .exchange(.delete(.init(reserved1: 0, exchangeName: name, ifUnused: ifUnused, noWait: false))))), immediate: true)
@@ -451,7 +457,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .deleted = exchange else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
@@ -461,8 +467,8 @@ public final class AMQPChannel {
     ///     - source: Input exchange.
     ///     - routingKey: Bind only to messages matching routingKey.
     ///     - arguments: Bind only to messages matching given options.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for bind response.
+    public func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .exchange(.bind(.init(reserved1: 0, destination: destination, source: source, routingKey: routingKey, noWait: false, arguments: arguments))))), immediate: true)
@@ -470,7 +476,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .binded = exchange else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
@@ -480,8 +486,8 @@ public final class AMQPChannel {
     ///     - source: Input exchange.
     ///     - routingKey: Unbind only from messages matching routingKey.
     ///     - arguments: Unbind only from messages matching given options.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for bind response.
+    public func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .exchange(.unbind(.init(reserved1: 0, destination: destination, source: source, routingKey: routingKey, noWait: false, arguments: arguments))))), immediate: true)
@@ -489,17 +495,17 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .unbinded = exchange else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
     /// Sets the channel in publish confirm mode, each published message will be acked or nacked.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func confirmSelect() -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for confirm select response.
+    public func confirmSelect() -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         guard !self.isConfirmMode.load(ordering: .relaxed) else {
-            return self.eventLoopGroup.any().makeSucceededFuture(.channel(.confirm(.alreadySelected)))
+            return self.eventLoopGroup.any().makeSucceededFuture(())
         }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .confirm(.select(noWait: false)))), immediate: true)
@@ -510,17 +516,17 @@ public final class AMQPChannel {
 
                 self.isConfirmMode.store(true, ordering: .relaxed)
 
-                return response
+                return ()
             }
     }
 
     /// Set the Channel in transaction mode.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func txSelect() -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for tx select response.
+    public func txSelect() -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         guard !self.isTxMode.load(ordering: .relaxed) else {
-            return self.eventLoopGroup.any().makeSucceededFuture(.channel(.tx(.alreadySelected)))
+            return self.eventLoopGroup.any().makeSucceededFuture(())
         }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .tx(.select))), immediate: true)
@@ -531,13 +537,13 @@ public final class AMQPChannel {
 
                 self.isTxMode.store(true, ordering: .relaxed)
 
-                return response
+                return ()
             }
     }
 
     /// Commit a transaction.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func txCommit() -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for commit response.
+    public func txCommit() -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .tx(.commit))), immediate: true)
@@ -545,13 +551,13 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .committed = tx else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 
     /// Rollback a transaction.
-    /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func txRollback() -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for rollback response.
+    public func txRollback() -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: self.channelID, outbound: .frame(.method(self.channelID, .tx(.rollback))), immediate: true)
@@ -559,7 +565,7 @@ public final class AMQPChannel {
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .rollbacked = tx else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return ()
             }
     }
 

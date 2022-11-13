@@ -33,7 +33,7 @@ final class AMQPClientTest: XCTestCase {
 
 
         do {
-            let _ = try await client.close()
+            try await client.close()
             XCTFail()
         } catch  {
            XCTAssert(error is AMQPClientError)
