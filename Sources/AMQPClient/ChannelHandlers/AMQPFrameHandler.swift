@@ -48,9 +48,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
         self.config = config
     }
 
-    func channelActive(context: ChannelHandlerContext) {
-        print("Client connected to \(context.remoteAddress as Any)")
-       
+    func channelActive(context: ChannelHandlerContext) {       
         return context.fireChannelActive()
     }
 
