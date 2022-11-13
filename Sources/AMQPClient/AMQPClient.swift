@@ -61,7 +61,8 @@ public final class AMQPClient {
 
     /// Connect to broker.
     /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
-    public func connect() ->  EventLoopFuture<AMQPResponse> {
+    @discardableResult
+    public func connect() ->  EventLoopFuture<AMQPResponse.Connection.Connected> {
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connection = connection
@@ -75,10 +76,10 @@ public final class AMQPClient {
                 return response
             }
             .flatMapThrowing { response in
-                guard case .connection(let connection) = response, case .connected = connection else {
+                guard case .connection(let connection) = response, case .connected(let connected) = connection else {
                     throw AMQPClientError.invalidResponse(response)
                 }
-                return response
+                return connected
             }
     }
 
@@ -104,8 +105,8 @@ public final class AMQPClient {
     /// - Parameters:
     ///     - reason: Reason that can be logged by broker.
     ///     - code: Code that can be logged by broker.
-    /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
-    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<AMQPResponse> {
+    /// - Returns: EventLoopFuture waiting for close response.
+    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
@@ -113,7 +114,7 @@ public final class AMQPClient {
             guard case .connection(let connection) = response, case .closed = connection else {
                 throw AMQPClientError.invalidResponse(response)
             }
-            return response
+            return ()
         }
     }
 
@@ -121,7 +122,6 @@ public final class AMQPClient {
     /// - Parameters:
     ///     - queue: DispatchQueue for eventloop shutdown.
     ///     - callback: Function that will be executed after stop.
-    /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     public func shutdown(queue: DispatchQueue = .global(), _ callback: @escaping (Error?) -> Void) {
         guard self.isShutdown.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
             callback(AMQPClientError.alreadyShutdown)

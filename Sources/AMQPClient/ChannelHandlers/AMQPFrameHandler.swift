@@ -98,7 +98,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     context.writeAndFlush(self.wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
                     if let promise =  responseQueue.popFirst() {
-                        promise.succeed(.connection(.connected(channelMax: channelMax)))
+                        promise.succeed(.connection(.connected(.init(channelMax: channelMax))))
                     }
                     
                 case .close(let close):

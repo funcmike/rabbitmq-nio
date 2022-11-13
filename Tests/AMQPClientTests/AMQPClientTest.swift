@@ -10,9 +10,7 @@ final class AMQPClientTest: XCTestCase {
     }
 
     func testCanOpenChannelAndClose() async throws {
-        guard case .connection(let connection) = try await client.connect(), case .connected = connection else {
-            return  XCTFail()
-        }
+        try await client.connect()
 
         let channel1 = try await client.openChannel(id: 1)
         XCTAssertNotNil(channel1)
@@ -20,15 +18,11 @@ final class AMQPClientTest: XCTestCase {
         let channel2 = try await client.openChannel(id: 2)
         XCTAssertNotNil(channel2)
 
-        guard case .connection(let connection) = try await client.close(), case .closed = connection else {
-            return XCTFail()
-        }
+        try await client.close()
     }
 
     func testfailOnBadChannel() async throws {
-        guard case .connection(let connection) = try await client.connect(), case .connected = connection else {
-            return XCTFail()
-        }
+        try await client.connect()
 
         do {
             let _ = try await client.openChannel(id: 0)

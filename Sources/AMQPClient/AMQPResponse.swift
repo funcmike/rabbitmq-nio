@@ -114,8 +114,11 @@ public enum AMQPResponse {
     }
 
     public enum Connection {
-        case connected(channelMax: UInt16)
-        case blocked
+        case connected(Connected)
         case closed
+
+        public struct Connected {
+            public let channelMax: UInt16
+        }
     }
 }

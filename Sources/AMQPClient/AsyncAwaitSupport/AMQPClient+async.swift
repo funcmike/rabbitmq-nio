@@ -20,7 +20,8 @@ import AMQPProtocol
 public extension AMQPClient {
     /// Connect to broker.
     /// - Returns: Response confirming that broker has accepted a request.
-    func connect() async throws -> AMQPResponse {
+    @discardableResult
+    func connect() async throws -> AMQPResponse.Connection.Connected {
         return try await self.connect().get()
     }
 
@@ -37,7 +38,7 @@ public extension AMQPClient {
     ///     - reason: Reason that can be logged by broker.
     ///     - code: Code that can be logged by broker.
     /// - Returns: Response confirming that broker has accepted a request.
-    func close(reason: String = "", code: UInt16 = 200) async throws -> AMQPResponse {
+    func close(reason: String = "", code: UInt16 = 200) async throws {
         return try await self.close(reason: reason, code: code).get()
     }
 
