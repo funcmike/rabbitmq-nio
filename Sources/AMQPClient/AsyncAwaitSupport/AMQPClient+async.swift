@@ -11,9 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=5.5) && canImport(_Concurrency)
+
 import Foundation
 import AMQPProtocol
 
+@available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *)
 public extension AMQPClient {
     /// Connect to broker.
     /// - Returns: Response confirming that broker has accepted a request.
@@ -53,3 +56,5 @@ public extension AMQPClient {
         }
     }
 }
+
+#endif // compiler(>=5.5)

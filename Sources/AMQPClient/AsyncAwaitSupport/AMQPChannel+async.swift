@@ -11,9 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if compiler(>=5.5) && canImport(_Concurrency)
+
 import NIO
 import AMQPProtocol
 
+@available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *)
 public extension AMQPChannel {
     /// Close the channel.
     /// - Parameters:
@@ -317,6 +320,7 @@ public extension AMQPChannel {
     }
 }
 
+@available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *)
 public final class AMQPListener<Value>: AsyncSequence {
     public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
     public typealias Element = Result<Value, Error>
@@ -359,3 +363,5 @@ public final class AMQPListener<Value>: AsyncSequence {
         return self.stream.makeAsyncIterator()
     }
 }
+
+#endif // compiler(>=5.5)
