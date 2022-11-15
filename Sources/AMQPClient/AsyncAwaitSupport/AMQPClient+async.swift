@@ -36,10 +36,12 @@ public extension AMQPClient {
 
     /// Shutdown a connection with eventloop.
     /// - Parameters:
+    ///     - reason: Reason that can be logged by broker.
+    ///     - code: Code that can be logged by broker.
     ///     - queue: DispatchQueue for eventloop shutdown.
-    func shutdown(queue: DispatchQueue = .global()) async throws {
+    func shutdown(reason: String = "", code: UInt16 = 200, queue: DispatchQueue = .global()) async throws {
         return try await withUnsafeThrowingContinuation { cont in
-            self.shutdown(queue: queue) { error in
+            self.shutdown(reason: reason, code: code, queue: queue) { error in
                 if let error = error {
                     cont.resume(throwing: error)
                 } else {

@@ -122,9 +122,11 @@ public final class AMQPClient {
 
     /// Shutdown a connection with eventloop.
     /// - Parameters:
+    ///     - reason: Reason that can be logged by broker.
+    ///     - code: Code that can be logged by broker.
     ///     - queue: DispatchQueue for eventloop shutdown.
     ///     - callback: Function that will be executed after stop.
-    public func shutdown(queue: DispatchQueue = .global(), _ callback: @escaping (Error?) -> Void) {
+    public func shutdown(reason: String = "", code: UInt16 = 200, queue: DispatchQueue = .global(), _ callback: @escaping (Error?) -> Void) {
         guard self.isShutdown.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
             callback(AMQPClientError.alreadyShutdown)
             return
@@ -134,7 +136,7 @@ public final class AMQPClient {
         let closeFuture: EventLoopFuture<(Error?, Error?)>
 
         if let connection = self.connection {
-            closeFuture = self.close(connection: connection)
+            closeFuture = self.close(reason: reason, code: code, connection: connection)
                 .map { ($0, nil) }
                 .flatMap  { result in
                     connection.close()
@@ -166,7 +168,7 @@ public final class AMQPClient {
         }
     }
 
-    private func close(connection: AMQPConnection, reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Error?> {
+    private func close(reason: String = "", code: UInt16 = 200, connection: AMQPConnection) -> EventLoopFuture<Error?> {
         return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
         .map { response in
             guard case .connection(let connection) = response, case .closed = connection else {
