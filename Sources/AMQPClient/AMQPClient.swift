@@ -89,7 +89,7 @@ public final class AMQPClient {
     ///     - id: Channel Identifer must be unique and greater then 0.
     /// - Returns: EventLoopFuture with AMQP Channel.
     public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+        guard let connection = self.connection else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.openChannel(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
             .flatMapThrowing  { response in 
@@ -107,7 +107,7 @@ public final class AMQPClient {
     ///     - code: Code that can be logged by broker.
     /// - Returns: EventLoopFuture waiting for close response.
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
-        guard let connection = self.connection else { return self.eventLoopGroup.next().makeFailedFuture(AMQPClientError.connectionClosed()) }
+        guard let connection = self.connection else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
         .flatMapThrowing { response in
