@@ -107,7 +107,6 @@ Close a channel, client and eventloop.
 ```swift
 do {
     let _ = try await channel.close()
-    let _ = try await client.close()
     try await client.shutdown()
 
     print("Succesfully closed", msg)
