@@ -31,7 +31,7 @@ struct AMQPListeners<ReturnType> {
 
     func notify(_ result: Result<ReturnType, Error>) {
         self.lock.withLock {
-            listeners.values.forEach { listener in
+            self.listeners.values.forEach { listener in
                 listener(result)
             }
         }
@@ -39,13 +39,13 @@ struct AMQPListeners<ReturnType> {
 
     mutating func addListener(named name: String, listener: @escaping Listener) {
         self.lock.withLock {
-            listeners[name] = listener
+            self.listeners[name] = listener
         }
     }
 
     mutating func removeListener(named name: String) {
         self.lock.withLock {
-            listeners[name] = nil
+            self.listeners[name] = nil
         }
     }
 }

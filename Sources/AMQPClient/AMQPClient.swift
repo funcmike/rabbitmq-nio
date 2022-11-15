@@ -63,6 +63,8 @@ public final class AMQPClient {
     /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     @discardableResult
     public func connect() ->  EventLoopFuture<AMQPResponse.Connection.Connected> {
+        guard self.connection == nil else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnected) }
+
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connection = connection
@@ -129,31 +131,50 @@ public final class AMQPClient {
         }
 
         let eventLoop = self.eventLoopGroup.next()
-        let closeFuture: EventLoopFuture<Void>
+        let closeFuture: EventLoopFuture<(Error?, Error?)>
 
         if let connection = self.connection {
-            closeFuture = connection.close()
+            closeFuture = self.close(connection: connection)
+                .map { ($0, nil) }
+                .flatMap  { result in
+                    connection.close()
+                    .map { result }
+                    .recover  { error in
+                        if case ChannelError.alreadyClosed = error  {
+                            return result
+                        }
+                        return (result.0, error)
+                    }
+                }
         } else {
-            closeFuture = eventLoop.makeSucceededVoidFuture()
+            closeFuture = eventLoop.makeSucceededFuture((nil, nil))
         }
 
         closeFuture.whenComplete { result in
-            let closeError: Error?
+            let eventLoopCallback: (Error?) -> Void
+
             switch result {
-            case .failure(let error):
-                if case ChannelError.alreadyClosed = error {
-                    closeError = nil
-                } else {
-                    closeError = error
+            case .failure(let e):
+               eventLoopCallback = { callback(AMQPClientError.shutdown(connection: e, eventLoop: $0)) }
+            case .success(let (broker, conn)):
+               eventLoopCallback = {
+                    (broker ?? conn ?? $0) != nil ? callback(AMQPClientError.shutdown(broker: broker, connection: conn, eventLoop: $0)) : callback(nil)
                 }
-            case .success:
-                closeError = nil
             }
 
-            self.shutdownEventLoopGroup(queue: queue) { error in
-                callback(closeError ?? error)
-            }
+            self.shutdownEventLoopGroup(queue: queue, eventLoopCallback)
         }
+    }
+
+    private func close(connection: AMQPConnection, reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Error?> {
+        return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
+        .map { response in
+            guard case .connection(let connection) = response, case .closed = connection else {
+                return AMQPClientError.invalidResponse(response)
+            }
+            return nil
+        }
+        .recover { $0 }
     }
 
     private func shutdownEventLoopGroup(queue: DispatchQueue, _ callback: @escaping (Error?) -> Void) {
@@ -169,7 +190,7 @@ public final class AMQPClient {
 
     deinit {
         guard isShutdown.load(ordering: .relaxed) else {
-            preconditionFailure("Client not shut down before the deinit. Please call client.syncShutdownGracefully() when no longer needed.")
+            preconditionFailure("Client not shut down before the deinit. Please call client.shutdown() when no longer needed.")
         }
     }
 }

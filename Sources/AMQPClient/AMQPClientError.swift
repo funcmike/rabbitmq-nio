@@ -16,6 +16,7 @@ import AMQPProtocol
 public enum AMQPClientError: Error {
     case alreadyShutdown
     case tooManyOpenedChannels
+    case alreadyConnected
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelNotInConfirmMode
@@ -23,6 +24,7 @@ public enum AMQPClientError: Error {
     case connectionBlocked
     case invalidMessage
     case invalidResponse(AMQPResponse)
+    case shutdown(broker: Error? = nil, connection: Error? = nil, eventLoop: Error? = nil)
 }
 
 func preconditionUnexpectedFrame(_ frame: Frame) -> Never  {

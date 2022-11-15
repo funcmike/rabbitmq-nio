@@ -29,17 +29,9 @@ public extension AMQPClient {
     /// Can be used only when connection is connected.
     /// - Parameters:
     ///     - id: Channel Identifer must be unique and greater then 0.
+    /// - Returns: New Channel object.
     func openChannel(id: Frame.ChannelID) async throws -> AMQPChannel {
         return try await self.openChannel(id: id).get()
-    }
-
-    /// Close a connection.
-    /// - Parameters:
-    ///     - reason: Reason that can be logged by broker.
-    ///     - code: Code that can be logged by broker.
-    /// - Returns: Response confirming that broker has accepted a request.
-    func close(reason: String = "", code: UInt16 = 200) async throws {
-        return try await self.close(reason: reason, code: code).get()
     }
 
     /// Shutdown a connection with eventloop.
