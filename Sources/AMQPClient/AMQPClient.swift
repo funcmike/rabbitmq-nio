@@ -39,6 +39,9 @@ public final class AMQPClient {
         }
     }
 
+    private let channelMax = ManagedAtomic(UInt16(0))
+    private var channels = AMQPChannels()
+
     /// EventLoop used by a connection.
     public var eventLoop: EventLoop? { return self.connection?.eventLoop }
 
@@ -81,6 +84,7 @@ public final class AMQPClient {
                 guard case .connection(let connection) = response, case .connected(let connected) = connection else {
                     throw AMQPClientError.invalidResponse(response)
                 }
+                self.channelMax.store(connected.channelMax, ordering: .relaxed)
                 return connected
             }
     }
@@ -88,36 +92,41 @@ public final class AMQPClient {
     /// Open new channel.
     /// Can be used only when connection is connected.
     /// - Parameters:
-    ///     - id: Channel Identifer must be unique and greater then 0.
+    ///     - id: Channel Identifer must be unique and greater then 0 if empty auto assign
     /// - Returns: EventLoopFuture with AMQP Channel.
-    public func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannel> {
+    public func openChannel(id: UInt16? = nil) -> EventLoopFuture<AMQPChannel> {
         guard let connection = self.connection else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
-        return connection.openChannel(frame: .method(id, .channel(.open(reserved1: ""))), immediate: true)
-            .flatMapThrowing  { response in 
-                guard case .channel(let channel) = response, case .opened(let opened) = channel, opened.channelID == id else {
+        if let id = id {
+            if let channel = self.channels.get(id: id) {
+                return self.eventLoopGroup.any().makeSucceededFuture(channel)
+            }
+
+            guard self.channels.tryReserve(id: id) else {
+                return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.channelAlreadyReserved)
+            }
+        }
+
+        let max = self.channelMax.load(ordering: .relaxed)
+
+        guard let channelID = id ?? self.channels.tryReserveAny(max: max > 0 ? max : UInt16.max)  else {
+            return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.tooManyOpenedChannels)
+        }
+
+        let future = connection.openChannel(frame: .method(channelID, .channel(.open(reserved1: ""))), immediate: true)
+        future.whenFailure { _ in self.channels.remove(id: channelID) }
+        return future.flatMapThrowing  { response in 
+                guard case .channel(let channel) = response, case .opened(let opened) = channel, opened.channelID == channelID else {
                     throw AMQPClientError.invalidResponse(response)
                 }
 
-                return AMQPChannel(channelID: id, eventLoopGroup: self.eventLoopGroup, notifier: opened.notifier, connection: connection)
-            }
-    }
+                let notifier = opened.notifier
+                notifier.closeFuture.whenComplete { _ in self.channels.remove(id: channelID) }
 
-    /// Close a connection.
-    /// - Parameters:
-    ///     - reason: Reason that can be logged by broker.
-    ///     - code: Code that can be logged by broker.
-    /// - Returns: EventLoopFuture waiting for close response.
-    public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
-        guard let connection = self.connection else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
-
-        return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
-        .flatMapThrowing { response in
-            guard case .connection(let connection) = response, case .closed = connection else {
-                throw AMQPClientError.invalidResponse(response)
+                let amqpChannel = AMQPChannel(channelID: channelID, eventLoopGroup: self.eventLoopGroup, notifier: notifier, connection: connection)
+                self.channels.add(channel: amqpChannel)
+                return amqpChannel
             }
-            return ()
-        }
     }
 
     /// Shutdown a connection with eventloop.

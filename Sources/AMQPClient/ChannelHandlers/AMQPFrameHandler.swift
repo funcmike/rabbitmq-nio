@@ -183,12 +183,6 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
 
             switch command {
             case .openChannel(let frame):
-                guard (self.channelMax == 0 || self.channels.count < self.channelMax) else {
-                    responsePromise?.fail(AMQPClientError.tooManyOpenedChannels)
-                    promise?.fail(AMQPClientError.tooManyOpenedChannels)
-                    return
-                }
-
                 channelID = frame.channelID
                 outband = .frame(frame)
 

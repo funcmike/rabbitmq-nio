@@ -19,6 +19,7 @@ public enum AMQPClientError: Error {
     case alreadyConnected
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
+    case channelAlreadyReserved
     case channelNotInConfirmMode
     case consumerCanceled
     case connectionBlocked

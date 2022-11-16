@@ -22,6 +22,12 @@ final class AMQPClientTest: XCTestCase {
         let channel2 = try await client.openChannel(id: 2)
         XCTAssertNotNil(channel2)
 
+        let channel3 = try await client.openChannel()
+        XCTAssertNotNil(channel3)
+
+        let channel4 = try await client.openChannel()
+        XCTAssertNotNil(channel4)
+
         try await self.client.shutdown()
     }
 
@@ -38,7 +44,6 @@ final class AMQPClientTest: XCTestCase {
 
         do {
             try await client.shutdown()
-            XCTFail()
         } catch  {
            XCTAssert(error is AMQPClientError)
         }
