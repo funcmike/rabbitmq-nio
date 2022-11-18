@@ -5,6 +5,7 @@ import NIO
 
 @testable import AMQPClient
 
+@available(macOS 12.0, *)
 final class AMQPChannelTest: XCTestCase {
     var client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(.init()))
 
