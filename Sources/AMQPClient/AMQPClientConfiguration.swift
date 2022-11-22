@@ -27,13 +27,13 @@ public enum AMQPClientConfiguration {
     }
     
     public struct Server {
-        var host: String
-        var port: Int
-        var user: String
-        var password: String
-        var vhost: String
-        var timeout: TimeAmount
-        var connectionName: String
+        public var host: String
+        public var port: Int
+        public var user: String
+        public var password: String
+        public var vhost: String
+        public var timeout: TimeAmount
+        public var connectionName: String
         
         public init(host: String? = nil,
                     port: Int? = nil,
@@ -56,12 +56,7 @@ public enum AMQPClientConfiguration {
 
 @available(macOS 13.0, *)
 public extension AMQPClientConfiguration {
-    
-    enum ValidationError: Error, Equatable {
-        case invalidUrl
-        case invalidScheme
-    }
-    
+
     enum UrlScheme: String {
         case amqp = "amqp"
         case amqps = "amqps"
@@ -75,12 +70,12 @@ public extension AMQPClientConfiguration {
     }
     
     init(url: String) throws {
-        guard let url = URL(string: url) else { throw ValidationError.invalidUrl }
+        guard let url = URL(string: url) else { throw AMQPClientError.invalidUrl }
         try self.init(url: url)
     }
     
     init(url: URL) throws {
-        guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw ValidationError.invalidScheme }
+        guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPClientError.invalidUrlScheme }
         
         // there is no such thing as a "" host
         let host = url.host?.isEmpty == true ? nil : url.host
