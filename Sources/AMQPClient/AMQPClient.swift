@@ -22,6 +22,7 @@ public final class AMQPClient {
     private let eventLoopGroupProvider: NIOEventLoopGroupProvider
     private let config: AMQPClientConfiguration
 
+    private let isConnect = ManagedAtomic(false)
     private let isShutdown = ManagedAtomic(false)
 
     private var lock = NIOLock()
@@ -68,9 +69,16 @@ public final class AMQPClient {
     public func connect() ->  EventLoopFuture<AMQPResponse.Connection.Connected> {
         guard self.connection == nil else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnected) }
 
+        guard self.isConnect.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
+            return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnecting)
+        }
+
+
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connection = connection
+                self.isConnect.store(false, ordering: .relaxed)
+
                 connection.closeFuture.whenComplete { result in
                     if self.connection === connection {
                         self.connection = nil

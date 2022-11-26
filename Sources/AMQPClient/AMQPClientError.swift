@@ -18,6 +18,7 @@ public enum AMQPClientError: Error {
     case invalidUrlScheme
     case alreadyShutdown
     case tooManyOpenedChannels
+    case alreadyConnecting
     case alreadyConnected
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
