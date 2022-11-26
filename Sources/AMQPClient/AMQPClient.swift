@@ -73,7 +73,6 @@ public final class AMQPClient {
             return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnecting)
         }
 
-
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connection = connection
