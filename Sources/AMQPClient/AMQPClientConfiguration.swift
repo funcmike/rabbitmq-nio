@@ -80,7 +80,17 @@ public extension AMQPClientConfiguration {
         // there is no such thing as a "" host
         let host = url.host?.isEmpty == true ? nil : url.host
         //special path magic for vhost interpretation (see https://www.rabbitmq.com/uri-spec.html)
-        let vhost = url.path.isEmpty ? nil : String(url.path(percentEncoded: false).dropFirst())
+        var vhost = url.path.isEmpty ? nil : String(url.path.removingPercentEncoding?.dropFirst() ?? "")
+
+        // workaround: "/%f" is interpreted as / by URL (this restores %f as /)
+        if url.absoluteString.hasSuffix("%2f") {
+            if let vh = vhost  {
+                vhost = vh + "/"
+            } else {
+                vhost = "/"
+            }
+        }
+
         let server = Server(host: host, port: url.port ?? scheme.defaultPort, user: url.user, password: url.password?.removingPercentEncoding, vhost: vhost)
         
         switch scheme {
