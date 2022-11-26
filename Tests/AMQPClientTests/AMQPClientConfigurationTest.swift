@@ -4,7 +4,6 @@ import AMQPClient
 
 @available(macOS 13.0, *)
 final class AMQPClientConfigurationTest: XCTestCase {
-
     func testFromPlainURL() throws {
         guard case let .plain(config) = try AMQPClientConfiguration(url: "amqp://myUser:myPass@myHost:1234/myVHost?some=junk") else { return XCTFail("plain expected") }
 

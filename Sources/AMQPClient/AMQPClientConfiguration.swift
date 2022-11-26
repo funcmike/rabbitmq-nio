@@ -56,7 +56,6 @@ public enum AMQPClientConfiguration {
 
 @available(macOS 13.0, *)
 public extension AMQPClientConfiguration {
-
     enum UrlScheme: String {
         case amqp = "amqp"
         case amqps = "amqps"
