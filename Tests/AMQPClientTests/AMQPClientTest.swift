@@ -2,6 +2,7 @@ import XCTest
 import AMQPClient
 @testable import AMQPClient
 
+@available(macOS 12.0, *)
 final class AMQPClientTest: XCTestCase {
     var client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(.init()))
 

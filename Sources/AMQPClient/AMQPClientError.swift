@@ -14,6 +14,8 @@
 import AMQPProtocol
 
 public enum AMQPClientError: Error {
+    case invalidUrl
+    case invalidUrlScheme
     case alreadyShutdown
     case tooManyOpenedChannels
     case alreadyConnected
