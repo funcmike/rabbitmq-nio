@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import NIOConcurrencyHelpers
 
 struct AMQPListeners<ReturnType> {

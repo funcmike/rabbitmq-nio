@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 
 public final class AMQPFrameEncoder: MessageToByteEncoder {
     public typealias OutboundIn = AMQPOutbound

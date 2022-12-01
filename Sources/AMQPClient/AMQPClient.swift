@@ -12,7 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 import Atomics
-import NIO
+import NIOCore
+import NIOPosix
 import Dispatch
 import NIOConcurrencyHelpers
 import AMQPProtocol
