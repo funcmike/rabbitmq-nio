@@ -19,24 +19,29 @@ import NIOConcurrencyHelpers
 import AMQPProtocol
 
 public final class AMQPClient {
+    enum ConnectionState {
+        case disconnected
+        case connecting
+        case connected(AMQPConnection)
+    }
+
     private let eventLoopGroup: EventLoopGroup
     private let eventLoopGroupProvider: NIOEventLoopGroupProvider
     private let config: AMQPClientConfiguration
 
-    private let isConnect = ManagedAtomic(false)
     private let isShutdown = ManagedAtomic(false)
 
     private var lock = NIOLock()
-    private var _connection: AMQPConnection?
-    private var connection: AMQPConnection? {
+    private var _connState: ConnectionState = .disconnected
+    private var connState: ConnectionState {
         get {
             self.lock.withLock {
-                _connection
+                _connState
             }
         }
         set {
             self.lock.withLock {
-                _connection = newValue
+                _connState = newValue
             }
         }
     }
@@ -45,11 +50,19 @@ public final class AMQPClient {
     private var channels = AMQPChannels()
 
     /// EventLoop used by a connection.
-    public var eventLoop: EventLoop? { return self.connection?.eventLoop }
+    public var eventLoop: EventLoop? { 
+        guard case .connected(let connection) = self.connState else { return nil }
+
+        return connection.eventLoop
+    }
 
     /// Future that resolves when connection is closed.
     public var closeFuture: EventLoopFuture<Void>? {
-        get { return self._connection?.closeFuture }
+        get {
+            guard case .connected(let connection) = self.connState else { return nil }
+        
+            return connection.closeFuture
+        }
     }
 
     public init(eventLoopGroupProvider: NIOEventLoopGroupProvider, config: AMQPClientConfiguration) {
@@ -68,20 +81,27 @@ public final class AMQPClient {
     /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     @discardableResult
     public func connect() ->  EventLoopFuture<AMQPResponse.Connection.Connected> {
-        guard self.connection == nil else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnected) }
+        self.lock.lock()
+        defer { self.lock.unlock() }
 
-        guard self.isConnect.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else {
-            return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnecting)
+        guard case .disconnected = self._connState else {
+            return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnect)
         }
+
+        self._connState = .connecting
 
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
-                self.connection = connection
-                self.isConnect.store(false, ordering: .relaxed)
+                self.connState = .connected(connection)
 
                 connection.closeFuture.whenComplete { result in
-                    if self.connection === connection {
-                        self.connection = nil
+                    self.lock.lock()
+                    defer { self.lock.unlock() }
+
+                    guard case .connected(let current) = self._connState else { return }
+
+                    if current === connection {
+                        self._connState = .disconnected
                     }
                 }
 
@@ -103,7 +123,7 @@ public final class AMQPClient {
     ///     - id: Channel Identifer must be unique and greater then 0 if empty auto assign
     /// - Returns: EventLoopFuture with AMQP Channel.
     public func openChannel(id: UInt16? = nil) -> EventLoopFuture<AMQPChannel> {
-        guard let connection = self.connection else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
+        guard case .connected(let connection) = self.connState else { return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.connectionClosed()) }
 
         if let id = id {
             if let channel = self.channels.get(id: id) {
@@ -149,10 +169,11 @@ public final class AMQPClient {
             return
         }
 
-        let eventLoop = self.eventLoopGroup.next()
         let closeFuture: EventLoopFuture<(Error?, Error?)>
+        let eventLoop = self.eventLoopGroup.any()
 
-        if let connection = self.connection {
+        switch self.connState {
+        case .connected(let connection):
             closeFuture = self.close(reason: reason, code: code, connection: connection)
                 .map { ($0, nil) }
                 .flatMap  { result in
@@ -164,9 +185,8 @@ public final class AMQPClient {
                         }
                         return (result.0, error)
                     }
-                }
-        } else {
-            closeFuture = eventLoop.makeSucceededFuture((nil, nil))
+                } 
+        default: closeFuture = eventLoop.makeSucceededFuture((nil, nil))
         }
 
         closeFuture.whenComplete { result in
