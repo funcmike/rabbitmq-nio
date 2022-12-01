@@ -11,7 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
+import NIOPosix
 import NIOSSL
 import NIOConcurrencyHelpers
 import AMQPProtocol
@@ -30,7 +31,7 @@ internal final class AMQPConnection {
         }
     }
 
-    private let channel: NIO.Channel
+    private let channel: NIOCore.Channel
     public var eventLoop: EventLoop { return self.channel.eventLoop }
 
     private let _stateLock = NIOLock()
@@ -50,7 +51,7 @@ internal final class AMQPConnection {
         get { return  self.channel.closeFuture }
     }
 
-    init(channel: NIO.Channel) {
+    init(channel: NIOCore.Channel) {
         self.channel = channel
     }
 
@@ -59,9 +60,9 @@ internal final class AMQPConnection {
             .map { AMQPConnection(channel: $0) }
     }
 
-    static func boostrapChannel(use eventLoopGroup: EventLoopGroup, from config: AMQPClientConfiguration) -> EventLoopFuture<NIO.Channel> {
+    static func boostrapChannel(use eventLoopGroup: EventLoopGroup, from config: AMQPClientConfiguration) -> EventLoopFuture<NIOCore.Channel> {
         let eventLoop = eventLoopGroup.next()
-        let channelPromise = eventLoop.makePromise(of: NIO.Channel.self)
+        let channelPromise = eventLoop.makePromise(of: NIOCore.Channel.self)
         let serverConfig: AMQPClientConfiguration.Server
     
         switch config {

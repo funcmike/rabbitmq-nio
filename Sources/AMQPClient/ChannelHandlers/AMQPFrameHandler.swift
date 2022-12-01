@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
+import NIOCore
 import AMQPProtocol
 
 public enum AMQPOutbound {
