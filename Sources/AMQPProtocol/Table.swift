@@ -74,105 +74,24 @@ public enum Field: Equatable {
         }
     }
 
-    public enum Kind {
-        case bool
-        case int8
-        case uInt8
-        case int16
-        case uInt16
-        case int32
-        case uInt32
-        case int64
-        case float
-        case double
-        case longString
-        case bytes
-        case array
-        case timestamp
-        case table
-        case decimal
-        case `nil`
-
-        init?(rawValue: UInt8)
-        {
-            switch rawValue {
-            case UInt8(ascii: "t"):
-                self = .bool
-            case UInt8(ascii: "b"):
-                self = .int8
-            case UInt8(ascii: "B"):
-                self = .uInt8
-            case UInt8(ascii: "s"):
-                self = .int16
-            case UInt8(ascii: "u"):
-                self = .uInt16
-            case UInt8(ascii: "I"):
-                self = .int32
-            case UInt8(ascii: "i"):
-                self = .uInt32
-            case UInt8(ascii: "l"):
-                self = .int64
-            case UInt8(ascii: "f"):
-                self =  .float
-            case UInt8(ascii: "d"):
-                self = .double
-            case UInt8(ascii: "S"):
-                self = .longString
-            case UInt8(ascii: "x"):
-                self = .bytes
-            case UInt8(ascii: "A"):
-                self = .array
-            case UInt8(ascii: "T"):
-                self = .timestamp
-            case UInt8(ascii: "F"):
-                self = .table
-            case UInt8(ascii: "D"):
-                self = .decimal
-            case UInt8(ascii: "V"):
-                self = .nil
-            default:
-                return nil              
-            }
-        }
-
-        var rawValue: UInt8 {
-            switch self {        
-            case .bool:
-                return UInt8(ascii: "t")
-            case .int8:
-                return UInt8(ascii: "b")
-            case .uInt8:
-                return UInt8(ascii: "B")
-            case .int16:
-                return UInt8(ascii: "s")
-            case .uInt16:
-                return UInt8(ascii: "u")
-            case .int32:
-                return UInt8(ascii: "I")
-            case .uInt32:
-                return UInt8(ascii: "i")
-            case .int64:
-                return UInt8(ascii: "l")
-            case .float:
-                return UInt8(ascii: "f")
-            case .double:
-                return UInt8(ascii: "d")
-            case .longString:
-                return UInt8(ascii: "S")
-            case .bytes:
-                return UInt8(ascii: "x")
-            case .array:
-                return UInt8(ascii: "A")
-            case .timestamp:
-                return UInt8(ascii: "T")
-            case .table:
-                return UInt8(ascii: "F")
-            case .decimal:
-                return UInt8(ascii: "D")
-            case .`nil`:
-                return UInt8(ascii: "V")
-            }
-        }
+    public enum Kind: UInt8 {
+        case bool = 116         // t
+        case int8 = 98          // b
+        case uInt8 = 66         // B
+        case int16 = 115        // s
+        case uInt16 = 117       // u
+        case int32 = 73         // I
+        case uInt32 = 105       // i
+        case int64 = 108        // l
+        case float = 102        // f
+        case double = 100       // d
+        case longString = 83    // S
+        case bytes = 120        // x
+        case array = 65         // A
+        case timestamp = 84     // T
+        case table = 70         // F
+        case decimal = 68       // D
+        case `nil` = 86         // V
     }
 }
 
