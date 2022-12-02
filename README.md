@@ -7,7 +7,7 @@ Heavy inspired by projects: amq-protocol (https://github.com/cloudamqp/amq-proto
 Swift-NIO related code is based on other NIO projects like:
 * https://github.com/vapor/postgres-nio
 * https://github.com/swift-server-community/mqtt-nio
-* https://github.com/Mordil/RediStack
+* https://gitlab.com/swift-server-community/RediStack
 
 ## State of the project
 
