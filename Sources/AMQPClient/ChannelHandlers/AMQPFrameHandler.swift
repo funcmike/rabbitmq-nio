@@ -64,8 +64,8 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
         let frame = self.unwrapInboundIn(data)
 
-        switch frame {
-        case .method(let channelID, let method):
+        switch frame.payload {
+        case .method(let method):
             switch method {
             case .connection(let connection):
                 switch connection {
@@ -86,14 +86,14 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                         ])
                     ]
 
-                    let startOk = Frame.method(channelID, .connection(.startOk(.init(
-                        clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(config.user)\u{0000}\(config.password)", locale: "en_US"))))
-                    context.writeAndFlush(self.wrapOutboundOut(AMQPOutbound.frame(startOk)), promise: nil)
+                    let startOk = Frame(channelID: frame.channelID, payload: .method(.connection(.startOk(.init(
+                        clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(config.user)\u{0000}\(config.password)", locale: "en_US")))))
+                    context.writeAndFlush(self.wrapOutboundOut(.frame(startOk)), promise: nil)
                 case .tune(let channelMax, let frameMax, let heartbeat):
                     self.channelMax = channelMax
 
-                    let tuneOk: Frame = Frame.method(0, .connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat)))
-                    let open: Frame = Frame.method(0, .connection(.open(.init(vhost: config.vhost))))
+                    let tuneOk: Frame = Frame(channelID: frame.channelID, payload: .method(.connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat))))
+                    let open: Frame = Frame(channelID: frame.channelID, payload: .method(.connection(.open(.init(vhost: config.vhost)))))
 
                     context.writeAndFlush(self.wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
@@ -102,7 +102,7 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
                     }
                     
                 case .close(let close):
-                    let closeOk = Frame.method(0, .connection(.closeOk))
+                    let closeOk = Frame(channelID: frame.channelID, payload: .method(.connection(.closeOk)))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
 
                     self.state = .error(AMQPClientError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
@@ -120,54 +120,54 @@ internal final class AMQPFrameHandler: ChannelDuplexHandler  {
             case .channel(let channel):
                 switch channel {
                 case .close(let close):
-                    if let channel = self.channels.removeValue(forKey: channelID) {
+                    if let channel = self.channels.removeValue(forKey: frame.channelID) {
                         channel.close(error: AMQPClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                     }
 
-                    let closeOk = Frame.method(channelID, .channel(.closeOk))
+                    let closeOk = Frame(channelID: frame.channelID, payload: .method(.channel(.closeOk)))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
                 case .closeOk:
-                    if let channel = self.channels.removeValue(forKey: channelID) {
+                    if let channel = self.channels.removeValue(forKey: frame.channelID) {
                         channel.processIncomingFrame(frame: frame)
                         channel.close(error: AMQPClientError.channelClosed())
                     }
                 case .flow(let active):
-                    if let channel = self.channels.removeValue(forKey: channelID) {
+                    if let channel = self.channels.removeValue(forKey: frame.channelID) {
                         channel.processIncomingFrame(frame: frame)
                     }
 
-                    let flowOk = Frame.method(0, .channel(.flowOk(active: active)))
+                    let flowOk = Frame(channelID: frame.channelID, payload: .method(.channel(.flowOk(active: active))))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(flowOk)), promise: nil)
                 default:
-                    if let channel = self.channels[channelID] {
+                    if let channel = self.channels[frame.channelID] {
                         channel.processIncomingFrame(frame: frame)
                     }
                 }
             case .basic(let basic):
                 switch basic {
                 case .cancel(let cancel):
-                    if let channel = self.channels[channelID] {
+                    if let channel = self.channels[frame.channelID] {
                         channel.processIncomingFrame(frame: frame)
                     }
 
-                    let cancelOk = Frame.method(0, .basic(.cancelOk(consumerTag: cancel.consumerTag)))
+                    let cancelOk = Frame(channelID: frame.channelID, payload: .method(.basic(.cancelOk(consumerTag: cancel.consumerTag))))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(cancelOk)), promise: nil)
                 default:
-                    if let channel = self.channels[channelID] {
+                    if let channel = self.channels[frame.channelID] {
                         channel.processIncomingFrame(frame: frame)
                     }            
                 }
             default:
-                if let channel = self.channels[channelID] {
+                if let channel = self.channels[frame.channelID] {
                     channel.processIncomingFrame(frame: frame)
                 }
             }
-        case .header(let channelID, _), .body(let channelID, _):
-            if let channel = self.channels[channelID] {
+        case .header, .body(_):
+            if let channel = self.channels[frame.channelID] {
                 channel.processIncomingFrame(frame: frame)
             }
-        case .heartbeat(let channelID):
-            let heartbeat = Frame.heartbeat(channelID)
+        case .heartbeat:
+            let heartbeat = Frame(channelID: frame.channelID, payload: .heartbeat)
             context.writeAndFlush(self.wrapOutboundOut(.frame(heartbeat)), promise: nil)
         }
     }
