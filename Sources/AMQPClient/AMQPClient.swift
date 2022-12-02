@@ -81,27 +81,30 @@ public final class AMQPClient {
     /// - Returns: EventLoopFuture with result confirming that broker has accepted a request.
     @discardableResult
     public func connect() ->  EventLoopFuture<AMQPResponse.Connection.Connected> {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-
-        guard case .disconnected = self._connState else {
-            return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnect)
+        let result = self.lock.withLock {
+            guard case .disconnected = self._connState else {
+                return false
+            }
+            
+            self._connState = .connecting
+            return true
         }
 
-        self._connState = .connecting
+        guard result else {
+            return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.alreadyConnect)
+        }
 
         return AMQPConnection.create(use: self.eventLoopGroup, from: self.config)
             .flatMap { connection  in 
                 self.connState = .connected(connection)
 
                 connection.closeFuture.whenComplete { result in
-                    self.lock.lock()
-                    defer { self.lock.unlock() }
+                    self.lock.withLock {
+                        guard case .connected(let current) = self._connState else { return }
 
-                    guard case .connected(let current) = self._connState else { return }
-
-                    if current === connection {
-                        self._connState = .disconnected
+                        if current === connection {
+                            self._connState = .disconnected
+                        }
                     }
                 }
 
