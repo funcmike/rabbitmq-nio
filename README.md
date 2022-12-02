@@ -5,7 +5,7 @@ A Swift implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) 
 Heavy inspired by projects: amq-protocol (https://github.com/cloudamqp/amq-protocol.cr) and amqp-client (https://github.com/cloudamqp/amqp-client.cr).
 
 Swift-NIO related code is based on other NIO projects like:
-* https://github.com/wapor/postgres-nio
+* https://github.com/vapor/postgres-nio
 * https://github.com/swift-server-community/mqtt-nio
 * https://github.com/Mordil/RediStack
 
