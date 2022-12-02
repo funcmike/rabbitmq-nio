@@ -144,7 +144,7 @@ public final class AMQPClient {
             return self.eventLoopGroup.any().makeFailedFuture(AMQPClientError.tooManyOpenedChannels)
         }
 
-        let future = connection.openChannel(frame: .method(channelID, .channel(.open(reserved1: ""))), immediate: true)
+        let future = connection.openChannel(frame: .init(channelID: channelID, payload: .method(.channel(.open(reserved1: "")))), immediate: true)
         future.whenFailure { _ in self.channels.remove(id: channelID) }
         return future.flatMapThrowing  { response in 
                 guard case .channel(let channel) = response, case .opened(let opened) = channel, opened.channelID == channelID else {
@@ -209,14 +209,17 @@ public final class AMQPClient {
     }
 
     private func close(reason: String = "", code: UInt16 = 200, connection: AMQPConnection) -> EventLoopFuture<Error?> {
-        return connection.write(channelID: 0, outbound: .frame(.method(0, .connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0))))), immediate: true)
-        .map { response in
-            guard case .connection(let connection) = response, case .closed = connection else {
-                return AMQPClientError.invalidResponse(response)
+        return connection.write(
+            channelID: 0,
+            outbound: .frame(.init(channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))),
+            immediate: true)
+            .map { response in
+                guard case .connection(let connection) = response, case .closed = connection else {
+                    return AMQPClientError.invalidResponse(response)
+                }
+                return nil
             }
-            return nil
-        }
-        .recover { $0 }
+            .recover { $0 }
     }
 
     private func shutdownEventLoopGroup(queue: DispatchQueue, _ callback: @escaping (Error?) -> Void) {

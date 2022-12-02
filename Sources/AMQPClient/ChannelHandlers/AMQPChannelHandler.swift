@@ -84,9 +84,9 @@ internal final class AMQPChannelHandler: Notifiable {
     }
 
     func processIncomingFrame(frame: Frame) {
-        switch frame {
-        case .method(let channelID, let method): 
-            guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
+        switch frame.payload {
+        case .method(let method): 
+            guard self.channelID == frame.channelID else { preconditionUnexpectedChannel(channelID) }
 
             switch method {
             case .basic(let basic):
@@ -218,12 +218,12 @@ internal final class AMQPChannelHandler: Notifiable {
             default:
                 preconditionUnexpectedFrame(frame)
             }
-        case .header(let channelID, let header):
-            guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
+        case .header(let header):
+            guard self.channelID == frame.channelID else { preconditionUnexpectedChannel(channelID) }
 
             self.nextMessage?.properties = header.properties
-        case .body(let channelID, let body):
-            guard self.channelID == channelID else { preconditionUnexpectedChannel(channelID) }
+        case .body(let body):
+            guard self.channelID == frame.channelID else { preconditionUnexpectedChannel(channelID) }
                 guard let msg = nextMessage, let properties = msg.properties else {
                     if let promise = self.responseQueue.popFirst() {
                         promise.fail(AMQPClientError.invalidMessage)

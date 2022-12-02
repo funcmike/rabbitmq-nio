@@ -21,29 +21,21 @@ public protocol PayloadEncodable {
     func encode(into buffer: inout ByteBuffer) throws
 }
 
-public enum Frame: PayloadDecodable, PayloadEncodable {
+public struct Frame: PayloadDecodable, PayloadEncodable {
     public typealias ChannelID = UInt16
 
-    case method(ChannelID, Method)
-    case header(ChannelID, Header)
-    case body(ChannelID, body: ByteBuffer)
-    case heartbeat(ChannelID)
+    public var channelID: ChannelID
+    public var payload: Payload
 
-    public var channelID: ChannelID {
-        switch self {
-        case .method(let id, _):
-            return id
-        case .header(let id, _):
-            return id
-        case .body(let id, _):
-            return id
-        case .heartbeat(let id):
-            return id
-        }
+    public enum Payload {
+        case method(Method)
+        case header(Header)
+        case body(ByteBuffer)
+        case heartbeat
     }
 
     public var kind: Kind {
-        switch self {
+        switch self.payload {
         case .method:
             return .method
         case .header:
@@ -55,40 +47,17 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    public enum Kind {
-        case method
-        case header
-        case body
-        case heartbeat
+    public enum Kind: UInt8 {
+        case method = 1
+        case header = 2
+        case body = 3
+        case heartbeat = 8
+    }
 
-        public init?(rawValue: UInt8)
-        {
-            switch rawValue {
-            case 1:
-                self = .method
-            case 2:
-                self = .header
-            case 3:
-                self = .body
-            case 8:
-                self = .heartbeat
-            default:
-                return nil
-            }
-        }
-
-        public var rawValue: UInt8 {
-            switch self {
-            case .method:
-                return 1
-            case .header:
-                return 2
-            case .body:
-                return 3
-            case .heartbeat:
-                return 8
-            }
-        }
+    public init(channelID: ChannelID, payload: Payload)
+    {
+        self.channelID = channelID
+        self.payload = payload
     }
 
     public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -108,16 +77,16 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
         switch kind {
         case .method:
-            frame = try Self.method(channelID, .decode(from: &buffer))
+            frame = try .init(channelID: channelID, payload: .method(.decode(from: &buffer)))
         case .header:
-            frame = try Self.header(channelID, .decode(from: &buffer))
+            frame = try .init(channelID: channelID, payload: .header(.decode(from: &buffer)))
         case .body:
             guard let body = buffer.readSlice(length: Int(size)) else {
                 throw ProtocolError.decode(type: [UInt8].self, context: self)
             }
-            frame = Self.body(channelID, body: body)
+            frame = .init(channelID: channelID, payload: .body(body))
         case .heartbeat:
-            frame = Self.heartbeat(channelID)
+            frame = .init(channelID: channelID, payload: .heartbeat)
         }
 
         guard let frameEnd = buffer.readInteger(as: UInt8.self) else {
@@ -134,9 +103,9 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
     public func encode(into buffer: inout ByteBuffer) throws {
         buffer.writeInteger(self.kind.rawValue)
         
-        switch self {
-        case .method(let channelID, let method):
-            buffer.writeInteger(channelID)
+        switch self.payload {
+        case .method(let method):
+            buffer.writeInteger(self.channelID)
 
             let startIndex: Int = buffer.writerIndex
             buffer.writeInteger(UInt32(0)) // placeholder for size
@@ -145,8 +114,8 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
-        case .header(let channelID, let header):
-            buffer.writeInteger(channelID)
+        case .header(let header):
+            buffer.writeInteger(self.channelID)
 
             let startIndex: Int = buffer.writerIndex
             buffer.writeInteger(UInt32(0)) // placeholder for size
@@ -155,13 +124,13 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
 
             let size = UInt32(buffer.writerIndex - startIndex - 4)
             buffer.setInteger(size, at: startIndex)
-        case .body(let channelID, let body):
+        case .body(let body):
             let size = UInt32(body.readableBytes)
-            buffer.writeMultipleIntegers(channelID, size)
+            buffer.writeMultipleIntegers(self.channelID, size)
             buffer.writeImmutableBuffer(body)
-        case .heartbeat(let channelID):
+        case .heartbeat:
             let size = UInt32(0)
-            buffer.writeMultipleIntegers(channelID, size)
+            buffer.writeMultipleIntegers(self.channelID, size)
         }
 
         buffer.writeInteger(UInt8(206)) // endMarker
@@ -224,55 +193,14 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Kind {
-            case connection
-            case channel
-            case exchange
-            case queue
-            case basic
-            case confirm
-            case tx
-
-            public init?(rawValue: UInt16)
-            {
-                switch rawValue {
-                case 10:
-                    self = .connection
-                case 20:
-                    self = .channel
-                case 40:
-                    self = .exchange
-                case 50:
-                    self = .queue
-                case 60:
-                    self = .basic
-                case 85:
-                    self = .confirm
-                case 90:
-                    self = .tx
-                default:
-                    return nil
-                }
-            }
-
-            public var rawValue: UInt16 {
-                switch self {
-                case .connection:
-                    return 10
-                case .channel:
-                    return 20
-                case .exchange:
-                    return 40
-                case .queue:
-                    return 50
-                case .basic:
-                    return 60
-                case .confirm:
-                    return 85
-                case .tx:
-                    return 90
-                }
-            }
+        public enum Kind: UInt16 {
+            case connection = 10
+            case channel = 20
+            case exchange = 40
+            case queue = 50
+            case basic = 60
+            case confirm = 85
+            case tx = 90
         }
 
         public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -367,80 +295,19 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case start
-                case startOk
-                case secure
-                case secureOk
-                case tune
-                case tuneOk
-                case open
-                case openOk
-                case close
-                case closeOk
-                case blocked
-                case unblocked
-
-                public init?(rawValue: UInt16)
-                {
-                    switch rawValue {
-                    case 10:
-                        self = .start
-                    case 11:
-                        self = .startOk
-                    case 20:
-                        self = .secure
-                    case 21:
-                        self = .secureOk
-                    case 30:
-                        self = .tune
-                    case 31:
-                        self = .tuneOk
-                    case 40:
-                        self = .open
-                    case 41:
-                        self = .openOk
-                    case 50:
-                        self = .close
-                    case 51:
-                        self = .closeOk
-                    case 60:
-                        self = .blocked
-                    case 61:
-                        self = .unblocked
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .start:
-                        return 10
-                    case .startOk:
-                        return 11
-                    case .secure:
-                        return 20
-                    case .secureOk:
-                        return 21
-                    case .tune:
-                        return 30
-                    case .tuneOk:
-                        return 31
-                    case .open:
-                        return 40
-                    case .openOk:
-                        return 41
-                    case .close:
-                        return 50
-                    case .closeOk:
-                        return 51
-                    case .blocked:
-                        return 60
-                    case .unblocked:
-                        return 61
-                    }
-                }
+            public enum Kind: UInt16 {
+                case start = 10
+                case startOk = 11
+                case secure = 20
+                case secureOk = 21
+                case tune = 30
+                case tuneOk = 31
+                case open = 40
+                case openOk = 41
+                case close = 50
+                case closeOk = 51
+                case blocked = 60
+                case unblocked = 61
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -688,50 +555,13 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case open
-                case openOk
-                case flow
-                case flowOk
-                case close
-                case closeOk
-
-                public init?(rawValue: UInt16)
-                {
-                    switch rawValue {
-                    case 10:
-                        self = .open
-                    case 11:
-                        self = .openOk
-                    case 20:
-                        self = .flow
-                    case 21:
-                        self = .flowOk
-                    case 40:
-                        self = .close
-                    case 41:
-                        self = .closeOk
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .open:
-                        return 10
-                    case .openOk:
-                        return 11
-                    case .flow:
-                        return 20
-                    case .flowOk:
-                        return 21
-                    case .close:
-                        return 40
-                    case .closeOk:
-                        return 41
-                    }
-                }
+            public enum Kind: UInt16 {
+                case open = 10
+                case openOk = 11
+                case flow = 20
+                case flowOk = 21
+                case close = 40
+                case closeOk = 41
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -852,60 +682,15 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case declare
-                case declareOk
-                case delete
-                case deleteOk
-                case bind
-                case bindOk
-                case unbind
-                case unbindOk
-
-                public init?(rawValue: UInt16)
-                {
-                    switch rawValue {
-                    case 10:
-                        self = .declare
-                    case 11:
-                        self = .declareOk
-                    case 20:
-                        self = .delete
-                    case 21:
-                        self = .deleteOk
-                    case 30:
-                        self = .bind
-                    case 31:
-                        self = .bindOk
-                    case 40:
-                        self = .unbind
-                    case 51:
-                        self = .unbindOk
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .declare:
-                        return 10
-                    case .declareOk:
-                        return 11
-                    case .delete:
-                        return 20
-                    case .deleteOk:
-                        return 21
-                    case .bind:
-                        return 30
-                    case .bindOk:
-                        return 31
-                    case .unbind:
-                        return 40
-                    case .unbindOk:
-                        return 51
-                    }
-                }
+            public enum Kind: UInt16 {
+                case declare = 10
+                case declareOk = 11
+                case delete = 20
+                case deleteOk = 21
+                case bind = 30
+                case bindOk = 31
+                case unbind = 40
+                case unbindOk = 51
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -1215,70 +1000,17 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case declare
-                case declareOk
-                case bind
-                case bindOk
-                case purge
-                case purgeOk
-                case delete
-                case deleteOk
-                case unbind
-                case unbindOk
-
-                public init?(rawValue: UInt16)
-                {
-                    switch rawValue {
-                    case 10:
-                        self = .declare
-                    case 11:
-                        self = .declareOk
-                    case 20:
-                        self = .bind
-                    case 21:
-                        self = .bindOk
-                    case 30:
-                        self = .purge
-                    case 31:
-                        self = .purgeOk
-                    case 40:
-                        self = .delete
-                    case 41:
-                        self = .deleteOk
-                    case 50:
-                        self = .unbind
-                    case 51:
-                        self = .unbindOk
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .declare:
-                        return 10
-                    case .declareOk:
-                        return 11
-                    case .bind:
-                        return 20
-                    case .bindOk:
-                        return 21
-                    case .purge:
-                        return 30
-                    case .purgeOk:
-                        return 31
-                    case .delete:
-                        return 40
-                    case .deleteOk:
-                        return 41
-                    case .unbind:
-                        return 50
-                    case .unbindOk:
-                        return 51
-                    }
-                }
+            public enum Kind: UInt16 {
+                case declare = 10
+                case declareOk = 11
+                case bind = 20
+                case bindOk = 21
+                case purge = 30
+                case purgeOk = 31
+                case delete = 40
+                case deleteOk = 41
+                case unbind = 50
+                case unbindOk = 51
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -1682,109 +1414,25 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case qos
-                case qosOk
-                case consume
-                case consumeOk
-                case cancel
-                case cancelOk
-                case publish
-                case `return`
-                case deliver
-                case get
-                case getOk
-                case getEmpty
-                case ack
-                case reject
-                case recoverAsync
-                case recover
-                case recoverOk
-                case nack
-
-                public init?(rawValue: UInt16) {
-                    switch rawValue {
-                    case 10:
-                        self = .qos
-                    case 11:
-                        self = .qosOk
-                    case 20:
-                        self = .consume
-                    case 21:
-                        self = .consumeOk
-                    case 30:
-                        self = .cancel
-                    case 31:
-                        self = .cancelOk
-                    case 40:
-                        self = .publish
-                    case 50:
-                        self = .return
-                    case 60:
-                        self = .deliver
-                    case 70:
-                        self = .get
-                    case 71:
-                        self = .getOk
-                    case 72:
-                        self = .getEmpty
-                    case 80:
-                        self = .ack
-                    case 90:
-                        self = .reject
-                    case 100:
-                        self = .recoverAsync
-                    case 110:
-                        self = .recover
-                    case 111:
-                        self = .recoverOk
-                    case 120:
-                        self = .nack
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .qos:
-                        return 10
-                    case .qosOk:
-                        return 11
-                    case .consume:
-                        return 20
-                    case .consumeOk:
-                        return 21
-                    case .cancel:
-                        return 30
-                    case .cancelOk:
-                        return 31
-                    case .publish:
-                        return 40
-                    case .`return`:
-                        return 50
-                    case .deliver:
-                        return 60
-                    case .get:
-                        return 70
-                    case .getOk:
-                        return 71
-                    case .getEmpty:
-                        return 72
-                    case .ack:
-                        return 80
-                    case .reject:
-                        return 90
-                    case .recoverAsync:
-                        return 100
-                    case .recover:
-                        return 110
-                    case .recoverOk:
-                        return 111
-                    case .nack:
-                        return 120
-                    }
-                }
+            public enum Kind: UInt16{
+                case qos = 10
+                case qosOk = 11
+                case consume = 20
+                case consumeOk = 21
+                case cancel = 30
+                case cancelOk = 31
+                case publish = 40
+                case `return` = 50
+                case deliver = 60
+                case get = 70
+                case getOk = 71
+                case getEmpty = 72
+                case ack = 80
+                case reject = 90
+                case recoverAsync = 100
+                case recover = 110
+                case recoverOk = 111
+                case nack = 120
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -2246,29 +1894,9 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case select
-                case selectOk
-
-                public init?(rawValue: UInt16) {
-                    switch rawValue {
-                    case 10:
-                        self = .select
-                    case 11:
-                        self = .selectOk
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .select:
-                        return 10
-                    case .selectOk:
-                        return 11
-                    }
-                }
+            public enum Kind: UInt16 {
+                case select = 10
+                case selectOk = 11
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
@@ -2328,49 +1956,13 @@ public enum Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind {
-                case select
-                case selectOk
-                case commit
-                case commitOk
-                case rollback
-                case rollbackOk
-
-                public init?(rawValue: UInt16) {
-                    switch rawValue {
-                    case 10:
-                        self = .select
-                    case 11:
-                        self = .selectOk
-                    case 20:
-                        self = .commit
-                    case 21:
-                        self = .commitOk
-                    case 30:
-                        self = .rollback
-                    case 31:
-                        self = .rollbackOk
-                    default:
-                        return nil
-                    }
-                }
-
-                public var rawValue: UInt16 {
-                    switch self {
-                    case .select:
-                        return 10
-                    case .selectOk:
-                        return 11
-                    case .commit:
-                        return 20
-                    case .commitOk:
-                        return 21
-                    case .rollback:
-                        return 30
-                    case .rollbackOk:
-                        return 31
-                    }
-                }
+            public enum Kind: UInt16 {
+                case select = 10
+                case selectOk = 11
+                case commit = 20
+                case commitOk = 21
+                case rollback = 30
+                case rollbackOk = 31
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
