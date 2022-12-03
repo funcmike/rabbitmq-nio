@@ -15,6 +15,14 @@ import NIOCore
 
 internal extension ByteBuffer {
     @usableFromInline
+    mutating func readInteger<E>(endianness: Endianness = .big, as rawRepresentable: E.Type) -> E? where E: RawRepresentable, E.RawValue: FixedWidthInteger {
+        guard let rawValue = readInteger(endianness: endianness, as: E.RawValue.self) else {
+            return nil
+        }
+        return E.init(rawValue: rawValue)
+    }
+
+    @usableFromInline
     mutating func readFloat() -> Float? {
         return self.readInteger(as: UInt32.self).map { Float(bitPattern: $0) }
     }

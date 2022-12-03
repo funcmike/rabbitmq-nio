@@ -61,16 +61,12 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
     }
 
     public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-        guard let (type, channelID, size) = buffer.readMultipleIntegers(as: (UInt8, ChannelID, UInt32).self) else {
-            throw ProtocolError.incomplete(type: (UInt8, ChannelID, UInt32).self, need: 7, got: buffer.readableBytes)
+        guard let kind = buffer.readInteger(as: Kind.self), let (channelID, size) = buffer.readMultipleIntegers(as: (ChannelID, UInt32).self) else {
+            throw ProtocolError.incomplete(type: (UInt8, ChannelID, UInt32).self, expected: 7, got: buffer.readableBytes)
         }
 
         guard buffer.readableBytes >= size + 1 else { //size + endFrame
-            throw ProtocolError.incomplete(need: size, got: buffer.readableBytes)
-        }
-
-        guard let kind = Kind(rawValue: type) else {
-            throw ProtocolError.unsupported(value: type, context: self)
+            throw ProtocolError.incomplete(expected: size+1, got: buffer.readableBytes)
         }
 
         let frame: Frame
@@ -204,12 +200,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
         }
 
         public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-            guard let classID = buffer.readInteger(as: UInt16.self) else {
-                throw ProtocolError.decode(type: UInt16.self, context: self)
-            }
-
-            guard let kind = Kind(rawValue: classID) else {
-                throw ProtocolError.unsupported(value: classID, context: self)
+            guard let kind = buffer.readInteger(as: Kind.self) else {
+                throw ProtocolError.decode(type: Kind.self, context: self)
             }
 
             switch kind {
@@ -311,12 +303,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
@@ -565,12 +553,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
@@ -694,12 +678,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
@@ -1014,12 +994,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
@@ -1436,12 +1412,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
@@ -1900,12 +1872,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
@@ -1966,12 +1934,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
             public static func decode(from buffer: inout ByteBuffer) throws -> Self {
-                guard let methodID = buffer.readInteger(as: UInt16.self) else {
-                    throw ProtocolError.decode(type: UInt16.self, context: self)
-                }
-
-                guard let kind = Kind(rawValue: methodID) else {
-                    throw ProtocolError.unsupported(value: methodID, context: self)
+                guard let kind = buffer.readInteger(as: Kind.self) else {
+                    throw ProtocolError.decode(type: Kind.self, context: self)
                 }
 
                 switch kind {
