@@ -160,12 +160,8 @@ extension Table: PayloadDecodable {
     }
 
     static func readField(from buffer: inout ByteBuffer) throws -> (Field, Int) {
-        guard let rawType = buffer.readInteger(as: UInt8.self) else {
-            throw ProtocolError.decode(type: UInt8.self, context: self)
-        }
-
-        guard let kind = Field.Kind(rawValue: rawType) else {
-            throw ProtocolError.unsupported(value: rawType, context: self)
+        guard let kind = buffer.readInteger(as: Field.Kind.self) else {
+            throw ProtocolError.decode(type:  Field.Kind.self, context: self)
         }
 
         switch kind {
