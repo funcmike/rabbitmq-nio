@@ -62,7 +62,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
 
     public static func decode(from buffer: inout ByteBuffer) throws -> Self {
         guard let kind = buffer.readInteger(as: Kind.self), let (channelID, size) = buffer.readMultipleIntegers(as: (ChannelID, UInt32).self) else {
-            throw ProtocolError.incomplete(type: (UInt8, ChannelID, UInt32).self, expected: 7, got: buffer.readableBytes)
+            throw ProtocolError.incomplete(type: (Kind, ChannelID, UInt32).self, expected: 7, got: buffer.readableBytes)
         }
 
         guard buffer.readableBytes >= size + 1 else { //size + endFrame
