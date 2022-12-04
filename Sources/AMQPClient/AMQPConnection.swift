@@ -68,12 +68,18 @@ public final class AMQPConnection {
     ///     - config: Configuration
     /// - Returns:  EventLoopFuture with Connection object.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
-        let multiplexer = AMQPConnectionMultiplexHandler(config: config.server)
+        let promise = eventLoop.makePromise(of: AMQPResponse.self)
+        let multiplexer = AMQPConnectionMultiplexHandler(config: config.server, onReady: promise)
 
         return self.boostrapChannel(use: eventLoop, from: config, with: multiplexer)
             .flatMap { channel in
-                multiplexer.start(initialSequence: PROTOCOL_START_0_9_1)
-                .map {  AMQPConnection(channel: channel, multiplexer: multiplexer, channelMax: $0.channelMax) }
+                promise.futureResult
+                .flatMapThrowing { response in
+                    guard case .connection(let connection) = response, case .connected(let connected) = connection else {
+                        throw AMQPConnectionError.invalidResponse(response)
+                    }
+                    return AMQPConnection(channel: channel, multiplexer: multiplexer, channelMax: connected.channelMax)
+                }
             }
     }
 

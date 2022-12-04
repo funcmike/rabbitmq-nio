@@ -42,13 +42,15 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
 
     private let config: AMQPConnectionConfiguration.Server
 
-    init(config: AMQPConnectionConfiguration.Server, initialQueueCapacity: Int = 3) {
+    init(config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>, initialQueueCapacity: Int = 3) {
         self.config = config
         self.responseQueue = Deque(minimumCapacity: initialQueueCapacity)
+        self.responseQueue.append(onReady)
     }
 
-    func channelActive(context: ChannelHandlerContext) {       
-        return context.fireChannelActive()
+    func channelActive(context: ChannelHandlerContext) {
+        context.fireChannelActive()
+        return start(use: context)
     }
 
     public func channelInactive(context: ChannelHandlerContext) {
@@ -202,16 +204,6 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
             }
     }
 
-    func start(initialSequence: [UInt8]) -> EventLoopFuture<AMQPResponse.Connection.Connected> {
-        return self.write(outband: .bytes(initialSequence))
-            .flatMapThrowing { response in
-                guard case .connection(let connection) = response, case .connected(let connected) = connection else {
-                    throw AMQPConnectionError.invalidResponse(response)
-                }
-                return connected
-            }
-    }
-
     func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Error?> {
         return self.write(outband: .frame(.init(channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))))
             .map { response in
@@ -241,6 +233,10 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         self.failAllResponses(because: error)
         return context.close(promise: nil)
+    }
+
+    private func start(use context: ChannelHandlerContext) {
+        return context.writeAndFlush(wrapOutboundOut(.bytes(PROTOCOL_START_0_9_1)), promise: nil)
     }
 
     private func failAllResponses(because error: Error) {
