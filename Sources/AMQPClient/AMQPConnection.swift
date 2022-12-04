@@ -68,7 +68,7 @@ public final class AMQPConnection {
     ///     - config: Confituration
     /// - Returns:  EventLoopFuture with Connection object.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
-        let multiplexer = AMQPConnectionMultiplexHandler(config: config.server)  //TODO rename AMQPConnectionMultiplexHandler => ConnectionMultiplexHandler 
+        let multiplexer = AMQPConnectionMultiplexHandler(config: config.server)
 
         return self.boostrapChannel(use: eventLoop, from: config, with: multiplexer)
             .flatMap { channel in
