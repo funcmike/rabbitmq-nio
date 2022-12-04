@@ -13,7 +13,7 @@
 
 import AMQPProtocol
 
-public enum AMQPClientError: Error {
+public enum AMQPConnectionError: Error {
     case invalidUrl
     case invalidUrlScheme
     case alreadyShutdown

@@ -83,7 +83,7 @@ public final class AMQPConnection {
     ///     - id: Channel Identifer must be unique and greater then 0 if empty auto assign
     /// - Returns: EventLoopFuture with AMQP Channel.
     public func openChannel(id: UInt16? = nil) -> EventLoopFuture<AMQPChannel> {
-        guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPClientError.connectionClosed()) }
+        guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
 
         if let id = id {
             if let channel = self.channels.get(id: id) {
@@ -91,12 +91,12 @@ public final class AMQPConnection {
             }
 
             guard self.channels.tryReserve(id: id) else {
-                return self.eventLoop.makeFailedFuture(AMQPClientError.channelAlreadyReserved)
+                return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelAlreadyReserved)
             }
         }
 
         guard let channelID = id ?? self.channels.tryReserveAny(max: self.channelMax > 0 ? self.channelMax : UInt16.max)  else {
-            return self.eventLoop.makeFailedFuture(AMQPClientError.tooManyOpenedChannels)
+            return self.eventLoop.makeFailedFuture(AMQPConnectionError.tooManyOpenedChannels)
         }
 
         return self.eventLoop.flatSubmit {
@@ -143,7 +143,7 @@ public final class AMQPConnection {
                 }
             return result.flatMapThrowing {
                     let (broker, conn) = $0
-                    if (broker ?? conn) != nil { throw AMQPClientError.close(broker: broker, connection: conn) }
+                    if (broker ?? conn) != nil { throw AMQPConnectionError.close(broker: broker, connection: conn) }
                     return ()
                 }
         }

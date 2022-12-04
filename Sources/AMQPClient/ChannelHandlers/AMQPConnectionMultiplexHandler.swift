@@ -58,7 +58,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
         case .error(let error):
             return self.failAllResponses(because: error)
         default:
-            return self.failAllResponses(because: AMQPClientError.connectionClosed())
+            return self.failAllResponses(because: AMQPConnectionError.connectionClosed())
         }
     }
 
@@ -114,13 +114,13 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.connection(.closeOk)))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
 
-                    self.state = .error(AMQPClientError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
+                    self.state = .error(AMQPConnectionError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
                     if let promise = responseQueue.popFirst() {
                         promise.succeed(.connection(.closed))
                     }
                 case .blocked:
-                    self.state = .blocked(AMQPClientError.connectionBlocked)
+                    self.state = .blocked(AMQPConnectionError.connectionBlocked)
                 case .unblocked:
                     self.state = .unblocked
                 default:
@@ -134,7 +134,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
                     }
                 case .close(let close):
                     if let channel = self.channels.removeValue(forKey: frame.channelID) {
-                        channel.close(error: AMQPClientError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
+                        channel.close(error: AMQPConnectionError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
                     }
 
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.channel(.closeOk)))
@@ -142,7 +142,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
                 case .closeOk:
                     if let channel = self.channels.removeValue(forKey: frame.channelID) {
                         channel.receive(payload: frame.payload)
-                        channel.close(error: AMQPClientError.channelClosed())
+                        channel.close(error: AMQPConnectionError.channelClosed())
                     }
                 case .flow(let active):
                     if let channel = self.channels.removeValue(forKey: frame.channelID) {
@@ -193,7 +193,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
         return self.write(outband: .frame(.init(channelID: id, payload: .method(.channel(.open(reserved1: ""))))))
             .flatMapThrowing  { response in 
                 guard case .channel(let channel) = response, case .opened(let channelID) = channel, channelID == id else {
-                    throw AMQPClientError.invalidResponse(response)
+                    throw AMQPConnectionError.invalidResponse(response)
                 }
 
                 let channelHandler = AMQPChannelHandler(parent: self, channelID: channelID, eventLoop: self.context.eventLoop)
@@ -208,7 +208,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
         return self.write(outband: .bytes(initialSequence))
             .flatMapThrowing { response in
                 guard case .connection(let connection) = response, case .connected(let connected) = connection else {
-                    throw AMQPClientError.invalidResponse(response)
+                    throw AMQPConnectionError.invalidResponse(response)
                 }
                 return connected
             }
@@ -218,7 +218,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
         return self.write(outband: .frame(.init(channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))))
             .map { response in
                 guard case .connection(let connection) = response, case .closed = connection else {
-                    return AMQPClientError.invalidResponse(response)
+                    return AMQPConnectionError.invalidResponse(response)
                 }
                 return nil
             }

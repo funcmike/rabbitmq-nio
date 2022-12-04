@@ -72,12 +72,12 @@ public extension AMQPConnectionConfiguration {
     }
     
     init(url: String) throws {
-        guard let url = URL(string: url) else { throw AMQPClientError.invalidUrl }
+        guard let url = URL(string: url) else { throw AMQPConnectionError.invalidUrl }
         try self.init(url: url)
     }
     
     init(url: URL) throws {
-        guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPClientError.invalidUrlScheme }
+        guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPConnectionError.invalidUrlScheme }
         
         // there is no such thing as a "" host
         let host = url.host?.isEmpty == true ? nil : url.host

@@ -13,7 +13,7 @@ final class AMQPClientTest: XCTestCase {
         do {
             connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(connection: .plain, server: .init()))
         } catch {
-            XCTAssert(error is AMQPClientError)
+            XCTAssert(error is AMQPConnectionError)
             throw error
         }
 
@@ -42,13 +42,13 @@ final class AMQPClientTest: XCTestCase {
             let _ = try await connection.openChannel(id: 0)
             XCTFail()
         } catch {
-            XCTAssert(error is AMQPClientError)
+            XCTAssert(error is AMQPConnectionError)
         }
 
         do {
             try await connection.close()
         } catch  {
-           XCTAssert(error is AMQPClientError)
+           XCTAssert(error is AMQPConnectionError)
         }
     }
 }

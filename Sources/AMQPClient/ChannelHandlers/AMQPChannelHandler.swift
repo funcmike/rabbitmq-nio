@@ -164,13 +164,13 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent>: Notif
                 case .nack(let nack):
                     self.publishListeners.notify(.success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))       
                 case .cancel(let cancel):
-                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPClientError.consumerCanceled))
+                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPConnectionError.consumerCanceled))
                 case .cancelOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.canceled)))
                     }
 
-                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPClientError.consumerCanceled))
+                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPConnectionError.consumerCanceled))
                 default:
                     preconditionUnexpectedPayload(payload)
                 }
@@ -269,7 +269,7 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent>: Notif
         case .body(let body):
             guard let msg = nextMessage, let properties = msg.properties else {
                 if let promise = self.responseQueue.popFirst() {
-                    promise.fail(AMQPClientError.invalidMessage)
+                    promise.fail(AMQPConnectionError.invalidMessage)
                 }
                 return
             }
