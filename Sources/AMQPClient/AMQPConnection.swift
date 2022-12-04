@@ -65,7 +65,7 @@ public final class AMQPConnection {
     /// Connect to broker.
     /// - Parameters:
     ///     - eventLoop: EventLoop on which to conntec.
-    ///     - config: Confituration
+    ///     - config: Configuration
     /// - Returns:  EventLoopFuture with Connection object.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
         let multiplexer = AMQPConnectionMultiplexHandler(config: config.server)

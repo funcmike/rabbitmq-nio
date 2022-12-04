@@ -275,36 +275,36 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent>: Notif
             }
 
             switch msg.frame {
-                case .getOk(let getOk):
-                        if let promise = self.responseQueue.popFirst() {
-                                promise.succeed(.channel(.message(.get(.init(
-                                    message: AMQPResponse.Channel.Message.Delivery(
-                                        exchange: getOk.exchange,
-                                        routingKey: getOk.routingKey,
-                                        deliveryTag: getOk.deliveryTag,
-                                        properties: properties,
-                                        redelivered: getOk.redelivered,
-                                        body: body),
-                                    messageCount: getOk.messageCount)))))
-                        }
-                case .deliver(let deliver):
-                    self.consumeListeners.notify(named: deliver.consumerTag, .success(.init(
-                        exchange: deliver.exchange,
-                        routingKey: deliver.routingKey,
-                        deliveryTag: deliver.deliveryTag,
-                        properties: properties,
-                        redelivered: deliver.redelivered,
-                        body: body)))
-                case .return(let `return`):
-                    self.returnListeners.notify(.success(.init(
-                        replyCode: `return`.replyCode,
-                        replyText: `return`.replyText,
-                        exchange: `return`.exchange,
-                        routingKey: `return`.routingKey,
-                        properties: properties,
-                        body: body)))                   
-                default:
-                    preconditionUnexpectedPayload(payload)
+            case .getOk(let getOk):
+                    if let promise = self.responseQueue.popFirst() {
+                            promise.succeed(.channel(.message(.get(.init(
+                                message: AMQPResponse.Channel.Message.Delivery(
+                                    exchange: getOk.exchange,
+                                    routingKey: getOk.routingKey,
+                                    deliveryTag: getOk.deliveryTag,
+                                    properties: properties,
+                                    redelivered: getOk.redelivered,
+                                    body: body),
+                                messageCount: getOk.messageCount)))))
+                    }
+            case .deliver(let deliver):
+                self.consumeListeners.notify(named: deliver.consumerTag, .success(.init(
+                    exchange: deliver.exchange,
+                    routingKey: deliver.routingKey,
+                    deliveryTag: deliver.deliveryTag,
+                    properties: properties,
+                    redelivered: deliver.redelivered,
+                    body: body)))
+            case .return(let `return`):
+                self.returnListeners.notify(.success(.init(
+                    replyCode: `return`.replyCode,
+                    replyText: `return`.replyText,
+                    exchange: `return`.exchange,
+                    routingKey: `return`.routingKey,
+                    properties: properties,
+                    body: body)))                   
+            default:
+                preconditionUnexpectedPayload(payload)
             }
 
             nextMessage = nil
