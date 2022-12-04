@@ -24,10 +24,12 @@ Current work is focused on testing, fixing bugs, documentation and benchmarking.
 ## Basic usage
 Create a client and connect to the AMQP broker.
 ```swift
-var client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(.init()))
+let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+
+var connection: AMQPConnection
 
 do {
-    try await client.connect()
+    connection = try await  AMQPConnection.connect(use: eventLoopGroup.next(), from: .plain(.init()))
 
     print("Succesfully connected")
 } catch {
@@ -38,7 +40,7 @@ do {
 Open a channel.
 ```swift
 do {
-    let channel = try await client.openChannel(id: 1)
+    let channel = try await connection.openChannel(id: 1)
 
     print("Succesfully opened a channel")
 } catch {
@@ -103,11 +105,11 @@ for await msg in consumer {
 try await channel.basicCancel(consumerTag: consumer.name)
 ```
 
-Close a channel, client and eventloop.
+Close a channel, connection.
 ```swift
 do {
     let _ = try await channel.close()
-    try await client.shutdown()
+    try await connection.close()
 
     print("Succesfully closed", msg)
 } catch {

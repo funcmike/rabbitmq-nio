@@ -1,50 +1,52 @@
 import XCTest
+import NIOPosix
 import AMQPClient
 @testable import AMQPClient
 
 @available(macOS 12.0, *)
 final class AMQPClientTest: XCTestCase {
-    var client = AMQPClient(eventLoopGroupProvider: .createNew, config: .plain(.init()))
-
-
     func testCanOpenChannelAndShutdown() async throws {
-        try await client.connect()
+        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+
+        let connection: AMQPConnection
 
         do {
-            try await client.connect()
-            XCTFail()
+            connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(connection: .plain, server: .init()))
         } catch {
             XCTAssert(error is AMQPClientError)
+            throw error
         }
 
-        let channel1 = try await client.openChannel(id: 1)
+        let channel1 = try await connection.openChannel(id: 1)
+
         XCTAssertNotNil(channel1)
 
-        let channel2 = try await client.openChannel(id: 2)
+        let channel2 = try await connection.openChannel(id: 2)
         XCTAssertNotNil(channel2)
 
-        let channel3 = try await client.openChannel()
+        let channel3 = try await connection.openChannel()
         XCTAssertNotNil(channel3)
 
-        let channel4 = try await client.openChannel()
+        let channel4 = try await connection.openChannel()
         XCTAssertNotNil(channel4)
 
-        try await self.client.shutdown()
+
+        try await connection.close()
     }
 
     func testfailOnBadChannel() async throws {
-        try await client.connect()
+        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 
+       let connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(connection: .plain, server: .init()))
         do {
-            let _ = try await client.openChannel(id: 0)
+            let _ = try await connection.openChannel(id: 0)
             XCTFail()
         } catch {
             XCTAssert(error is AMQPClientError)
         }
 
-
         do {
-            try await client.shutdown()
+            try await connection.close()
         } catch  {
            XCTAssert(error is AMQPClientError)
         }

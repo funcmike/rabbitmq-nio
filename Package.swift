@@ -11,7 +11,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.43.1"),
-        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.22.1")
+        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.22.1"),
+        .package(url: "https://github.com/apple/swift-collections.git",  .upToNextMajor(from: "1.0.0"))
     ],
     targets: [
         .target(
@@ -27,7 +28,9 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
-            ]),
+                .product(name: "Collections", package: "swift-collections"),
+            ],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-lm"])]),
         .testTarget(
             name: "AMQPClientTests",
             dependencies: ["AMQPClient"]),

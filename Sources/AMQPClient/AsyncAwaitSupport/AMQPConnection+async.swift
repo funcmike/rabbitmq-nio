@@ -14,15 +14,20 @@
 #if compiler(>=5.5) && canImport(_Concurrency)
 
 import Foundation
+import NIOCore
+
 import AMQPProtocol
 
+
 @available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *)
-public extension AMQPClient {
+public extension AMQPConnection {
     /// Connect to broker.
-    /// - Returns: Response confirming that broker has accepted a request.
-    @discardableResult
-    func connect() async throws -> AMQPResponse.Connection.Connected {
-        return try await self.connect().get()
+    /// - Parameters:
+    ///     - eventLoop: EventLoop on which to conntec.
+    ///     - config: Confituration
+    /// - Returns: New Connection object.
+    static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) async throws -> AMQPConnection {
+        return try await self.connect(use: eventLoop, from: config).get()
     }
 
     /// Open new channel.
@@ -34,22 +39,15 @@ public extension AMQPClient {
         return try await self.openChannel(id: id).get()
     }
 
-    /// Shutdown a connection with eventloop.
+    /// Close a connection.
     /// - Parameters:
     ///     - reason: Reason that can be logged by broker.
     ///     - code: Code that can be logged by broker.
-    ///     - queue: DispatchQueue for eventloop shutdown.
-    func shutdown(reason: String = "", code: UInt16 = 200, queue: DispatchQueue = .global()) async throws {
-        return try await withUnsafeThrowingContinuation { cont in
-            self.shutdown(reason: reason, code: code, queue: queue) { error in
-                if let error = error {
-                    cont.resume(throwing: error)
-                } else {
-                    cont.resume()
-                }
-            }
-        }
+    /// - Returns: EventLoopFuture that is resolved when connection is closed.
+    func close(reason: String = "", code: UInt16 = 200) async throws {
+        return try await self.close(reason: reason, code: code).get()
     }
 }
+
 
 #endif // compiler(>=5.5)

@@ -27,11 +27,15 @@ public enum AMQPClientError: Error {
     case connectionBlocked
     case invalidMessage
     case invalidResponse(AMQPResponse)
-    case shutdown(broker: Error? = nil, connection: Error? = nil, eventLoop: Error? = nil)
+    case close(broker: Error? = nil, connection: Error? = nil)
 }
 
 func preconditionUnexpectedFrame(_ frame: Frame) -> Never  {
     return preconditionFailure("Unexepected frame:\(frame)")
+}
+
+func preconditionUnexpectedPayload(_ payload: Frame.Payload) -> Never  {
+    return preconditionFailure("Unexepected payload:\(payload)")
 }
 
 func preconditionUnexpectedChannel(_ channelID: Frame.ChannelID) -> Never  {
