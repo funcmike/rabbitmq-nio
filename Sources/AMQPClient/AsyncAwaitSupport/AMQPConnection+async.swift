@@ -32,11 +32,9 @@ public extension AMQPConnection {
 
     /// Open new channel.
     /// Can be used only when connection is connected.
-    /// - Parameters:
-    ///     - id: Channel Identifer must be unique and greater then 0 if empty auto assign
     /// - Returns: New Channel object.
-    func openChannel(id: Frame.ChannelID? = nil) async throws -> AMQPChannel {
-        return try await self.openChannel(id: id).get()
+    func openChannel() async throws -> AMQPChannel {
+        return try await self.openChannel().get()
     }
 
     /// Close a connection.

@@ -21,13 +21,13 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testCanCloseChannel() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.close()
     }
 
     func testQueue() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test", durable: false)
 
@@ -43,7 +43,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testExchange() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.exchangeDeclare(name: "test1", type: "topic")
 
@@ -61,7 +61,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testBasicPublish() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test", durable: true)
 
@@ -77,7 +77,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testBasicGet() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test", durable: true)
 
@@ -115,7 +115,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testBasicTx() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.txSelect()
 
@@ -127,7 +127,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testConfirm() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.confirmSelect()
 
@@ -137,7 +137,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testFlow() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.flow(active: true)
 
@@ -145,7 +145,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testBasicQos() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.basicQos(count: 100, global: true)
 
@@ -155,7 +155,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testConsumeConfirms() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test", durable: true)
 
@@ -216,7 +216,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testPublishConsume() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test_publish", durable: true)
 
@@ -251,7 +251,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     func testBasicConsume() async throws {
-        let channel = try await connection.openChannel(id: 1)
+        let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test_consume", durable: true)
 

@@ -40,7 +40,7 @@ do {
 Open a channel.
 ```swift
 do {
-    let channel = try await connection.openChannel(id: 1)
+    let channel = try await connection.openChannel()
 
     print("Succesfully opened a channel")
 } catch {

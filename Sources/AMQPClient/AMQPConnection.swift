@@ -37,11 +37,11 @@ public final class AMQPConnection {
     private let channel: NIOCore.Channel
     private let multiplexer: AMQPConnectionMultiplexHandler
 
-    private let _stateLock = NIOLock()
+    private let _lock = NIOLock()
     private var _state = ConnectionState.open
     private var state: ConnectionState {
-        get { return _stateLock.withLock { self._state } }
-        set(newValue) { _stateLock.withLockVoid { self._state = newValue } }
+        get { return _lock.withLock { self._state } }
+        set(newValue) { _lock.withLockVoid { self._state = newValue } }
     }
 
     public var isConnected: Bool {
@@ -54,7 +54,7 @@ public final class AMQPConnection {
         get { return  self.channel.closeFuture }
     }
 
-    private var channels = AMQPChannels()
+    private var _channels = AMQPChannels()
 
     init(channel: NIOCore.Channel, multiplexer: AMQPConnectionMultiplexHandler, channelMax: UInt16) {
         self.channel = channel
@@ -79,33 +79,22 @@ public final class AMQPConnection {
 
     /// Open new channel.
     /// Can be used only when connection is connected.
-    /// - Parameters:
-    ///     - id: Channel Identifer must be unique and greater then 0 if empty auto assign
     /// - Returns: EventLoopFuture with AMQP Channel.
-    public func openChannel(id: UInt16? = nil) -> EventLoopFuture<AMQPChannel> {
+    public func openChannel() -> EventLoopFuture<AMQPChannel> {
         guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
 
-        if let id = id {
-            if let channel = self.channels.get(id: id) {
-                return self.eventLoop.makeSucceededFuture(channel)
-            }
-
-            guard self.channels.tryReserve(id: id) else {
-                return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelAlreadyReserved)
-            }
-        }
-
-        guard let channelID = id ?? self.channels.tryReserveAny(max: self.channelMax > 0 ? self.channelMax : UInt16.max)  else {
+        guard let channelID = self._lock.withLock({ () -> UInt16? in
+            self._channels.tryReserveAny(max: self.channelMax > 0 ? self.channelMax : UInt16.max) })  else {
             return self.eventLoop.makeFailedFuture(AMQPConnectionError.tooManyOpenedChannels)
         }
 
         return self.eventLoop.flatSubmit {
             let future = self.multiplexer.openChannel(id: channelID)
 
-            future.whenFailure { _ in self.channels.remove(id: channelID) }
-            return future.map  { response in 
-                    let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: response)
-                    self.channels.add(channel: amqpChannel)
+            future.whenFailure { _ in self._lock.withLock { self._channels.remove(id: channelID) } }
+            return future.map  { channel in 
+                    let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
+                    self._lock.withLock { self._channels.add(channel: amqpChannel) }
                     return amqpChannel
                 }
         }
