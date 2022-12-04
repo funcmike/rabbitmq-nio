@@ -26,8 +26,6 @@ protocol AMPQChannelHandlerParent {
     func write(frames: [Frame], promise: EventLoopPromise<Void>?)
 }
 
-typealias OutboundCommandPayload = (AMQPOutbound, EventLoopPromise<AMQPResponse>?)
-
 internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
     private enum State {
         case unblocked, blocked(Error), error(Error)
