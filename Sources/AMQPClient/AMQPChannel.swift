@@ -23,8 +23,8 @@ public final class AMQPChannel {
 
     private var lock = NIOLock()
 
-    private var _channel: AMQPChannelHandler<AMQPFrameHandler>?
-    private var channel: AMQPChannelHandler<AMQPFrameHandler>? {
+    private var _channel: AMQPChannelHandler<AMQPConnectionMultiplexHandler>?
+    private var channel: AMQPChannelHandler<AMQPConnectionMultiplexHandler>? {
         get {
             self.lock.withLock {
                 _channel
@@ -43,7 +43,7 @@ public final class AMQPChannel {
     private let isTxMode = ManagedAtomic(false)
     private let deliveryTag = ManagedAtomic(UInt64(1))
 
-    init(channelID: Frame.ChannelID, eventLoop: EventLoop, channel: AMQPChannelHandler<AMQPFrameHandler>) {
+    init(channelID: Frame.ChannelID, eventLoop: EventLoop, channel: AMQPChannelHandler<AMQPConnectionMultiplexHandler>) {
         self.ID = channelID
         self.eventLoop = eventLoop
         self.channel  = channel

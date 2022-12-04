@@ -28,7 +28,7 @@ protocol AMPQChannelHandlerParent {
 
 typealias OutboundCommandPayload = (AMQPOutbound, EventLoopPromise<AMQPResponse>?)
 
-internal final class AMQPFrameHandler: ChannelInboundHandler {
+internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
     private enum State {
         case unblocked, blocked(Error), error(Error)
     }
@@ -37,7 +37,7 @@ internal final class AMQPFrameHandler: ChannelInboundHandler {
     public typealias OutboundOut = AMQPOutbound
 
     var context: ChannelHandlerContext!
-    private var channels: [Frame.ChannelID: AMQPChannelHandler<AMQPFrameHandler>] = [:]
+    private var channels: [Frame.ChannelID: AMQPChannelHandler<AMQPConnectionMultiplexHandler>] = [:]
     private var channelMax: UInt16 = 0
     private var state: State = .unblocked
     private var responseQueue: Deque<EventLoopPromise<AMQPResponse>>
@@ -185,7 +185,7 @@ internal final class AMQPFrameHandler: ChannelInboundHandler {
         }
     }
 
-    func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannelHandler<AMQPFrameHandler>> {
+    func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannelHandler<AMQPConnectionMultiplexHandler>> {
         if let channel = self.channels[id] {
             return self.context.eventLoop.makeSucceededFuture(channel)
         }
@@ -266,7 +266,7 @@ internal final class AMQPFrameHandler: ChannelInboundHandler {
     }
 }
 
-extension AMQPFrameHandler: AMPQChannelHandlerParent {
+extension AMQPConnectionMultiplexHandler: AMPQChannelHandlerParent {
     func write(frame: Frame, promise: EventLoopPromise<Void>?) {
         switch self.state {
         case .error(let e), .blocked(let e): promise?.fail(e);

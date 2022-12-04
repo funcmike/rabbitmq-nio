@@ -35,7 +35,7 @@ public final class AMQPConnection {
     public let channelMax: UInt16
 
     private let channel: NIOCore.Channel
-    private let multiplexer: AMQPFrameHandler
+    private let multiplexer: AMQPConnectionMultiplexHandler
 
     private let _stateLock = NIOLock()
     private var _state = ConnectionState.open
@@ -56,7 +56,7 @@ public final class AMQPConnection {
 
     private var channels = AMQPChannels()
 
-    init(channel: NIOCore.Channel, multiplexer: AMQPFrameHandler, channelMax: UInt16) {
+    init(channel: NIOCore.Channel, multiplexer: AMQPConnectionMultiplexHandler, channelMax: UInt16) {
         self.channel = channel
         self.multiplexer = multiplexer
         self.channelMax = channelMax
@@ -68,7 +68,7 @@ public final class AMQPConnection {
     ///     - config: Confituration
     /// - Returns:  EventLoopFuture with Connection object.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
-        let multiplexer = AMQPFrameHandler(config: config.server)  //TODO rename AMQPFrameHandler => ConnectionMultiplexHandler 
+        let multiplexer = AMQPConnectionMultiplexHandler(config: config.server)  //TODO rename AMQPConnectionMultiplexHandler => ConnectionMultiplexHandler 
 
         return self.boostrapChannel(use: eventLoop, from: config, with: multiplexer)
             .flatMap { channel in
@@ -149,7 +149,7 @@ public final class AMQPConnection {
         }
     }
 
-    private static func boostrapChannel(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration, with handler: AMQPFrameHandler) -> EventLoopFuture<NIOCore.Channel> {
+    private static func boostrapChannel(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration, with handler: AMQPConnectionMultiplexHandler) -> EventLoopFuture<NIOCore.Channel> {
         let channelPromise = eventLoop.makePromise(of: NIOCore.Channel.self)
 
 
