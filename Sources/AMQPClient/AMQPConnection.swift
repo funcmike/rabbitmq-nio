@@ -50,7 +50,7 @@ public final class AMQPConnection {
         return self.channel.isActive && self.state.isConnected
     }
 
-    var closeFuture: NIOCore.EventLoopFuture<Void> {
+    public var closeFuture: NIOCore.EventLoopFuture<Void> {
         get { return  self.channel.closeFuture }
     }
 
