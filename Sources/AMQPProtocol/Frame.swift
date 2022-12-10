@@ -21,13 +21,14 @@ public protocol PayloadEncodable {
     func encode(into buffer: inout ByteBuffer) throws
 }
 
-public struct Frame: PayloadDecodable, PayloadEncodable {
+
+public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
     public typealias ChannelID = UInt16
 
     public var channelID: ChannelID
     public var payload: Payload
 
-    public enum Payload {
+    public enum Payload: Sendable {
         case method(Method)
         case header(Header)
         case body(ByteBuffer)
@@ -47,7 +48,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    public enum Kind: UInt8 {
+    public enum Kind: UInt8, Sendable {
         case method = 1
         case header = 2
         case body = 3
@@ -132,7 +133,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
         buffer.writeInteger(UInt8(206)) // endMarker
     }
 
-    public struct Header: PayloadDecodable, PayloadEncodable {
+    public struct Header: PayloadDecodable, PayloadEncodable, Sendable {
         public let classID: UInt16
         public let weight: UInt16
         public let bodySize: UInt64
@@ -161,7 +162,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
         }
     }
 
-    public enum Method: PayloadDecodable, PayloadEncodable {
+    public enum Method: PayloadDecodable, PayloadEncodable, Sendable {
         case connection(Connection)
         case channel(Channel)
         case exchange(Exchange)
@@ -189,7 +190,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Kind: UInt16 {
+        public enum Kind: UInt16, Sendable {
             case connection = 10
             case channel = 20
             case exchange = 40
@@ -243,7 +244,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Connection: PayloadDecodable, PayloadEncodable {
+        public enum Connection: PayloadDecodable, PayloadEncodable, Sendable {
             case start(Start)
             case startOk(StartOk)
             case secure(challenge: String)
@@ -287,7 +288,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16 {
+            public enum Kind: UInt16, Sendable {
                 case start = 10
                 case startOk = 11
                 case secure = 20
@@ -376,7 +377,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Start: PayloadDecodable {
+            public struct Start: PayloadDecodable, PayloadEncodable, Sendable {
                 public let versionMajor: UInt8
                 public let versionMinor: UInt8
                 public let serverProperties: Table
@@ -422,7 +423,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct StartOk: PayloadDecodable, PayloadEncodable {
+            public struct StartOk: PayloadDecodable, PayloadEncodable, Sendable {
                 public let clientProperties: Table
                 public let mechanism: String
                 public let response: String
@@ -452,7 +453,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Open: PayloadDecodable, PayloadEncodable {
+            public struct Open: PayloadDecodable, PayloadEncodable, Sendable {
                 public let vhost: String
                 public let reserved1: String
                 public let reserved2: Bool
@@ -483,7 +484,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
 
-            public struct Close: PayloadDecodable, PayloadEncodable {
+            public struct Close: PayloadDecodable, PayloadEncodable, Sendable {
                 public let replyCode: UInt16
                 public let replyText: String
                 public let failingClassID: UInt16
@@ -518,7 +519,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Channel: PayloadDecodable, PayloadEncodable {
+        public enum Channel: PayloadDecodable, PayloadEncodable, Sendable {
             case open(reserved1: String)
             case openOk(reserved1: String)
             case flow(active: Bool)
@@ -543,7 +544,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16 {
+            public enum Kind: UInt16, Sendable {
                 case open = 10
                 case openOk = 11
                 case flow = 20
@@ -600,7 +601,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Close: PayloadDecodable, PayloadEncodable {
+            public struct Close: PayloadDecodable, PayloadEncodable, Sendable {
                 public let replyCode: UInt16
                 public let replyText: String
                 public let classID: UInt16
@@ -635,7 +636,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Exchange: PayloadDecodable, PayloadEncodable{
+        public enum Exchange: PayloadDecodable, PayloadEncodable, Sendable {
             case declare(Declare)
             case declareOk
             case delete(Delete)
@@ -666,7 +667,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16 {
+            public enum Kind: UInt16, Sendable {
                 case declare = 10
                 case declareOk = 11
                 case delete = 20
@@ -725,7 +726,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Declare: PayloadDecodable, PayloadEncodable {
+            public struct Declare: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let exchangeName: String
                 public let exchangeType: String
@@ -802,7 +803,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Delete: PayloadDecodable, PayloadEncodable {
+            public struct Delete: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let exchangeName: String
                 public let ifUnused : Bool
@@ -850,7 +851,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Bind: PayloadDecodable, PayloadEncodable {
+            public struct Bind: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let destination: String
                 public let source: String
@@ -896,7 +897,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Unbind: PayloadDecodable, PayloadEncodable {
+            public struct Unbind: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let destination: String
                 public let source: String
@@ -943,7 +944,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Queue: PayloadDecodable, PayloadEncodable{
+        public enum Queue: PayloadDecodable, PayloadEncodable, Sendable {
             case declare(Declare)
             case declareOk(DeclareOk)
             case bind(Bind)
@@ -980,7 +981,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16 {
+            public enum Kind: UInt16, Sendable {
                 case declare = 10
                 case declareOk = 11
                 case bind = 20
@@ -1055,7 +1056,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Declare: PayloadDecodable, PayloadEncodable {
+            public struct Declare: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queueName : String
                 public let passive: Bool
@@ -1128,7 +1129,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct DeclareOk: PayloadDecodable, PayloadEncodable {
+            public struct DeclareOk: PayloadDecodable, PayloadEncodable, Sendable {
                 public let queueName : String
                 public let messageCount: UInt32
                 public let consumerCount: UInt32
@@ -1155,7 +1156,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Bind: PayloadDecodable, PayloadEncodable {
+            public struct Bind: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queueName : String
                 public let exchangeName: String
@@ -1201,7 +1202,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Purge: PayloadDecodable, PayloadEncodable {
+            public struct Purge: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queueName : String
                 public let noWait: Bool
@@ -1236,7 +1237,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
 
 
-            public struct Delete: PayloadDecodable, PayloadEncodable {
+            public struct Delete: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queueName : String
                 public let ifUnused: Bool
@@ -1291,7 +1292,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Unbind: PayloadDecodable, PayloadEncodable {
+            public struct Unbind: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queueName : String
                 public let exchangeName: String
@@ -1329,7 +1330,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Basic: PayloadDecodable, PayloadEncodable {
+        public enum Basic: PayloadDecodable, PayloadEncodable, Sendable {
             case qos(prefetchSize: UInt32, prefetchCount: UInt16, global: Bool)
             case qosOk
             case consume(Consume)
@@ -1390,7 +1391,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16{
+            public enum Kind: UInt16, Sendable {
                 case qos = 10
                 case qosOk = 11
                 case consume = 20
@@ -1517,7 +1518,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Consume: PayloadDecodable, PayloadEncodable {
+            public struct Consume: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queue: String
                 public let consumerTag: String
@@ -1587,7 +1588,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Cancel: PayloadDecodable, PayloadEncodable {
+            public struct Cancel: PayloadDecodable, PayloadEncodable, Sendable {
                 public let consumerTag: String
                 public let noWait: Bool
 
@@ -1612,7 +1613,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Publish : PayloadDecodable, PayloadEncodable {
+            public struct Publish : PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let exchange: String
                 public let routingKey: String
@@ -1664,7 +1665,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Return: PayloadDecodable, PayloadEncodable {
+            public struct Return: PayloadDecodable, PayloadEncodable, Sendable {
                 public let replyCode: UInt16
                 public let replyText: String
                 public let exchange: String
@@ -1697,7 +1698,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Deliver: PayloadDecodable, PayloadEncodable {
+            public struct Deliver: PayloadDecodable, PayloadEncodable, Sendable {
                 public let consumerTag : String
                 public let deliveryTag : UInt64
                 public let redelivered: Bool
@@ -1738,7 +1739,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Get: PayloadDecodable, PayloadEncodable {
+            public struct Get: PayloadDecodable, PayloadEncodable, Sendable {
                 public let reserved1: UInt16
                 public let queue: String
                 public let noAck: Bool
@@ -1770,7 +1771,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct GetOk: PayloadDecodable, PayloadEncodable {
+            public struct GetOk: PayloadDecodable, PayloadEncodable, Sendable {
                 public let deliveryTag : UInt64
                 public let redelivered: Bool
                 public let exchange: String
@@ -1813,7 +1814,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public struct Nack: PayloadDecodable, PayloadEncodable {
+            public struct Nack: PayloadDecodable, PayloadEncodable, Sendable {
                 public let deliveryTag : UInt64
                 public let multiple: Bool
                 public let requeue: Bool
@@ -1853,7 +1854,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Confirm: PayloadDecodable, PayloadEncodable {
+        public enum Confirm: PayloadDecodable, PayloadEncodable, Sendable {
             case select(noWait: Bool)
             case selectOk
 
@@ -1866,7 +1867,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16 {
+            public enum Kind: UInt16, Sendable {
                 case select = 10
                 case selectOk = 11
             }
@@ -1899,7 +1900,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
             }
         }
 
-        public enum Tx: PayloadDecodable, PayloadEncodable {
+        public enum Tx: PayloadDecodable, PayloadEncodable, Sendable {
             case select
             case selectOk
             case commit
@@ -1924,7 +1925,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable {
                 }
             }
 
-            public enum Kind: UInt16 {
+            public enum Kind: UInt16, Sendable {
                 case select = 10
                 case selectOk = 11
                 case commit = 20

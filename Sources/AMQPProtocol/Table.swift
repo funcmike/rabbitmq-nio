@@ -16,7 +16,7 @@ import Foundation
 
 public typealias Table = [String:Field]
 
-public enum Field: Equatable {
+public enum Field: Equatable, Sendable {
     case bool(Bool)
     case int8(Int8)
     case uInt8(UInt8)
@@ -74,7 +74,7 @@ public enum Field: Equatable {
         }
     }
 
-    public enum Kind: UInt8 {
+    public enum Kind: UInt8, Sendable {
         case bool = 116         // t
         case int8 = 98          // b
         case uInt8 = 66         // B
