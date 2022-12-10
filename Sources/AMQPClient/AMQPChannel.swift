@@ -18,25 +18,12 @@ import AMQPProtocol
 
 public final class AMQPChannel {
     public let ID: Frame.ChannelID
-    public var eventLoop: EventLoop
-
-    private var lock = NIOLock()
-
-    private var _channel: AMQPChannelHandler<AMQPConnectionMultiplexHandler>?
-    private var channel: AMQPChannelHandler<AMQPConnectionMultiplexHandler>? {
-        get {
-            self.lock.withLock {
-                _channel
-            }
-        }
-        set {
-            self.lock.withLock {
-                _channel = newValue
-            }
-        }
+    public let eventLoop: EventLoop
+    public var closeFuture: NIOCore.EventLoopFuture<Void> {
+        get { return  self.channel.closeFuture }
     }
 
-    private var closeListeners = AMQPListeners<Void>()
+    private let channel: AMQPChannelHandler<AMQPConnectionMultiplexHandler>
 
     private let isConfirmMode = ManagedAtomic(false)
     private let isTxMode = ManagedAtomic(false)
@@ -46,12 +33,6 @@ public final class AMQPChannel {
         self.ID = channelID
         self.eventLoop = eventLoop
         self.channel  = channel
-
-        channel.closeFuture.whenComplete { result in
-            self.channel = nil
-            
-            self.closeListeners.notify(result)
-        }
     }
 
     /// Close the channel
@@ -61,9 +42,7 @@ public final class AMQPChannel {
     /// - Returns: EventLoopFuture waiting for close response.
     @discardableResult
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
+        return self.channel.send(payload: .method(.channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .closed = channel else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -92,7 +71,6 @@ public final class AMQPChannel {
     ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
     @discardableResult
     public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<AMQPResponse.Channel.Basic.Published> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
 
         let basic = Frame.Method.basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)))
         let classID = basic.kind.rawValue
@@ -100,7 +78,7 @@ public final class AMQPChannel {
 
         let header =  Frame.Payload.header(.init(classID: classID, weight: 0, bodySize: UInt64(body.readableBytes), properties: properties))
 
-        let result: EventLoopFuture<Void> = channel.send(payloads: [publish, header, .body(body)])
+        let result: EventLoopFuture<Void> = self.channel.send(payloads: [publish, header, .body(body)])
         return result.map {
             if self.isConfirmMode.load(ordering: .relaxed) {
                 let count = self.deliveryTag.loadThenWrappingIncrement(ordering: .sequentiallyConsistent)
@@ -117,9 +95,7 @@ public final class AMQPChannel {
     ///     - noAck: controls whether message will be acked or nacked automatically (true) or manually (false)
     /// - Returns: EventLoopFuture with optional Message when queue is not empty.
     public func basicGet(queue: String, noAck: Bool = false) -> EventLoopFuture<AMQPResponse.Channel.Message.Get?> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.get(.init(reserved1: 0, queue: queue, noAck: noAck)))))
+        return self.channel.send(payload: .method(.basic(.get(.init(reserved1: 0, queue: queue, noAck: noAck)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .message(let message) = channel, case .get(let get) = message else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -137,9 +113,7 @@ public final class AMQPChannel {
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture with consumerTag confirming that broker has accepted a new consumer.
     public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.consume(.init(
+        return self.channel.send(payload: .method(.basic(.consume(.init(
                 reserved1: 0, queue: queue, consumerTag: consumerTag, noLocal: false, noAck: noAck, exclusive: exclusive, noWait: false, arguments: arguments)))))
                 .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumeOk(let consumeOk) = basic else {
@@ -158,7 +132,7 @@ public final class AMQPChannel {
     ///     - args: Additional arguments (check rabbitmq documentation).
     ///     - listener: callback when Delivery arrives - automatically registered.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
+    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
         let response: EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> = self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
         return response
             .flatMapThrowing { response in
@@ -172,9 +146,7 @@ public final class AMQPChannel {
     ///     - consumerTag: name of the consumer.
     /// - Returns: EventLoopFuture waiting for cancel response.
     public func basicCancel(consumerTag: String) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
+        return self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .canceled = basic else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -190,9 +162,7 @@ public final class AMQPChannel {
     ///     - multiple: controls whether only this message is acked (false) or additionally all other up to it (true).
     /// - Returns: EventLoopFuture that is resolved when ack is sent.
     public func basicAck(deliveryTag: UInt64, multiple: Bool = false) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.ack(deliveryTag: deliveryTag, multiple: multiple))))
+        return self.channel.send(payload: .method(.basic(.ack(deliveryTag: deliveryTag, multiple: multiple))))
     }
 
     /// Acknowledge a message.
@@ -211,9 +181,7 @@ public final class AMQPChannel {
     ///     - requeue: controls whether to requeue message after reject.
     /// - Returns: EventLoopFuture that is resolved when nack is sent.
     public func basicNack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))))
+        return self.channel.send(payload: .method(.basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))))
     }
 
     /// Reject a message.
@@ -232,9 +200,7 @@ public final class AMQPChannel {
     ///     - requeue: controls whether to requeue message after reject.
     /// - Returns: EventLoopFuture that is resolved when nack is sent.
     public func basicReject(deliveryTag: UInt64, requeue: Bool = false) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.reject(deliveryTag: deliveryTag, requeue: requeue))))
+        return self.channel.send(payload: .method(.basic(.reject(deliveryTag: deliveryTag, requeue: requeue))))
     }
 
     /// Reject a message.
@@ -253,9 +219,7 @@ public final class AMQPChannel {
     ///     - requeue: controls whether to requeue all messages after rejecting them.
     /// - Returns: EventLoopFuture waiting for recover response.
     public func basicRecover(requeue: Bool) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.recover(requeue: requeue))))
+        return self.channel.send(payload: .method(.basic(.recover(requeue: requeue))))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .recovered = basic else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -271,9 +235,7 @@ public final class AMQPChannel {
     ///     - global: whether the limit will be shared across all consumers on the channel.
     /// - Returns: EventLoopFuture waiting for qos response.
     public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))))
+        return self.channel.send(payload: .method(.basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .qosOk = basic else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -290,9 +252,7 @@ public final class AMQPChannel {
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
     @discardableResult
     public func flow(active: Bool) -> EventLoopFuture<AMQPResponse.Channel.Flowed> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.channel(.flow(active: active))))
+        return self.channel.send(payload: .method(.channel(.flow(active: active))))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .flowed(let flowed) = channel else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -313,9 +273,7 @@ public final class AMQPChannel {
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
     @discardableResult
     public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse.Channel.Queue.Declared>  {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.queue(.declare(.init(
+        return self.channel.send(payload: .method(.queue(.declare(.init(
                 reserved1: 0, queueName: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: false, arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared(let declared) = queue else {
@@ -333,9 +291,7 @@ public final class AMQPChannel {
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
     @discardableResult
     public func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) -> EventLoopFuture<AMQPResponse.Channel.Queue.Deleted> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.queue(.delete(.init(reserved1: 0, queueName: name, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: false)))))
+        return self.channel.send(payload: .method(.queue(.delete(.init(reserved1: 0, queueName: name, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: false)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .deleted(let deleted) = queue else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -350,9 +306,7 @@ public final class AMQPChannel {
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
     @discardableResult
     public func queuePurge(name: String) -> EventLoopFuture<AMQPResponse.Channel.Queue.Purged> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.queue(.purge(.init(reserved1: 0, queueName: name, noWait: false)))))
+        return self.channel.send(payload: .method(.queue(.purge(.init(reserved1: 0, queueName: name, noWait: false)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .purged(let purged) = queue else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -369,9 +323,7 @@ public final class AMQPChannel {
     ///     - arguments: Bind only to message matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
     public func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.queue(.bind(.init(
+        return self.channel.send(payload: .method(.queue(.bind(.init(
                 reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, noWait: false, arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .binded = queue else {
@@ -389,9 +341,7 @@ public final class AMQPChannel {
     ///     - arguments: Unbind only from messages matching given options.
     /// - Returns: EventLoopFuturewaiting for bind response unbind response.
     public func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.queue(.unbind(.init(
+        return self.channel.send(payload: .method(.queue(.unbind(.init(
                 reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .unbinded = queue else {
@@ -411,9 +361,7 @@ public final class AMQPChannel {
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture waiting for declare response.
     public func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.exchange(.declare(.init(
+        return self.channel.send(payload: .method(.exchange(.declare(.init(
                 reserved1: 0, exchangeName: name, exchangeType: type, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: false, arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .declared = exchange else {
@@ -429,9 +377,7 @@ public final class AMQPChannel {
     ///     - ifUnused: if enabled exchange will be deleted only when it's not used.
     /// - Returns: EventLoopFuture waiting for delete response.
     public func exchangeDelete(name: String, ifUnused: Bool = false) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.exchange(.delete(.init(reserved1: 0, exchangeName: name, ifUnused: ifUnused, noWait: false)))))
+        return self.channel.send(payload: .method(.exchange(.delete(.init(reserved1: 0, exchangeName: name, ifUnused: ifUnused, noWait: false)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .deleted = exchange else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -448,9 +394,7 @@ public final class AMQPChannel {
     ///     - arguments: Bind only to messages matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
     public func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.exchange(.bind(.init(
+        return self.channel.send(payload: .method(.exchange(.bind(.init(
                 reserved1: 0, destination: destination, source: source, routingKey: routingKey, noWait: false, arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .binded = exchange else {
@@ -468,9 +412,7 @@ public final class AMQPChannel {
     ///     - arguments: Unbind only from messages matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
     public func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.exchange(.unbind(.init(
+        return self.channel.send(payload: .method(.exchange(.unbind(.init(
                 reserved1: 0, destination: destination, source: source, routingKey: routingKey, noWait: false, arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .unbinded = exchange else {
@@ -483,13 +425,11 @@ public final class AMQPChannel {
     /// Sets the channel in publish confirm mode, each published message will be acked or nacked.
     /// - Returns: EventLoopFuture waiting for confirm select response.
     public func confirmSelect() -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
         guard !self.isConfirmMode.load(ordering: .relaxed) else {
             return self.eventLoop.makeSucceededFuture(())
         }
 
-        return channel.send(payload: .method(.confirm(.select(noWait: false))))
+        return self.channel.send(payload: .method(.confirm(.select(noWait: false))))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .confirm(let confirm) = channel, case .selected = confirm else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -504,13 +444,11 @@ public final class AMQPChannel {
     /// Set the Channel in transaction mode.
     /// - Returns: EventLoopFuture waiting for tx select response.
     public func txSelect() -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
         guard !self.isTxMode.load(ordering: .relaxed) else {
             return self.eventLoop.makeSucceededFuture(())
         }
 
-        return channel.send(payload: .method(.tx(.select)))
+        return self.channel.send(payload: .method(.tx(.select)))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .selected = tx else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -525,9 +463,7 @@ public final class AMQPChannel {
     /// Commit a transaction.
     /// - Returns: EventLoopFuture waiting for commit response.
     public func txCommit() -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.tx(.commit)))
+        return self.channel.send(payload: .method(.tx(.commit)))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .committed = tx else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -539,9 +475,7 @@ public final class AMQPChannel {
     /// Rollback a transaction.
     /// - Returns: EventLoopFuture waiting for rollback response.
     public func txRollback() -> EventLoopFuture<Void> {
-        guard let channel = self.channel else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        return channel.send(payload: .method(.tx(.rollback)))
+        return self.channel.send(payload: .method(.tx(.rollback)))
             .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .tx(let tx) = channel, case .rollbacked = tx else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -554,15 +488,15 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: listener identifier.
     ///     - listener: callback when channel is closed.
-    public func addCloseListener(named name: String, listener: @escaping (Result<Void, Error>) -> Void)  {
-        return self.closeListeners.addListener(named: name, listener: listener)
+    public func addCloseListener(named name: String, listener: @escaping @Sendable (Result<Void, Error>) -> Void) throws  {
+        return try self.channel.addCloseListener(named: name, listener: listener)
     }
 
     /// Remove close listener.
     /// - Parameters:
     ///     - name: listener identifier.
-    public func removeCloseListener(named name: String)  {
-        return self.closeListeners.removeListener(named: name)
+    public func removeCloseListener(named name: String) throws  {
+        return try self.channel.removeCloseListener(named: name)
     }
 
 
@@ -571,23 +505,19 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: identifier of listner.
     ///     - listener: callback when publish confirmation message is received.
-    public func addPublishListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void) throws {
-        guard let channel = self.channel else { throw AMQPConnectionError.channelClosed() }
-
+    public func addPublishListener(named name: String,  listener: @escaping @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void) throws {
         guard self.isConfirmMode.load(ordering: .relaxed) else {
             throw AMQPConnectionError.channelNotInConfirmMode
         }
 
-        return channel.addPublishListener(named: name, listener: listener)
+        return try self.channel.addPublishListener(named: name, listener: listener)
     }
 
     /// Remove publish listener.
     /// - Parameters:
     ///     - name: identifier of consumer.
-    public func removePublishListener(named name: String)  {
-        guard let channel = self.channel else { return }
-
-        return channel.removePublishListener(named: name)
+    public func removePublishListener(named name: String) throws  {
+        return try self.channel.removePublishListener(named: name)
     }
 
     /// Add consume listener.
@@ -595,19 +525,15 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - consumerTag: name of consumer.
     ///     - listener: callback when delivery message is received.
-    public func addConsumeListener(consumerTag: String, listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) throws {
-        guard let channel = self.channel  else { throw AMQPConnectionError.channelClosed() }
-
-        return channel.addConsumeListener(named: consumerTag, listener: listener)   
+    public func addConsumeListener(consumerTag: String, listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) throws {
+        return try self.channel.addConsumeListener(named: consumerTag, listener: listener)
     }
 
     /// Remove consume listener.
     /// - Parameters:
     ///     - consumerTag: name of consumer.
-    public func removeConsumeListener(consumerTag: String) {
-        guard let channel = self.channel else { return }
-
-        return channel.removeConsumeListener(named: consumerTag)   
+    public func removeConsumeListener(consumerTag: String) throws {
+        return try self.channel.removeConsumeListener(named: consumerTag)
     }
 
     /// Add return listener.
@@ -615,19 +541,15 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: identifier of listner.
     ///     - listener: callback when return message is received.
-    public func addReturnListener(named name: String,  listener: @escaping (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void) throws {
-        guard let channel = self.channel else { throw AMQPConnectionError.channelClosed() }
-
-        return channel.addReturnListener(named: name, listener: listener)
+    public func addReturnListener(named name: String,  listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void) throws {
+        return try self.channel.addReturnListener(named: name, listener: listener)
     }
 
     /// Remove return message listener.
     /// - Parameters:
     ///     - name: number of listner.
-    public func removeReturnListener(named name: String)  {
-        guard let channel = self.channel else { return }
-
-        return channel.removeReturnListener(named: name)   
+    public func removeReturnListener(named name: String) throws  {
+        return try self.channel.removeReturnListener(named: name)
     }
 
     /// Add flow listener.
@@ -636,46 +558,42 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: identifier of listner.
     ///     - listener: callback when flow signal is received.
-    public func addFlowListener(named name: String,  listener: @escaping (Result<Bool, Error>) -> Void) throws {
-        guard let channel = self.channel else { throw AMQPConnectionError.channelClosed() }
-
-        return channel.addFlowListener(named: name, listener: listener)
+    public func addFlowListener(named name: String,  listener: @escaping @Sendable (Result<Bool, Error>) -> Void) throws {
+        return try self.channel.addFlowListener(named: name, listener: listener)
     }
 
     /// Remove flow listener.
     /// - Parameters:
     ///     - name: listener identifier.
-    public func removeFlowListener(named name: String)  {
-        guard let channel = self.channel else { return }
-
-        return channel.removeFlowListener(named: name)   
+    public func removeFlowListener(named name: String) throws  {
+        return try self.channel.removeFlowListener(named: name)
     }
 
-    func addListener<Value>(type: Value.Type, named name: String, listener: @escaping (Result<Value, Error>) -> Void) throws {
+    func addListener<Value>(type: Value.Type, named name: String, listener: @escaping @Sendable (Result<Value, Error>) -> Void) throws {
         switch listener {
-            case let l as (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void:
+            case let l as @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void:
                 return try addConsumeListener(consumerTag: name, listener: l)
-            case let l as (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
+            case let l as @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
                 return try addPublishListener(named: name, listener: l)
-            case let l as (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void:
+            case let l as @Sendable (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void:
                 return try addReturnListener(named: name, listener: l)
-            case let l as (Result<Bool, Error>) -> Void:
+            case let l as @Sendable (Result<Bool, Error>) -> Void:
                 return try addFlowListener(named: name, listener: l)
             default:
                 preconditionUnexpectedListenerType(type)
         }
     }
 
-    func removeListener<Value>(type: Value.Type, named name: String) {
+    func removeListener<Value>(type: Value.Type, named name: String) throws {
         switch type {
             case is AMQPResponse.Channel.Message.Delivery.Type:
-                return removeConsumeListener(consumerTag: name)
+                return try removeConsumeListener(consumerTag: name)
             case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
-                return removePublishListener(named: name)
+                return try removePublishListener(named: name)
             case is AMQPResponse.Channel.Message.Return.Type:
-                return removeReturnListener(named: name)
+                return try removeReturnListener(named: name)
             case is Bool.Type:
-                return removeFlowListener(named: name)
+                return try removeFlowListener(named: name)
             default:
                 preconditionUnexpectedListenerType(type)
         }
