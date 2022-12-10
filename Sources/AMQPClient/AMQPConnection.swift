@@ -180,4 +180,10 @@ public final class AMQPConnection {
             return bootstrap.enableTLS()
         }        
     }
+    
+    deinit {
+        if isConnected {
+            assertionFailure("close() was not called before deinit!")
+        }
+    }
 }

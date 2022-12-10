@@ -367,8 +367,12 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
     }
 
     deinit {
+        if isOpen {
+            assertionFailure("close() was not called before deinit!")
+        }
+
         if !self.responseQueue.isEmpty {
-            assertionFailure("AMQP Channel Handler deinit when queue is not empty! Queue size: \(self.responseQueue.count)")
+            assertionFailure("Queue is not empty! Queue size: \(self.responseQueue.count)")
         }
     }
 }

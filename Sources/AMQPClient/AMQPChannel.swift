@@ -598,4 +598,10 @@ public final class AMQPChannel {
                 preconditionUnexpectedListenerType(type)
         }
     }
+    
+    deinit {
+        if self.channel.isOpen {
+            assertionFailure("close() was not called before deinit!")
+        }
+    }
 }
