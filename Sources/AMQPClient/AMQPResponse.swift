@@ -14,11 +14,11 @@
 import NIOCore
 import AMQPProtocol
 
-public enum AMQPResponse {
+public enum AMQPResponse: Sendable {
     case channel(Channel)
     case connection(Connection)
 
-    public enum Channel {
+    public enum Channel: Sendable {
         case opened(Frame.ChannelID)
         case closed(Frame.ChannelID)
         case message(Message)
@@ -30,36 +30,36 @@ public enum AMQPResponse {
         case flowed(Flowed)
 
 
-        public enum Queue {
+        public enum Queue: Sendable {
             case declared(Declared)
             case binded
             case purged(Purged)
             case deleted(Deleted)
             case unbinded
 
-            public struct Declared {
+            public struct Declared: Sendable {
                 public let queueName: String
                 public let messageCount: UInt32
                 public let consumerCount: UInt32
             }
 
-            public struct Purged {
+            public struct Purged: Sendable {
                 public let messageCount: UInt32
             }
 
-            public struct Deleted {
+            public struct Deleted: Sendable {
                 public let messageCount: UInt32
             }
         }
         
-        public enum Exchange {
+        public enum Exchange: Sendable {
             case declared
             case deleted
             case binded
             case unbinded
         }
 
-        public enum Basic {
+        public enum Basic: Sendable {
             case recovered
             case qosOk
             case consumeOk(ConsumeOk)
@@ -67,40 +67,40 @@ public enum AMQPResponse {
             case publishConfirm(PublishConfirm)
             case published(Published)
 
-            public enum PublishConfirm {
+            public enum PublishConfirm: Sendable {
                 case ack(deliveryTag: UInt64, multiple: Bool)
                 case nack(deliveryTag: UInt64, multiple: Bool)
             }
 
-            public struct ConsumeOk {
+            public struct ConsumeOk: Sendable {
                 public let consumerTag: String
             }
 
-            public struct Published {
+            public struct Published: Sendable {
                 public let deliveryTag: UInt64
             }
         }
 
-        public enum Confirm {
+        public enum Confirm: Sendable {
             case selected
         }
 
-        public enum Tx {
+        public enum Tx: Sendable {
             case selected
             case committed
             case rollbacked
         }
 
-        public struct Flowed {
+        public struct Flowed: Sendable {
             public let active: Bool
         }
 
-        public enum Message {
+        public enum Message: Sendable {
             case delivery(Delivery)
             case get(Get? = nil)
             case `return`(Return)
 
-            public struct Delivery {
+            public struct Delivery: Sendable {
                 public let exchange: String
                 public let routingKey: String
                 public let deliveryTag: UInt64
@@ -109,12 +109,12 @@ public enum AMQPResponse {
                 public let body: ByteBuffer
             }
 
-            public struct Get {
+            public struct Get: Sendable {
                 public let message: Delivery
                 public let messageCount: UInt32
             }
 
-            public struct Return  {
+            public struct Return: Sendable {
                 public let replyCode: UInt16
                 public let replyText: String
                 public let exchange: String
@@ -125,11 +125,11 @@ public enum AMQPResponse {
         }
     }
 
-    public enum Connection {
+    public enum Connection: Sendable {
         case connected(Connected)
         case closed
 
-        public struct Connected {
+        public struct Connected: Sendable {
             public let channelMax: UInt16
         }
     }

@@ -13,8 +13,8 @@
 
 import NIOConcurrencyHelpers
 
-struct AMQPListeners<ReturnType> {
-    public typealias Listener = (Result<ReturnType, Error>) -> Void
+struct AMQPListeners<ReturnType>: Sendable {
+    public typealias Listener = @Sendable (Result<ReturnType, Error>) -> Void
 
     private let lock = NIOLock()
     private var listeners: [String: Listener] = [:]

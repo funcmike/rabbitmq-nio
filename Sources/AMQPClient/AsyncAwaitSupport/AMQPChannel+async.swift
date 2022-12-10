@@ -83,7 +83,7 @@ public extension AMQPChannel {
     ///     - exclusive: flag ensures that only a single consumer receives messages from the queue at the time.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: ConsumerTag confirming that broker has accepted a new consumer.
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) async throws -> AMQPResponse.Channel.Basic.ConsumeOk {
+    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) async throws -> AMQPResponse.Channel.Basic.ConsumeOk {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive:exclusive, args: arguments, listener: listener).get()
     }
 

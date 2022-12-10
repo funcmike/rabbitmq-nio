@@ -15,16 +15,16 @@ import NIOSSL
 import NIOCore
 import Foundation
 
-public struct AMQPConnectionConfiguration {    
+public struct AMQPConnectionConfiguration: Sendable {
     let connection: Connection
     let server: Server
 
-    public enum Connection {
+    public enum Connection: Sendable {
         case tls(TLSConfiguration?, sniServerName: String?)
         case plain
     }
 
-    public struct Server {
+    public struct Server: Sendable {
         public var host: String
         public var port: Int
         public var user: String
