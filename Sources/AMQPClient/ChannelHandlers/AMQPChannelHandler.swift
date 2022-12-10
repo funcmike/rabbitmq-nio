@@ -11,40 +11,32 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Collections
 import NIOCore
 import AMQPProtocol
 
-internal protocol Notifiable {
-    func addConsumeListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener)
-    func removeConsumeListener(named name: String)
-    func addFlowListener(named name: String, listener: @escaping AMQPListeners<Bool>.Listener)
-    func removeFlowListener(named name: String)
-    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener)
-    func removeReturnListener(named name: String)
-    func addPublishListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener)
-    func removePublishListener(named name: String)
-    var closeFuture: EventLoopFuture<Void> { get }
-}
-
-internal final class AMQPChannelHandler: Notifiable {
+internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
+    private let parent: Parent
+    private let channelID: Frame.ChannelID
+    private let eventLoop: EventLoop
+    private var responseQueue: Deque<EventLoopPromise<AMQPResponse>>
+    private var nextMessage: (frame: Frame.Method.Basic, properties: Properties?)?
+    
+    let closePromise: NIOCore.EventLoopPromise<Void>
     var closeFuture: NIOCore.EventLoopFuture<Void> {
         get { return self.closePromise.futureResult }
     }
-
-    private let channelID: Frame.ChannelID
-    private var responseQueue: CircularBuffer<EventLoopPromise<AMQPResponse>>
-    private var nextMessage: (frame: Frame.Method.Basic, properties: Properties?)?
-    var closePromise: NIOCore.EventLoopPromise<Void>
-
     private var consumeListeners = AMQPListeners<AMQPResponse.Channel.Message.Delivery>()
     private var flowListeners = AMQPListeners<Bool>()
     private var returnListeners = AMQPListeners<AMQPResponse.Channel.Message.Return>()
     private var publishListeners = AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>()
 
-    init(channelID: Frame.ChannelID, closePromise: NIOCore.EventLoopPromise<Void>, initialQueueCapacity: Int = 3) {
+    init(parent: Parent, channelID: Frame.ChannelID, eventLoop: EventLoop,  initialQueueCapacity: Int = 3) {
+        self.parent = parent
         self.channelID = channelID
-        self.closePromise = closePromise
-        self.responseQueue = CircularBuffer(initialCapacity: initialQueueCapacity)
+        self.eventLoop = eventLoop
+        self.closePromise = eventLoop.makePromise()
+        self.responseQueue = Deque(minimumCapacity: initialQueueCapacity)
     }
 
     func addResponse(promise: EventLoopPromise<AMQPResponse>) {
@@ -83,11 +75,57 @@ internal final class AMQPChannelHandler: Notifiable {
         return self.publishListeners.removeListener(named: name)
     }
 
-    func processIncomingFrame(frame: Frame) {
-        switch frame.payload {
-        case .method(let method): 
-            guard self.channelID == frame.channelID else { preconditionUnexpectedChannel(channelID) }
+    func send(payload: Frame.Payload) -> EventLoopFuture<AMQPResponse> {
+        let promise = self.eventLoop.makePromise(of: AMQPResponse.self)
 
+        let sendResult: EventLoopFuture<Void> = self.send(payload: payload)
+        
+        sendResult.whenFailure { promise.fail($0) }
+        sendResult.whenSuccess { self.responseQueue.append(promise) }
+
+        return sendResult.flatMap {  
+            promise.futureResult
+        }
+    }
+
+    func send(payloads: [Frame.Payload]) -> EventLoopFuture<AMQPResponse> {
+        let promise = self.eventLoop.makePromise(of: AMQPResponse.self)
+
+        let sendResult: EventLoopFuture<Void> = self.send(payloads: payloads)
+
+        sendResult.whenFailure { promise.fail($0) }
+        sendResult.whenSuccess { self.responseQueue.append(promise) }
+
+        return sendResult.flatMap {
+            promise.futureResult
+        }
+    }
+
+    func send(payloads: [Frame.Payload]) -> EventLoopFuture<Void> {
+        let frames = payloads.map { Frame(channelID: self.channelID, payload: $0) }
+        
+        let promise = self.eventLoop.makePromise(of: Void.self)
+
+        return self.eventLoop.flatSubmit {
+            self.parent.write(frames: frames, promise: promise)
+            return promise.futureResult
+        }
+    }
+
+    func send(payload: Frame.Payload) -> EventLoopFuture<Void> {
+        let frame = Frame(channelID: self.channelID, payload: payload)
+        
+        let promise = self.eventLoop.makePromise(of: Void.self)
+
+        return self.eventLoop.flatSubmit {
+            self.parent.write(frame: frame, promise: promise)
+            return promise.futureResult
+        }
+    }
+
+    func receive(payload: Frame.Payload) {
+        switch payload {
+        case .method(let method): 
             switch method {
             case .basic(let basic):
                 switch basic {
@@ -114,22 +152,18 @@ internal final class AMQPChannelHandler: Notifiable {
                 case .nack(let nack):
                     self.publishListeners.notify(.success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))       
                 case .cancel(let cancel):
-                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPClientError.consumerCanceled))
+                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPConnectionError.consumerCanceled))
                 case .cancelOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.canceled)))
                     }
 
-                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPClientError.consumerCanceled))
+                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPConnectionError.consumerCanceled))
                 default:
-                    preconditionUnexpectedFrame(frame)
+                    preconditionUnexpectedPayload(payload)
                 }
             case .channel(let channel):
-                switch channel {   
-                case .openOk:
-                    if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.opened(.init(channelID: channelID, notifier: self))))
-                    }
+                switch channel {
                 case .closeOk:
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.closed(self.channelID)))
@@ -141,7 +175,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.flowed(.init(active: active))))
                     }
                 default:
-                    preconditionUnexpectedFrame(frame)
+                    preconditionUnexpectedPayload(payload)
                 }
             case .queue(let queue):
                 switch queue {
@@ -166,7 +200,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.queue(.unbinded)))
                     }
                 default:
-                    preconditionUnexpectedFrame(frame)
+                    preconditionUnexpectedPayload(payload)
                 }
             case .exchange(let exchange):
                 switch exchange {
@@ -187,7 +221,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.exchange(.unbinded)))
                     }
                 default:
-                    preconditionUnexpectedFrame(frame)
+                    preconditionUnexpectedPayload(payload)
                 }
             case .confirm(let confirm):
                 switch confirm {
@@ -196,7 +230,7 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.confirm(.selected)))
                     }
                 default:
-                    preconditionUnexpectedFrame(frame)
+                    preconditionUnexpectedPayload(payload)
                 }
             case .tx(let tx):
                 switch tx {
@@ -213,60 +247,57 @@ internal final class AMQPChannelHandler: Notifiable {
                         promise.succeed(.channel(.tx(.rollbacked)))
                     }
                 default:
-                    preconditionUnexpectedFrame(frame)  
+                    preconditionUnexpectedPayload(payload)  
                 }
             default:
-                preconditionUnexpectedFrame(frame)
+                preconditionUnexpectedPayload(payload)
             }
         case .header(let header):
-            guard self.channelID == frame.channelID else { preconditionUnexpectedChannel(channelID) }
-
             self.nextMessage?.properties = header.properties
         case .body(let body):
-            guard self.channelID == frame.channelID else { preconditionUnexpectedChannel(channelID) }
-                guard let msg = nextMessage, let properties = msg.properties else {
+            guard let msg = nextMessage, let properties = msg.properties else {
+                if let promise = self.responseQueue.popFirst() {
+                    promise.fail(AMQPConnectionError.invalidMessage)
+                }
+                return
+            }
+
+            switch msg.frame {
+            case .getOk(let getOk):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.fail(AMQPClientError.invalidMessage)
+                            promise.succeed(.channel(.message(.get(.init(
+                                message: AMQPResponse.Channel.Message.Delivery(
+                                    exchange: getOk.exchange,
+                                    routingKey: getOk.routingKey,
+                                    deliveryTag: getOk.deliveryTag,
+                                    properties: properties,
+                                    redelivered: getOk.redelivered,
+                                    body: body),
+                                messageCount: getOk.messageCount)))))
                     }
-                    return
-                }
+            case .deliver(let deliver):
+                self.consumeListeners.notify(named: deliver.consumerTag, .success(.init(
+                    exchange: deliver.exchange,
+                    routingKey: deliver.routingKey,
+                    deliveryTag: deliver.deliveryTag,
+                    properties: properties,
+                    redelivered: deliver.redelivered,
+                    body: body)))
+            case .return(let `return`):
+                self.returnListeners.notify(.success(.init(
+                    replyCode: `return`.replyCode,
+                    replyText: `return`.replyText,
+                    exchange: `return`.exchange,
+                    routingKey: `return`.routingKey,
+                    properties: properties,
+                    body: body)))                   
+            default:
+                preconditionUnexpectedPayload(payload)
+            }
 
-                switch msg.frame {
-                    case .getOk(let getOk):
-                            if let promise = self.responseQueue.popFirst() {
-                                    promise.succeed(.channel(.message(.get(.init(
-                                        message: AMQPResponse.Channel.Message.Delivery(
-                                            exchange: getOk.exchange,
-                                            routingKey: getOk.routingKey,
-                                            deliveryTag: getOk.deliveryTag,
-                                            properties: properties,
-                                            redelivered: getOk.redelivered,
-                                            body: body),
-                                        messageCount: getOk.messageCount)))))
-                            }
-                    case .deliver(let deliver):
-                        self.consumeListeners.notify(named: deliver.consumerTag, .success(.init(
-                            exchange: deliver.exchange,
-                            routingKey: deliver.routingKey,
-                            deliveryTag: deliver.deliveryTag,
-                            properties: properties,
-                            redelivered: deliver.redelivered,
-                            body: body)))
-                    case .return(let `return`):
-                        self.returnListeners.notify(.success(.init(
-                            replyCode: `return`.replyCode,
-                            replyText: `return`.replyText,
-                            exchange: `return`.exchange,
-                            routingKey: `return`.routingKey,
-                            properties: properties,
-                            body: body)))                   
-                    default:
-                        preconditionUnexpectedFrame(frame)
-                }
-
-                nextMessage = nil
+            nextMessage = nil
         default:
-            preconditionUnexpectedFrame(frame)
+            preconditionUnexpectedPayload(payload)
         }
     }
 

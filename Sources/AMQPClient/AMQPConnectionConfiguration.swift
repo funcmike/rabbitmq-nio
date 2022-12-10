@@ -15,17 +15,15 @@ import NIOSSL
 import NIOCore
 import Foundation
 
-public enum AMQPClientConfiguration {
-    case tls(TLSConfiguration?, sniServerName: String?, Server)
-    case plain(Server)
-    
-    var server: Server {
-        switch self {
-        case let .plain(s): return s
-        case let .tls(_, _, s): return s
-        }
+public struct AMQPConnectionConfiguration {    
+    let connection: Connection
+    let server: Server
+
+    public enum Connection {
+        case tls(TLSConfiguration?, sniServerName: String?)
+        case plain
     }
-    
+
     public struct Server {
         public var host: String
         public var port: Int
@@ -52,10 +50,15 @@ public enum AMQPClientConfiguration {
             self.connectionName = connectionName ?? Defaults.connectionName
         }
     }
+
+    public init(connection: Connection, server: Server) {
+        self.connection = connection
+        self.server = server
+    }
 }
 
 @available(macOS 13.0, *)
-public extension AMQPClientConfiguration {
+public extension AMQPConnectionConfiguration {
     enum UrlScheme: String {
         case amqp = "amqp"
         case amqps = "amqps"
@@ -69,12 +72,12 @@ public extension AMQPClientConfiguration {
     }
     
     init(url: String) throws {
-        guard let url = URL(string: url) else { throw AMQPClientError.invalidUrl }
+        guard let url = URL(string: url) else { throw AMQPConnectionError.invalidUrl }
         try self.init(url: url)
     }
     
     init(url: URL) throws {
-        guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPClientError.invalidUrlScheme }
+        guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPConnectionError.invalidUrlScheme }
         
         // there is no such thing as a "" host
         let host = url.host?.isEmpty == true ? nil : url.host
@@ -93,13 +96,13 @@ public extension AMQPClientConfiguration {
         let server = Server(host: host, port: url.port ?? scheme.defaultPort, user: url.user, password: url.password?.removingPercentEncoding, vhost: vhost)
         
         switch scheme {
-        case .amqp: self = .plain(server)
-        case .amqps: self = .tls(nil, sniServerName: nil, server)
+        case .amqp: self = .init(connection: .plain, server: server)
+        case .amqps: self = .init(connection: .tls(nil, sniServerName: nil), server: server)
         }
     }
 }
 
-extension AMQPClientConfiguration.Server {
+extension AMQPConnectionConfiguration.Server {
     struct Defaults {
         static let host = "localhost"
         static let port = 5672
