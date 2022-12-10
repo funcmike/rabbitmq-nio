@@ -31,14 +31,14 @@ public extension AMQPChannel {
     ///     - body: Message payload that can be read from ByteBuffer.
     ///     - exchange: Name of exchange on which the message is published. Can be empty.
     ///     - routingKey: Name of routingKey that will be attached to the message.
-    ///                   An exchange looks at the routingKey while deciding how the message has to be routed.
-    ///                   When exchange parameter is empty routingKey is used as queueName.
+    ///         An exchange looks at the routingKey while deciding how the message has to be routed.
+    ///         When exchange parameter is empty routingKey is used as queueName.
     ///     - mandatory: When a published message cannot be routed to any queue and mendatory is true, the message will be returned to publisher.
-    //                      Returned message must be handled with returnListner or returnConsumer.
-    ///                  When a published message cannot be routed to any queue and mendatory is false, the message is discarded or republished to an alternate exchange, if any.
+    ///         Returned message must be handled with returnListner or returnConsumer.
+    ///         When a published message cannot be routed to any queue and mendatory is false, the message is discarded or republished to an alternate exchange, if any.
     ///     - immediate: When matching queue has a least one or more consumers and immediate is set to true, message is delivered to them immediately.
-    ///                  When mathing queue has zero active consumers and immediate is set to true, message is returned to publisher.
-    ///                  When mathing queue has zero active consumers and immediate is set to false, message will be delivered to the queue.
+    ///         When mathing queue has zero active consumers and immediate is set to true, message is returned to publisher.
+    ///         When mathing queue has zero active consumers and immediate is set to false, message will be delivered to the queue.
     ///     - properties: Additional Message properties.
     /// - Returns: DeliveryTag waiting for message write to the server.
     ///     DeliveryTag is 0 when channel is not in confirm mode.
