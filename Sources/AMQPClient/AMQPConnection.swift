@@ -22,13 +22,6 @@ public final class AMQPConnection {
         case open
         case shuttingDown
         case closed
-        
-        var isConnected: Bool {
-            switch self {
-            case .open: return true
-            default: return false
-            }
-        }
     }
 
     public var eventLoop: EventLoop { return self.channel.eventLoop }
@@ -47,7 +40,7 @@ public final class AMQPConnection {
     public var isConnected: Bool {
         // `Channel.isActive` is set to false before the `closeFuture` resolves in cases where the channel might be
         // closed, or closing, before our state has been updated
-        return self.channel.isActive && self.state.isConnected
+        return self.channel.isActive && self.state == .open
     }
 
     public var closeFuture: NIOCore.EventLoopFuture<Void> {
@@ -186,5 +179,11 @@ public final class AMQPConnection {
             let bootstrap = NIOClientTCPBootstrap(clientBootstrap, tls: tlsProvider)
             return bootstrap.enableTLS()
         }        
+    }
+    
+    deinit {
+        if isConnected {
+            assertionFailure("close() was not called before deinit!")
+        }
     }
 }

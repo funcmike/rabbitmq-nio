@@ -339,15 +339,21 @@ public final class AMQPListener<Value>: AsyncSequence {
                 return
             }
 
-            channel.addCloseListener(named: name) { _ in
+            do {
+                try channel.addCloseListener(named: name) { _ in
+                    cont.finish()
+                }
+            } catch {
                 cont.finish()
             }
         }
     }
 
     deinit {
-        self.channel.removeListener(type: Value.self, named: self.name)
-        self.channel.removeCloseListener(named: self.name)
+        do {
+            try self.channel.removeListener(type: Value.self, named: self.name)
+            try self.channel.removeCloseListener(named: self.name)
+        } catch { }
     }
 
     public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {
