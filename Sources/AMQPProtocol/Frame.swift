@@ -153,7 +153,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
             
             let properties = try Properties.decode(from: &buffer)
 
-            return Header(classID: classID, weight: weight, bodySize: bodySize, properties: properties)
+            return .init(classID: classID, weight: weight, bodySize: bodySize, properties: properties)
         }
 
         public func encode(into buffer: inout ByteBuffer) throws {
@@ -412,7 +412,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let (mechanisms, _) = try buffer.readLongString()
                     let (locales, _) = try buffer.readLongString()
 
-                    return Start(versionMajor: versionMajor, versionMinor: versionMinor, serverProperties: serverProperties, mechanisms: mechanisms, locales: locales)
+                    return .init(versionMajor: versionMajor, versionMinor: versionMinor,
+                                 serverProperties: serverProperties, mechanisms: mechanisms, locales: locales)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -442,7 +443,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let (response, _) = try buffer.readLongString()
                     let (locale, _) = try buffer.readShortString()
 
-                    return StartOk(clientProperties: clientProperties, mechanism: mechanism, response: response, locale: locale)
+                    return .init(clientProperties: clientProperties, mechanism: mechanism, response: response, locale: locale)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -473,7 +474,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: UInt8.self, context: self)
                     }
 
-                    return Open(vhost: vhost, reserved1: reserved1, reserved2: reserved2 > 0)
+                    return .init(vhost: vhost, reserved1: reserved1, reserved2: reserved2 > 0)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -508,7 +509,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: (UInt16, UInt16).self, context: self)
                     }
 
-                    return Close(replyCode: replyCode, replyText: replyText, failingClassID: failingClassID, failingMethodID: failingMethodID)
+                    return .init(replyCode: replyCode, replyText: replyText, failingClassID: failingClassID, failingMethodID: failingMethodID)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -625,7 +626,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: (UInt16, UInt16).self, context: self)
                     }
 
-                    return Close(replyCode: replyCode, replyText: replyText, classID: classID, methodID: methodID)
+                    return .init(replyCode: replyCode, replyText: replyText, classID: classID, methodID: methodID)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -737,7 +738,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                 public let noWait: Bool
                 public let arguments: Table
 
-                public init(reserved1: UInt16, exchangeName: String, exchangeType: String, passive: Bool, durable: Bool, autoDelete: Bool, `internal`: Bool, noWait: Bool, arguments: Table) {
+                public init(reserved1: UInt16, exchangeName: String, exchangeType: String,
+                            passive: Bool, durable: Bool, autoDelete: Bool, `internal`: Bool, noWait: Bool, arguments: Table) {
                     self.reserved1 = reserved1
                     self.exchangeName = exchangeName
                     self.exchangeType = exchangeType
@@ -768,7 +770,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let noWait = bits.isBitSet(pos: 4)
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Declare(reserved1: reserved1, exchangeName: exchangeName, exchangeType: exchangeType, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: noWait, arguments: arguments)
+                    return .init(reserved1: reserved1, exchangeName: exchangeName, exchangeType: exchangeType,
+                                 passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: noWait, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -830,7 +833,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let ifUnused = bits.isBitSet(pos: 0)
                     let noWait = bits.isBitSet(pos: 1)
 
-                    return Delete(reserved1: reserved1, exchangeName: exchangeName, ifUnused: ifUnused, noWait: noWait)
+                    return .init(reserved1: reserved1, exchangeName: exchangeName, ifUnused: ifUnused, noWait: noWait)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -884,7 +887,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let noWait = bits.isBitSet(pos: 0)
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Bind(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
+                    return .init(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -930,7 +933,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let noWait = bits.isBitSet(pos: 0)
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Unbind(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
+                    return .init(reserved1: reserved1, destination: destination, source: source, routingKey: routingKey, noWait: noWait, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1066,7 +1069,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                 public let noWait: Bool
                 public let arguments: Table
 
-                public init(reserved1: UInt16, queueName: String, passive: Bool, durable: Bool, exclusive: Bool, autoDelete: Bool, noWait: Bool, arguments: Table) {
+                public init(reserved1: UInt16, queueName: String,
+                            passive: Bool, durable: Bool, exclusive: Bool, autoDelete: Bool, noWait: Bool, arguments: Table) {
                     self.reserved1 = reserved1
                     self.queueName = queueName
                     self.passive = passive
@@ -1095,7 +1099,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let noWait = bits.isBitSet(pos: 4)
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Declare(reserved1: reserved1, queueName: queueName, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: noWait, arguments: arguments)
+                    return .init(reserved1: reserved1, queueName: queueName,
+                                 passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: noWait, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1147,7 +1152,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: (UInt32, UInt32).self, context: self)
                     }
 
-                    return DeclareOk(queueName: queueName, messageCount: messageCount, consumerCount: consumerCount)
+                    return .init(queueName: queueName, messageCount: messageCount, consumerCount: consumerCount)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1189,7 +1194,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let noWait = bits.isBitSet(pos: 0)
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Bind(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, noWait: noWait, arguments: arguments)
+                    return .init(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey,
+                                 noWait: noWait, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1226,7 +1232,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
 
                     let noWait = bits.isBitSet(pos: 0)
 
-                    return Purge(reserved1: reserved1, queueName: queueName, noWait: noWait)
+                    return .init(reserved1: reserved1, queueName: queueName, noWait: noWait)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1267,7 +1273,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let ifEmpty = bits.isBitSet(pos: 1)
                     let noWait = bits.isBitSet(pos: 2)
 
-                    return Delete(reserved1: reserved1, queueName: queueName, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: noWait)
+                    return .init(reserved1: reserved1, queueName: queueName, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: noWait)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1317,7 +1323,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let (routingKey, _) = try buffer.readShortString()
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Unbind(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, arguments: arguments)
+                    return .init(reserved1: reserved1, queueName: queueName, exchangeName: exchangeName, routingKey: routingKey, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1528,7 +1534,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                 public let noWait: Bool
                 public let arguments: Table
 
-                public init(reserved1: UInt16, queue: String, consumerTag: String, noLocal: Bool, noAck: Bool, exclusive: Bool, noWait: Bool, arguments: Table) {
+                public init(reserved1: UInt16, queue: String, consumerTag: String,
+                            noLocal: Bool, noAck: Bool, exclusive: Bool, noWait: Bool, arguments: Table) {
                     self.reserved1 = reserved1
                     self.queue = queue
                     self.consumerTag = consumerTag
@@ -1557,7 +1564,8 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let noWait = bits.isBitSet(pos: 3)
                     let arguments = try Table.decode(from: &buffer)
 
-                    return Consume (reserved1: reserved1, queue: queue, consumerTag: consumerTag, noLocal: noLocal, noAck: noAck, exclusive: exclusive, noWait: noWait, arguments: arguments)       
+                    return .init(reserved1: reserved1, queue: queue, consumerTag: consumerTag,
+                                    noLocal: noLocal, noAck: noAck, exclusive: exclusive, noWait: noWait, arguments: arguments)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1604,7 +1612,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: UInt8.self, context: self)
                     }
 
-                    return Cancel(consumerTag: consumerTag, noWait: noWait > 0)
+                    return .init(consumerTag: consumerTag, noWait: noWait > 0)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1643,7 +1651,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let mandatory = bits.isBitSet(pos: 0)
                     let immediate = bits.isBitSet(pos: 1)
 
-                    return Publish (reserved1: reserved1, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)
+                    return .init(reserved1: reserved1, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1687,7 +1695,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let (exchange, _) = try buffer.readShortString()
                     let (routingKey, _) = try buffer.readShortString()
 
-                    return Return(replyCode: replyCode, replyText: replyText, exchange: exchange, routingKey: routingKey)
+                    return .init(replyCode: replyCode, replyText: replyText, exchange: exchange, routingKey: routingKey)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1727,7 +1735,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let (exchange, _) = try buffer.readShortString()
                     let (routingKey, _) = try buffer.readShortString()
 
-                    return Deliver(consumerTag: consumerTag, deliveryTag: deliveryTag, redelivered: redelivered > 0, exchange: exchange, routingKey: routingKey)
+                    return .init(consumerTag: consumerTag, deliveryTag: deliveryTag, redelivered: redelivered > 0, exchange: exchange, routingKey: routingKey)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1761,7 +1769,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: UInt8.self, context: self)
                     }
 
-                    return Get(reserved1: reserved1, queue: queue, noAck: noAck > 0)
+                    return .init(reserved1: reserved1, queue: queue, noAck: noAck > 0)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1802,7 +1810,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                         throw ProtocolError.decode(type: UInt32.self, context: self)
                     }
 
-                    return GetOk(deliveryTag: deliveryTag, redelivered: redelivered > 0,  exchange: exchange, routingKey: routingKey, messageCount: messageCount)
+                    return .init(deliveryTag: deliveryTag, redelivered: redelivered > 0, exchange: exchange, routingKey: routingKey, messageCount: messageCount)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
@@ -1833,7 +1841,7 @@ public struct Frame: PayloadDecodable, PayloadEncodable, Sendable {
                     let multiple = bits.isBitSet(pos: 0)
                     let requeue = bits.isBitSet(pos: 1)
 
-                    return Nack(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)
+                    return .init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)
                 }
 
                 public func encode(into buffer: inout ByteBuffer) throws {
