@@ -575,8 +575,8 @@ public final class AMQPChannel {
     ///     - listener: callback when publish confirmation message is received.
     public func addPublishListener(
         named name: String,
-        listener: @escaping @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>
-    ) -> Void) throws {
+        listener: @escaping @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void
+    ) throws {
         guard self.isConfirmMode.load(ordering: .relaxed) else {
             throw AMQPConnectionError.channelNotInConfirmMode
         }
