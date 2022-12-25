@@ -64,16 +64,17 @@ public final class AMQPConnection {
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
         let multiplexer = AMQPConnectionMultiplexHandler(config: config.server, onReady: promise)
 
-        return self.boostrapChannel(use: eventLoop, from: config, with: multiplexer)
-            .flatMap { channel in
-                promise.futureResult
-                .flatMapThrowing { response in
+        return eventLoop.flatSubmit { () -> EventLoopFuture<AMQPConnection> in
+            self.boostrapChannel(use: eventLoop, from: config, with: multiplexer).flatMap { channel in
+                promise.futureResult.flatMapThrowing { response in
                     guard case .connection(let connection) = response, case .connected(let connected) = connection else {
                         throw AMQPConnectionError.invalidResponse(response)
                     }
+
                     return AMQPConnection(channel: channel, multiplexer: multiplexer, channelMax: connected.channelMax)
                 }
             }
+        }
     }
 
     /// Open new channel.
@@ -91,11 +92,12 @@ public final class AMQPConnection {
             let future = self.multiplexer.openChannel(id: channelID)
 
             future.whenFailure { _ in self._lock.withLock { self._channels.remove(id: channelID) } }
-            return future.map  { channel in 
-                    let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
-                    self._lock.withLock { self._channels.add(channel: amqpChannel) }
-                    return amqpChannel
-                }
+ 
+            return future.map { channel in
+                let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
+                self._lock.withLock { self._channels.add(channel: amqpChannel) }
+                return amqpChannel
+            }
         }
     }    
 
@@ -108,38 +110,41 @@ public final class AMQPConnection {
         guard self.isConnected else { return self.channel.closeFuture }
 
         self.state = .shuttingDown
-        
+
         return self.eventLoop.flatSubmit {
-            let result: EventLoopFuture<(Error?, Error?)> =  self.multiplexer.close(reason: reason, code: code)
-                .map { 
-                    return ($0, nil)
+            let result = self.multiplexer.close(reason: reason, code: code)
+                .map { () in
+                    return nil as Error?
                 }
-                .flatMap  { result in
-                    self.channel.close()
-                    .map { 
+                .recover { $0 }
+                .flatMap { result in
+                    self.channel.close().map {
                         self.state = .closed
-                        return result
+                        return (result, nil) as (Error?, Error?)
                     }
-                    .recover  { error in
+                    .recover { error in
                         if case ChannelError.alreadyClosed = error  {
                             self.state = .closed
-                            return result
+                            return (result, nil)
                         }
 
-                        return (result.0, error)
+                        return (result, error)
                     }
                 }
             return result.flatMapThrowing {
-                    let (broker, conn) = $0
-                    if (broker ?? conn) != nil { throw AMQPConnectionError.close(broker: broker, connection: conn) }
-                    return ()
-                }
+                let (broker, conn) = $0
+                if (broker ?? conn) != nil { throw AMQPConnectionError.close(broker: broker, connection: conn) }
+                return ()
+            }
         }
     }
 
-    private static func boostrapChannel(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration, with handler: AMQPConnectionMultiplexHandler) -> EventLoopFuture<NIOCore.Channel> {
+    private static func boostrapChannel(
+        use eventLoop: EventLoop,
+        from config: AMQPConnectionConfiguration,
+        with handler: AMQPConnectionMultiplexHandler
+    ) -> EventLoopFuture<NIOCore.Channel> {
         let channelPromise = eventLoop.makePromise(of: NIOCore.Channel.self)
-
 
         do {
             let bootstrap = try boostrapClient(use: eventLoop, from: config)
@@ -165,7 +170,10 @@ public final class AMQPConnection {
         return channelPromise.futureResult        
     }
 
-    private static func boostrapClient(use eventLoopGroup: EventLoopGroup, from config: AMQPConnectionConfiguration) throws -> NIOClientTCPBootstrap {
+    private static func boostrapClient(
+        use eventLoopGroup: EventLoopGroup,
+        from config: AMQPConnectionConfiguration
+    ) throws -> NIOClientTCPBootstrap {
         guard let clientBootstrap = ClientBootstrap(validatingGroup: eventLoopGroup) else {
             preconditionFailure("Cannot create bootstrap for the supplied EventLoop")
         }

@@ -95,21 +95,24 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
                         ])
                     ]
 
-                    let startOk = Frame(channelID: frame.channelID, payload: .method(.connection(.startOk(.init(
-                        clientProperties: clientProperties, mechanism: "PLAIN", response:"\u{0000}\(config.user)\u{0000}\(config.password)", locale: "en_US")))))
+                    let startOk = Frame(channelID: frame.channelID,
+                                        payload: .method(.connection(.startOk(.init(clientProperties: clientProperties,
+                                                                                    mechanism: "PLAIN",
+                                                                                    response:"\u{0000}\(config.user)\u{0000}\(config.password)",
+                                                                                    locale: "en_US")))))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(startOk)), promise: nil)
                 case .tune(let channelMax, let frameMax, let heartbeat):
                     self.channelMax = channelMax
 
-                    let tuneOk: Frame = Frame(channelID: frame.channelID, payload: .method(.connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat))))
-                    let open: Frame = Frame(channelID: frame.channelID, payload: .method(.connection(.open(.init(vhost: config.vhost)))))
+                    let tuneOk = Frame(channelID: frame.channelID,
+                                       payload: .method(.connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat))))
+                    let open = Frame(channelID: frame.channelID, payload: .method(.connection(.open(.init(vhost: config.vhost)))))
 
                     context.writeAndFlush(self.wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
                     if let promise = responseQueue.popFirst() {
                         promise.succeed(.connection(.connected(.init(channelMax: channelMax))))
                     }
-                    
                 case .close(let close):
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.connection(.closeOk)))
                     context.writeAndFlush(self.wrapOutboundOut(.frame(closeOk)), promise: nil)
@@ -204,15 +207,14 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
             }
     }
 
-    func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Error?> {
-        return self.write(outband: .frame(.init(channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))))
-            .map { response in
+    func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
+        return self.write(outband: .frame(.init(
+            channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))))
+            .flatMapThrowing { response in
                 guard case .connection(let connection) = response, case .closed = connection else {
-                    return AMQPConnectionError.invalidResponse(response)
+                    throw AMQPConnectionError.invalidResponse(response)
                 }
-                return nil
             }
-            .recover { $0 }
     }
 
     private func write(outband: AMQPOutbound) -> EventLoopFuture<AMQPResponse> {
