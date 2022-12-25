@@ -70,7 +70,14 @@ public final class AMQPChannel {
     ///     DeliveryTag is 0 when channel is not in confirm mode.
     ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
     @discardableResult
-    public func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) -> EventLoopFuture<AMQPResponse.Channel.Basic.Published> {
+    public func basicPublish(
+        from body: ByteBuffer,
+        exchange: String,
+        routingKey: String,
+        mandatory: Bool = false,
+        immediate: Bool = false,
+        properties: Properties = Properties()
+    ) -> EventLoopFuture<AMQPResponse.Channel.Basic.Published> {
 
         let basic = Frame.Method.basic(.publish(.init(reserved1: 0, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate)))
         let classID = basic.kind.rawValue
@@ -112,10 +119,22 @@ public final class AMQPChannel {
     ///     - exclusive: flag ensures that only a single consumer receives messages from the queue at the time.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture with consumerTag confirming that broker has accepted a new consumer.
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
-        return self.channel.send(payload: .method(.basic(.consume(.init(
-                reserved1: 0, queue: queue, consumerTag: consumerTag, noLocal: false, noAck: noAck, exclusive: exclusive, noWait: false, arguments: arguments)))))
-                .flatMapThrowing { response in
+    public func basicConsume(
+        queue: String,
+        consumerTag: String = "",
+        noAck: Bool = false,
+        exclusive: Bool = false,
+        args arguments: Table = Table()
+    ) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
+        return self.channel.send(payload: .method(.basic(.consume(.init(reserved1: 0,
+                                                                        queue: queue,
+                                                                        consumerTag: consumerTag,
+                                                                        noLocal: false,
+                                                                        noAck: noAck,
+                                                                        exclusive: exclusive,
+                                                                        noWait: false,
+                                                                        arguments: arguments)))))
+            .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .basic(let basic) = channel, case .consumeOk(let consumeOk) = basic else {
                     throw AMQPConnectionError.invalidResponse(response)
                 }
@@ -132,9 +151,15 @@ public final class AMQPChannel {
     ///     - args: Additional arguments (check rabbitmq documentation).
     ///     - listener: callback when Delivery arrives - automatically registered.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
-    public func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
-        let response: EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> = self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
-        return response
+    public func basicConsume(
+        queue: String,
+        consumerTag: String = "",
+        noAck: Bool = false,
+        exclusive: Bool = false,
+        args arguments: Table = Table(),
+        listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>
+    ) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
+        return self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive,args: arguments)
             .flatMapThrowing { response in
                 try self.addConsumeListener(consumerTag: response.consumerTag, listener: listener)
                 return response
@@ -272,9 +297,22 @@ public final class AMQPChannel {
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
     @discardableResult
-    public func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) -> EventLoopFuture<AMQPResponse.Channel.Queue.Declared>  {
-        return self.channel.send(payload: .method(.queue(.declare(.init(
-                reserved1: 0, queueName: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, noWait: false, arguments: arguments)))))
+    public func queueDeclare(
+        name: String,
+        passive: Bool = false,
+        durable: Bool = false,
+        exclusive: Bool = false,
+        autoDelete: Bool = false,
+        args arguments: Table =  Table()
+    ) -> EventLoopFuture<AMQPResponse.Channel.Queue.Declared>  {
+        return self.channel.send(payload: .method(.queue(.declare(.init(reserved1: 0,
+                                                                        queueName: name,
+                                                                        passive: passive,
+                                                                        durable: durable,
+                                                                        exclusive: exclusive,
+                                                                        autoDelete: autoDelete,
+                                                                        noWait: false,
+                                                                        arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .declared(let declared) = queue else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -323,8 +361,12 @@ public final class AMQPChannel {
     ///     - arguments: Bind only to message matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
     public func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        return self.channel.send(payload: .method(.queue(.bind(.init(
-                reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, noWait: false, arguments: arguments)))))
+        return self.channel.send(payload: .method(.queue(.bind(.init(reserved1: 0,
+                                                                     queueName: queue,
+                                                                     exchangeName: exchange,
+                                                                     routingKey: routingKey,
+                                                                     noWait: false,
+                                                                     arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .binded = queue else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -341,8 +383,11 @@ public final class AMQPChannel {
     ///     - arguments: Unbind only from messages matching given options.
     /// - Returns: EventLoopFuturewaiting for bind response unbind response.
     public func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        return self.channel.send(payload: .method(.queue(.unbind(.init(
-                reserved1: 0, queueName: queue, exchangeName: exchange, routingKey: routingKey, arguments: arguments)))))
+        return self.channel.send(payload: .method(.queue(.unbind(.init(reserved1: 0,
+                                                                       queueName: queue,
+                                                                       exchangeName: exchange,
+                                                                       routingKey: routingKey,
+                                                                       arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .queue(let queue) = channel, case .unbinded = queue else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -360,10 +405,25 @@ public final class AMQPChannel {
     ///     - internal: Whether the exchange cannot be directly published to client.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture waiting for declare response.
-    public func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        return self.channel.send(payload: .method(.exchange(.declare(.init(
-                reserved1: 0, exchangeName: name, exchangeType: type, passive: passive, durable: durable, autoDelete: autoDelete, internal: `internal`, noWait: false, arguments: arguments)))))
-            .flatMapThrowing { response in 
+    public func exchangeDeclare(
+        name: String,
+        type: String,
+        passive: Bool = false,
+        durable: Bool = false,
+        autoDelete: Bool = false,
+        internal: Bool = false,
+        args arguments: Table = Table()
+    ) -> EventLoopFuture<Void> {
+        return self.channel.send(payload: .method(.exchange(.declare(.init(reserved1: 0,
+                                                                           exchangeName: name,
+                                                                           exchangeType: type,
+                                                                           passive: passive,
+                                                                           durable: durable,
+                                                                           autoDelete: autoDelete,
+                                                                           internal: `internal`,
+                                                                           noWait: false,
+                                                                           arguments: arguments)))))
+            .flatMapThrowing { response in
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .declared = exchange else {
                     throw AMQPConnectionError.invalidResponse(response)
                 }
@@ -394,8 +454,12 @@ public final class AMQPChannel {
     ///     - arguments: Bind only to messages matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
     public func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        return self.channel.send(payload: .method(.exchange(.bind(.init(
-                reserved1: 0, destination: destination, source: source, routingKey: routingKey, noWait: false, arguments: arguments)))))
+        return self.channel.send(payload: .method(.exchange(.bind(.init(reserved1: 0,
+                                                                        destination: destination,
+                                                                        source: source,
+                                                                        routingKey: routingKey,
+                                                                        noWait: false,
+                                                                        arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .binded = exchange else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -412,8 +476,12 @@ public final class AMQPChannel {
     ///     - arguments: Unbind only from messages matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
     public func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
-        return self.channel.send(payload: .method(.exchange(.unbind(.init(
-                reserved1: 0, destination: destination, source: source, routingKey: routingKey, noWait: false, arguments: arguments)))))
+        return self.channel.send(payload: .method(.exchange(.unbind(.init(reserved1: 0,
+                                                                          destination: destination,
+                                                                          source: source,
+                                                                          routingKey: routingKey,
+                                                                          noWait: false,
+                                                                          arguments: arguments)))))
             .flatMapThrowing { response in 
                 guard case .channel(let channel) = response, case .exchange(let exchange) = channel, case .unbinded = exchange else {
                     throw AMQPConnectionError.invalidResponse(response)
@@ -505,7 +573,10 @@ public final class AMQPChannel {
     /// - Parameters:
     ///     - name: identifier of listner.
     ///     - listener: callback when publish confirmation message is received.
-    public func addPublishListener(named name: String,  listener: @escaping @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void) throws {
+    public func addPublishListener(
+        named name: String,
+        listener: @escaping @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>
+    ) -> Void) throws {
         guard self.isConfirmMode.load(ordering: .relaxed) else {
             throw AMQPConnectionError.channelNotInConfirmMode
         }
