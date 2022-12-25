@@ -231,7 +231,9 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
                 switch queue {
                 case .declareOk(let declareOk):
                     if let promise = self.responseQueue.popFirst() {
-                        promise.succeed(.channel(.queue(.declared(.init(queueName: declareOk.queueName, messageCount: declareOk.messageCount, consumerCount: declareOk.consumerCount)))))
+                        promise.succeed(.channel(.queue(.declared(.init(queueName: declareOk.queueName,
+                                                                        messageCount: declareOk.messageCount,
+                                                                        consumerCount: declareOk.consumerCount)))))
                     }
                 case .bindOk:
                     if let promise = self.responseQueue.popFirst() {
