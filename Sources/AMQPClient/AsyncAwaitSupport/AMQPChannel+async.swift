@@ -44,8 +44,20 @@ public extension AMQPChannel {
     ///     DeliveryTag is 0 when channel is not in confirm mode.
     ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
     @discardableResult
-    func basicPublish(from body: ByteBuffer, exchange: String, routingKey: String, mandatory: Bool = false,  immediate: Bool = false, properties: Properties = Properties()) async throws -> AMQPResponse.Channel.Basic.Published {
-        return try await self.basicPublish(from: body, exchange: exchange, routingKey: routingKey, mandatory: mandatory, immediate: immediate, properties: properties).get()
+    func basicPublish(
+        from body: ByteBuffer,
+        exchange: String,
+        routingKey: String,
+        mandatory: Bool = false,
+        immediate: Bool = false,
+        properties: Properties = Properties()
+    ) async throws -> AMQPResponse.Channel.Basic.Published {
+        return try await self.basicPublish(from: body,
+                                           exchange: exchange,
+                                           routingKey: routingKey,
+                                           mandatory: mandatory,
+                                           immediate: immediate,
+                                           properties: properties).get()
     }
 
     /// Consume publish confirm messages.
@@ -83,7 +95,14 @@ public extension AMQPChannel {
     ///     - exclusive: flag ensures that only a single consumer receives messages from the queue at the time.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: ConsumerTag confirming that broker has accepted a new consumer.
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table(), listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void) async throws -> AMQPResponse.Channel.Basic.ConsumeOk {
+    func basicConsume(
+        queue: String,
+        consumerTag: String = "",
+        noAck: Bool = false,
+        exclusive: Bool = false,
+        args arguments: Table = Table(),
+        listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void
+    ) async throws -> AMQPResponse.Channel.Basic.ConsumeOk {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive:exclusive, args: arguments, listener: listener).get()
     }
 
@@ -96,7 +115,13 @@ public extension AMQPChannel {
     ///     - exclusive: flag ensures that only a single consumer receives messages from the queue at the time.
     ///     - args: Additional arguments (check rabbitmq documentation).
     /// - Returns: Async stream of messages.
-    func basicConsume(queue: String, consumerTag: String = "", noAck: Bool = false, exclusive: Bool = false, args arguments: Table = Table()) async throws -> AMQPListener<AMQPResponse.Channel.Message.Delivery> {
+    func basicConsume(
+        queue: String,
+        consumerTag: String = "",
+        noAck: Bool = false,
+        exclusive: Bool = false,
+        args arguments: Table = Table()
+    ) async throws -> AMQPListener<AMQPResponse.Channel.Message.Delivery> {
         return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
             .flatMapThrowing { response in
                 return .init(self, named: response.consumerTag)
@@ -206,7 +231,14 @@ public extension AMQPChannel {
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: Response confirming that broker has accepted a request.
     @discardableResult
-    func queueDeclare(name: String, passive: Bool = false, durable: Bool = false, exclusive: Bool = false, autoDelete: Bool = false, args arguments: Table =  Table()) async throws -> AMQPResponse.Channel.Queue.Declared {
+    func queueDeclare(
+        name: String,
+        passive: Bool = false,
+        durable: Bool = false,
+        exclusive: Bool = false,
+        autoDelete: Bool = false,
+        args arguments: Table =  Table()
+    ) async throws -> AMQPResponse.Channel.Queue.Declared {
         return try await self.queueDeclare(name: name, passive: passive, durable: durable, exclusive: exclusive, autoDelete: autoDelete, args: arguments).get()
     }
 
@@ -258,8 +290,21 @@ public extension AMQPChannel {
     ///     - auto_delete: if enabled exchange will be deleted when the last consumer has stopped consuming.
     ///     - internal: Whether the exchange cannot be directly published to client.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
-    func exchangeDeclare(name: String, type: String, passive: Bool = false, durable: Bool = false, autoDelete: Bool = false,  internal: Bool = false, args arguments: Table = Table()) async throws {
-        return try await self.exchangeDeclare(name: name, type: type, passive: passive, durable: durable, autoDelete: autoDelete,  internal: `internal`, args: arguments).get()
+    func exchangeDeclare(
+        name: String,
+        type: String,
+        passive: Bool = false,
+        durable: Bool = false,
+        autoDelete: Bool = false,
+        internal: Bool = false,
+        args arguments: Table = Table()
+    ) async throws {
+        return try await self.exchangeDeclare(name: name,
+                                              type: type,
+                                              passive: passive,
+                                              durable: durable,
+                                              autoDelete: autoDelete,
+                                              internal: `internal`, args: arguments).get()
     }
 
     /// Deletes a exchange.
