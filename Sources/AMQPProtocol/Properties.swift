@@ -46,7 +46,9 @@ public struct Properties: PayloadDecodable, PayloadEncodable, Equatable, Sendabl
     public let appID: String?
     public let reserved1: String?
 
-    public init(contentType: String? = nil, contentEncoding: String? = nil, headers: Table? = nil, deliveryMode: UInt8? = nil, priority: UInt8? = nil, correlationID: String? = nil, replyTo: String? = nil, expiration: String? = nil, messageID: String? = nil, timestamp: Int64? = nil, type: String? = nil, userID: String? = nil, appID: String? = nil, reserved1: String? = nil) {
+    public init(contentType: String? = nil, contentEncoding: String? = nil, headers: Table? = nil, deliveryMode: UInt8? = nil,
+                priority: UInt8? = nil, correlationID: String? = nil, replyTo: String? = nil, expiration: String? = nil, messageID: String? = nil,
+                timestamp: Int64? = nil, type: String? = nil, userID: String? = nil, appID: String? = nil, reserved1: String? = nil) {
         self.contentType = contentType
         self.contentEncoding = contentEncoding
         self.headers = headers
@@ -168,21 +170,20 @@ public struct Properties: PayloadDecodable, PayloadEncodable, Equatable, Sendabl
             (reserved1, _ ) = try buffer.readShortString()
         }
 
-        return Properties(
-                contentType: contentType,
-                contentEncoding: contentEncoding,
-                headers: headers,
-                deliveryMode: deliveryMode,
-                priority: priority,
-                correlationID: correlationID,
-                replyTo: replyTo,
-                expiration: expiration,
-                messageID: messageID,
-                timestamp: timestamp,
-                type: type,
-                userID: userID,
-                appID: appID,
-                reserved1: reserved1)
+        return Properties(contentType: contentType,
+                          contentEncoding: contentEncoding,
+                          headers: headers,
+                          deliveryMode: deliveryMode,
+                          priority: priority,
+                          correlationID: correlationID,
+                          replyTo: replyTo,
+                          expiration: expiration,
+                          messageID: messageID,
+                          timestamp: timestamp,
+                          type: type,
+                          userID: userID,
+                          appID: appID,
+                          reserved1: reserved1)
     }
 
     public func encode(into buffer: inout NIOCore.ByteBuffer) throws {
