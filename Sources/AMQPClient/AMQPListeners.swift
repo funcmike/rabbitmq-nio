@@ -47,4 +47,8 @@ struct AMQPListeners<ReturnType>: Sendable {
             self.listeners[name] = nil
         }
     }
+    
+    mutating func removeAll() {
+        self.listeners = [:]
+    }
 }

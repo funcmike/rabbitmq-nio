@@ -34,17 +34,16 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
     public typealias InboundIn = Frame
     public typealias OutboundOut = AMQPOutbound
 
-    var context: ChannelHandlerContext!
+    private var context: ChannelHandlerContext!
     private var channels: [Frame.ChannelID: AMQPChannelHandler<AMQPConnectionMultiplexHandler>] = [:]
     private var channelMax: UInt16 = 0
     private var state: State = .unblocked
-    private var responseQueue: Deque<EventLoopPromise<AMQPResponse>>
+    private var responseQueue = Deque<EventLoopPromise<AMQPResponse>>()
 
     private let config: AMQPConnectionConfiguration.Server
 
-    init(config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>, initialQueueCapacity: Int = 3) {
+    init(config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>) {
         self.config = config
-        self.responseQueue = Deque(minimumCapacity: initialQueueCapacity)
         self.responseQueue.append(onReady)
     }
 

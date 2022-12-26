@@ -261,7 +261,7 @@ final class AMQPChannelTest: XCTestCase {
             try await channel.basicPublish(from: body, exchange: "", routingKey: "test_consume", properties: .init())
         }
 
-        let consumer = try await channel.basicConsume(queue: "test_consume")
+        let consumer = try await channel.basicConsume(queue: "test_consume", noAck: true)
 
         var count = 0
         for await msg in consumer {
