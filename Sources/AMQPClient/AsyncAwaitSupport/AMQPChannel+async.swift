@@ -124,13 +124,32 @@ public extension AMQPChannel {
         args arguments: Table = Table()
     ) async throws -> AMQPListener<AMQPResponse.Channel.Message.Delivery> {
         let closeName = consumerTag.isEmpty ? UUID().uuidString : consumerTag
-        let stream = AMQPListener<AMQPResponse.Channel.Message.Delivery>.makeAsyncStream(channel: self,
-                                                                                         consumerName: consumerTag.isEmpty ? nil : consumerTag,
-                                                                                         closeName: closeName)
+        let stream = AMQPListener<AMQPResponse.Channel.Message.Delivery>.makeAsyncStream(
+            channel: self,
+            consumerName: consumerTag.isEmpty ? nil : consumerTag,
+            closeName: closeName,
+            skipThrowingOn: { err in
+                if let err = err as? AMQPConnectionError, case .consumerCancelled = err {
+                    return true
+                }
+                return false
+            }
+        )
+
         do {
             return try await self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive, args: arguments)
                 .map { response in
-                    return .init(channel: self, stream: stream, named: response.consumerTag, closeName: closeName)
+                    return .init(channel: self,
+                                 stream: stream,
+                                 named: response.consumerTag,
+                                 closeName: closeName,
+                                 deinitCallback: { listener in
+                                    do {
+                                        try listener.channel.basicCancelNoWait(consumerTag: response.consumerTag)
+                                    } catch AMQPConnectionError.consumerAlreadyCancelled {}
+
+                                    listener.channel.removeCloseListener(named: closeName)
+                                })
                 }.get()
         } catch {
             AMQPListener<AMQPResponse.Channel.Message.Delivery>.deinitConsumer(channel: self,
@@ -370,44 +389,74 @@ public extension AMQPChannel {
 
 @available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *)
 public final class AMQPListener<Value>: AsyncSequence {
-    public typealias AsyncIterator = AsyncStream<Element>.AsyncIterator
-    public typealias Element = Result<Value, Error>
-
+    public typealias AsyncIterator = AsyncThrowingStream<Element, Error>.AsyncIterator
+    public typealias Element = Value
+    public typealias DeinitCallback = (AMQPListener<Value>) throws -> Void
+    typealias SkipThrowingCallback = (Error) -> Bool
+    
     let channel: AMQPChannel
-    let stream: AsyncStream<Element>
+    let stream: AsyncThrowingStream<Element, Error>
     public let name: String
     let closeName: String
-
-    init(channel: AMQPChannel, stream: AsyncStream<Element>? = nil, named name: String, closeName: String? = nil) {
+    private let deinitCallback: DeinitCallback
+    
+    init(
+        channel: AMQPChannel,
+        stream: AsyncThrowingStream<Element, Error>? = nil,
+        named name: String, closeName: String? = nil,
+        deinitCallback: DeinitCallback? = nil
+    ) {
         self.channel = channel
         self.name = name
         self.closeName = closeName ?? name
         self.stream = stream ?? Self.makeAsyncStream(channel: channel, consumerName: name, closeName: self.closeName)
+        self.deinitCallback = deinitCallback ?? { listener in
+            Self.deinitConsumer(channel: listener.channel, consumerName: listener.name, closeName: listener.closeName) }
     }
     
-    static func makeAsyncStream(channel: AMQPChannel, consumerName: String? = nil, closeName: String) -> AsyncStream<Element> {
-        return AsyncStream { cont in
+    static func makeAsyncStream(
+        channel: AMQPChannel,
+        consumerName: String? = nil,
+        closeName: String,
+        skipThrowingOn: SkipThrowingCallback? = nil
+    ) -> AsyncThrowingStream<Element, Error> {
+        return AsyncThrowingStream { cont in
             do {
                 try channel.addListener(type: Value.self, named: consumerName) { result in
-                    guard case .success = result else {
-                        cont.yield(result)
-                        cont.finish()
-                        return
+                    
+                    switch result {
+                    case .success(let value):
+                        cont.yield(value)
+                    case .failure(let error):
+                        if let callback = skipThrowingOn {
+                            if callback(error) {
+                               return cont.finish()
+                            }
+                        }
+                        return cont.finish(throwing: error)
                     }
-
-                    cont.yield(result)
+                }
+                
+                try channel.addCloseListener(named: closeName) { result in
+                    switch result {
+                    case .success:
+                        cont.finish()
+                    case .failure(let error):
+                        if let callback = skipThrowingOn {
+                            if callback(error) {
+                               return cont.finish()
+                            }
+                        }
+                        return cont.finish(throwing: error)
+                    }
                 }
             } catch {
-                cont.finish()
-                return
-            }
-
-            do {
-                try channel.addCloseListener(named: closeName) { _ in
-                    cont.finish()
+                if let callback = skipThrowingOn {
+                    if callback(error) {
+                       return cont.finish()
+                    }
                 }
-            } catch {
-                cont.finish()
+                cont.finish(throwing: error)
             }
         }
     }
@@ -418,10 +467,14 @@ public final class AMQPListener<Value>: AsyncSequence {
     }
 
     deinit {
-        Self.deinitConsumer(channel: self.channel, consumerName: self.name, closeName: self.closeName)
+        do {
+            try self.deinitCallback(self)
+        } catch {
+            //TODO: add debugg logging
+        }
     }
 
-    public __consuming func makeAsyncIterator() -> AsyncStream<Element>.AsyncIterator {
+    public __consuming func makeAsyncIterator() -> AsyncThrowingStream<Element, Error>.AsyncIterator {
         return self.stream.makeAsyncIterator()
     }
 }

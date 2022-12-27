@@ -23,7 +23,7 @@ struct AMQPListeners<ReturnType>: Sendable {
     func notify(named name: String, _ result: Result<ReturnType, Error>) {
         self.lock.withLock {
             if let listener = self.listeners[name] {
-                return listener(result)
+                listener(result)
             }
         }
     }
@@ -33,6 +33,15 @@ struct AMQPListeners<ReturnType>: Sendable {
             self.listeners.values.forEach { listener in
                 listener(result)
             }
+        }
+    }
+    
+    func exists(named name: String) -> Bool {
+        return self.lock.withLock { () -> Bool in
+            if let _ = self.listeners[name] {
+                return true
+            }
+            return false
         }
     }
 

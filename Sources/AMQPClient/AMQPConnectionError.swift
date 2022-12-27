@@ -23,7 +23,8 @@ public enum AMQPConnectionError: Error, Sendable {
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelAlreadyReserved
     case channelNotInConfirmMode
-    case consumerCanceled
+    case consumerCancelled
+    case consumerAlreadyCancelled
     case connectionBlocked
     case invalidMessage
     case invalidResponse(AMQPResponse)

@@ -23,7 +23,7 @@ import AMQPProtocol
 public extension AMQPConnection {
     /// Connect to broker.
     /// - Parameters:
-    ///     - eventLoop: EventLoop on which to conntec.
+    ///     - eventLoop: EventLoop on which to connect.
     ///     - config: Confituration
     /// - Returns: New Connection object.
     static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) async throws -> AMQPConnection {
