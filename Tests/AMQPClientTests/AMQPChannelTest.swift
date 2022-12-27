@@ -235,10 +235,7 @@ final class AMQPChannelTest: XCTestCase {
         let consumer = try await channel.publishConsume(named: "test")
 
         var count = 0
-        for await msg in consumer {
-            guard case .success = msg else {
-                return XCTFail()
-            }
+        for try await _ in consumer {
             count += 1
             if count == 2 { break }
         }
@@ -249,8 +246,8 @@ final class AMQPChannelTest: XCTestCase {
 
         try await channel.close()
     }
-
-    func testBasicConsume() async throws {
+    
+    func testBasicConsumeAutoCancel() async throws {
         let channel = try await connection.openChannel()
 
         try await channel.queueDeclare(name: "test_consume", durable: true)
@@ -260,19 +257,63 @@ final class AMQPChannelTest: XCTestCase {
         for _ in  1...100 {
             try await channel.basicPublish(from: body, exchange: "", routingKey: "test_consume", properties: .init())
         }
+        
+        let consumerTag: String
+        
+        do {
+            let consumer = try await channel.basicConsume(queue: "test_consume", noAck: true)
+            consumerTag = consumer.name
 
-        let consumer = try await channel.basicConsume(queue: "test_consume", noAck: true)
+            var count = 0
+            for try await _ in consumer {
+                count += 1
+                if count == 100 {
+                    break
+                }
+            }
+            
+            XCTAssertEqual(count, 100)
+        }
+        
+        sleep(2) // wait for deinit
 
-        var count = 0
-        for await msg in consumer {
-            guard case .success = msg else {
+        do {
+            try await channel.basicCancel(consumerTag: consumerTag)
+            XCTFail()
+        } catch let error as AMQPConnectionError  {
+            guard case .consumerAlreadyCancelled = error else {
                 return XCTFail()
             }
-            count += 1
-            if count == 100 { break }
         }
 
-        try await channel.basicCancel(consumerTag: consumer.name)
+        try await channel.queueDelete(name: "test_consume")
+        try await channel.close()
+    }
+
+    func testBasicConsumeManualCancel() async throws {
+        let channel = try await connection.openChannel()
+
+        try await channel.queueDeclare(name: "test_consume", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "{}")
+        
+        for _ in  1...100 {
+            try await channel.basicPublish(from: body, exchange: "", routingKey: "test_consume", properties: .init())
+        }
+        
+        do {
+            let consumer = try await channel.basicConsume(queue: "test_consume", noAck: true)
+
+            var count = 0
+            for try await _ in consumer {
+                count += 1
+                if count == 100 {
+                    try await channel.basicCancel(consumerTag: consumer.name)
+                }
+            }
+            
+            XCTAssertEqual(count, 100)
+        }
 
         try await channel.queueDelete(name: "test_consume")
         try await channel.close()

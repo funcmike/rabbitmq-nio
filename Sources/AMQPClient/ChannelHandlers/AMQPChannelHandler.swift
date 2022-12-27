@@ -78,6 +78,10 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
         return self._lock.withLock { _ = self.consumeListenerQueue.popFirst() }
     }
+    
+    func existsConsumeListener(named name: String) -> Bool {
+        return self.consumeListeners.exists(named: name)
+    }
 
     func addFlowListener(named name: String, listener: @escaping AMQPListeners<Bool>.Listener) throws  {
         guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
@@ -117,6 +121,16 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
     func removeCloseListener(named name: String)  {
         return self.closeListeners.removeListener(named: name)
+    }
+    
+    func send(payload: Frame.Payload) throws {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
+        let frame = Frame(channelID: self.channelID, payload: payload)
+
+        self.eventLoop.execute {
+            self.parent.write(frame: frame, promise: nil)
+        }
     }
 
     func send(payload: Frame.Payload) -> EventLoopFuture<AMQPResponse> {
@@ -206,14 +220,14 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
                 case .nack(let nack):
                     self.publishListeners.notify(.success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))       
                 case .cancel(let cancel):
-                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPConnectionError.consumerCanceled))
+                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPConnectionError.consumerCancelled))
                     self.consumeListeners.removeListener(named: cancel.consumerTag)
                 case .cancelOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.canceled)))
                     }
 
-                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPConnectionError.consumerCanceled))
+                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPConnectionError.consumerCancelled))
                     self.consumeListeners.removeListener(named: consumerTag)
                 default:
                     preconditionUnexpectedPayload(payload)

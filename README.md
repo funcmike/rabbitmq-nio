@@ -88,20 +88,23 @@ do {
 }
 ```
 
-Consume a multiple message as AsynStream.
+Consume a multiple message as AsyncThrowingStream.
 ```swift
-let consumer = try await channel.basicConsume(queue: "test")
+do {
+    let consumer = try await channel.basicConsume(queue: "test")
 
-for await msg in consumer {
-    guard case .success(let delivery) = msg else {
-        print("Delivery failure", msg)
-        return
+    for try await msg in consumer {
+        print("Succesfully consumed a message", delivery)
+        break
     }
-
-    print("Succesfully consumed a message", delivery)
-    break
+} catch {
+    print("Delivery failure", error)
 }
+```
 
+Consumer will be automatically cancelled on deinitialization.
+Can be also manually cancelled. 
+```swift
 try await channel.basicCancel(consumerTag: consumer.name)
 ```
 
