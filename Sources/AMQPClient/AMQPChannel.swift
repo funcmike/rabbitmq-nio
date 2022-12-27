@@ -168,7 +168,7 @@ public final class AMQPChannel {
     ///     - consumerTag: name of the consumer.
     /// - Returns: EventLoopFuture waiting for cancel response.
     public func basicCancel(consumerTag: String) -> EventLoopFuture<Void> {
-        if !self.channel.existsConsumeListener(named: consumerTag) { return self.eventLoop.makeFailedFuture(AMQPConnectionError.consumerAlreadyCancelled) }
+        guard self.channel.existsConsumeListener(named: consumerTag) else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.consumerAlreadyCancelled) }
 
         return self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
             .flatMapThrowing { response in
@@ -181,7 +181,8 @@ public final class AMQPChannel {
     }
     
     func basicCancelNoWait(consumerTag: String) throws {
-        if !self.channel.existsConsumeListener(named: consumerTag) { throw AMQPConnectionError.consumerAlreadyCancelled }
+        guard self.channel.existsConsumeListener(named: consumerTag) else { throw AMQPConnectionError.consumerAlreadyCancelled }
+
         return try self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
     }
 
