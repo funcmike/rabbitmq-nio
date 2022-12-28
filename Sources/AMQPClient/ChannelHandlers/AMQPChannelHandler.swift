@@ -46,7 +46,6 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
     
     private let _lock = NIOLock()
 
-    private var consumeListenerQueue = Deque<AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener>()
     private var consumeListeners = AMQPListeners<AMQPResponse.Channel.Message.Delivery>()
     private var flowListeners = AMQPListeners<Bool>()
     private var returnListeners = AMQPListeners<AMQPResponse.Channel.Message.Return>()
@@ -61,22 +60,14 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         self.closePromise.futureResult.whenComplete { self.closeListeners.notify($0) }
     }
 
-    func addConsumeListener(named name: String? = nil, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener) throws {
+    func addConsumeListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener) throws {
         guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
 
-        if let name = name {
-            return self.consumeListeners.addListener(named: name, listener: listener)
-        }
-        
-        return self._lock.withLock { self.consumeListenerQueue.append(listener) }
+        return self.consumeListeners.addListener(named: name, listener: listener)
     }
 
-    func removeConsumeListener(named name: String? = nil) {
-        if let name = name {
-            return self.consumeListeners.removeListener(named: name)
-        }
-
-        return self._lock.withLock { _ = self.consumeListenerQueue.popFirst() }
+    func removeConsumeListener(named name: String) {
+        return self.consumeListeners.removeListener(named: name)
     }
     
     func existsConsumeListener(named name: String) -> Bool {
@@ -206,12 +197,6 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
                         promise.succeed(.channel(.basic(.qosOk)))
                     }
                 case .consumeOk(let consumerTag):
-                    if let listener = self._lock.withLock({ () -> AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener? in
-                        return self.consumeListenerQueue.popFirst()
-                    }) {
-                        consumeListeners.addListener(named: consumerTag, listener: listener)
-                    }
-
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.consumeOk(.init(consumerTag: consumerTag)))))
                     }
@@ -383,7 +368,6 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
         queue.forEach { $0.fail(error) }
 
-        self.consumeListenerQueue.removeAll()
         self.consumeListeners.removeAll()
         self.flowListeners.removeAll()
         self.returnListeners.removeAll()

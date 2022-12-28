@@ -128,16 +128,11 @@ public final class AMQPChannel {
         args arguments: Table = Table(),
         listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>
     ) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
-        do {
-            try self.channel.addConsumeListener(named: consumerTag.isEmpty ? nil : consumerTag, listener: listener)
-        } catch {
-            return self.eventLoop.makeFailedFuture(error)
-        }
-        
-        let result = self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive,args: arguments)
-
-        result.whenFailure { _ in self.channel.removeConsumeListener(named: consumerTag.isEmpty ? nil : consumerTag) }
-        return result
+        return self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive,args: arguments)
+            .flatMapThrowing { response in
+                try self.channel.addConsumeListener(named: response.consumerTag, listener: listener)
+                return response
+            }
     }
     
     func basicConsume(
@@ -629,31 +624,31 @@ public final class AMQPChannel {
         return self.channel.removeFlowListener(named: name)
     }
 
-    func addListener<Value>(type: Value.Type, named name: String? = nil, listener: @escaping @Sendable (Result<Value, Error>) -> Void) throws {
+    func addListener<Value>(type: Value.Type, named name: String, listener: @escaping @Sendable (Result<Value, Error>) -> Void) throws {
         switch listener {
             case let l as @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void:
                 return try self.channel.addConsumeListener(named: name, listener: l)
             case let l as @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
-                return try addPublishListener(named: name!, listener: l)
+                return try addPublishListener(named: name, listener: l)
             case let l as @Sendable (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void:
-                return try addReturnListener(named: name!, listener: l)
+                return try addReturnListener(named: name, listener: l)
             case let l as @Sendable (Result<Bool, Error>) -> Void:
-                return try addFlowListener(named: name!, listener: l)
+                return try addFlowListener(named: name, listener: l)
             default:
                 preconditionUnexpectedListenerType(type)
         }
     }
 
-    func removeListener<Value>(type: Value.Type, named name: String? = nil) {
+    func removeListener<Value>(type: Value.Type, named name: String) {
         switch type {
             case is AMQPResponse.Channel.Message.Delivery.Type:
                 return self.channel.removeConsumeListener(named: name)
             case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
-                return removePublishListener(named: name!)
+                return removePublishListener(named: name)
             case is AMQPResponse.Channel.Message.Return.Type:
-                return removeReturnListener(named: name!)
+                return removeReturnListener(named: name)
             case is Bool.Type:
-                return removeFlowListener(named: name!)
+                return removeFlowListener(named: name)
             default:
                 preconditionUnexpectedListenerType(type)
         }
