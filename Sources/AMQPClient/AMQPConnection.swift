@@ -58,7 +58,7 @@ public final class AMQPConnection {
     /// Connect to broker.
     /// - Parameters:
     ///     - eventLoop: EventLoop on which to connect.
-    ///     - config: Configuration
+    ///     - config: Configuration data.
     /// - Returns:  EventLoopFuture with Connection object.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
         let promise = eventLoop.makePromise(of: AMQPResponse.self)

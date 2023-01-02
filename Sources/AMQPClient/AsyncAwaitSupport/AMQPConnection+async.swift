@@ -24,7 +24,7 @@ public extension AMQPConnection {
     /// Connect to broker.
     /// - Parameters:
     ///     - eventLoop: EventLoop on which to connect.
-    ///     - config: Confituration
+    ///     - config: Configuration data.
     /// - Returns: New Connection object.
     static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) async throws -> AMQPConnection {
         return try await self.connect(use: eventLoop, from: config).get()
