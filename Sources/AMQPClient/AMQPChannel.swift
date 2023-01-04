@@ -163,7 +163,15 @@ public final class AMQPChannel {
     ///     - consumerTag: name of the consumer.
     /// - Returns: EventLoopFuture waiting for cancel response.
     public func basicCancel(consumerTag: String) -> EventLoopFuture<Void> {
-        guard self.channel.existsConsumeListener(named: consumerTag) else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.consumerAlreadyCancelled) }
+        let found: Bool
+
+        do {
+            found = try self.channel.existsConsumeListener(named: consumerTag)
+        } catch {
+            return self.eventLoop.makeFailedFuture(error)
+        }
+
+        guard found else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.consumerAlreadyCancelled) }
 
         return self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
             .flatMapThrowing { response in
@@ -176,7 +184,7 @@ public final class AMQPChannel {
     }
     
     func basicCancelNoWait(consumerTag: String) throws {
-        guard self.channel.existsConsumeListener(named: consumerTag) else { throw AMQPConnectionError.consumerAlreadyCancelled }
+        guard try self.channel.existsConsumeListener(named: consumerTag) else { throw AMQPConnectionError.consumerAlreadyCancelled }
 
         return try self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
     }
@@ -563,8 +571,8 @@ public final class AMQPChannel {
     /// Remove close listener.
     /// - Parameters:
     ///     - name: listener identifier.
-    public func removeCloseListener(named name: String) {
-        return self.channel.removeCloseListener(named: name)
+    public func removeCloseListener(named name: String) throws {
+        return try self.channel.removeCloseListener(named: name)
     }
 
 
@@ -587,8 +595,8 @@ public final class AMQPChannel {
     /// Remove publish listener.
     /// - Parameters:
     ///     - name: identifier of consumer.
-    public func removePublishListener(named name: String)  {
-        return self.channel.removePublishListener(named: name)
+    public func removePublishListener(named name: String) throws  {
+        return try self.channel.removePublishListener(named: name)
     }
 
     /// Add return listener.
@@ -603,8 +611,8 @@ public final class AMQPChannel {
     /// Remove return message listener.
     /// - Parameters:
     ///     - name: number of listner.
-    public func removeReturnListener(named name: String)  {
-        return self.channel.removeReturnListener(named: name)
+    public func removeReturnListener(named name: String) throws  {
+        return try self.channel.removeReturnListener(named: name)
     }
 
     /// Add flow listener.
@@ -620,8 +628,8 @@ public final class AMQPChannel {
     /// Remove flow listener.
     /// - Parameters:
     ///     - name: listener identifier.
-    public func removeFlowListener(named name: String)  {
-        return self.channel.removeFlowListener(named: name)
+    public func removeFlowListener(named name: String) throws  {
+        return try self.channel.removeFlowListener(named: name)
     }
 
     func addListener<Value>(type: Value.Type, named name: String, listener: @escaping @Sendable (Result<Value, Error>) -> Void) throws {
@@ -639,16 +647,16 @@ public final class AMQPChannel {
         }
     }
 
-    func removeListener<Value>(type: Value.Type, named name: String) {
+    func removeListener<Value>(type: Value.Type, named name: String) throws {
         switch type {
             case is AMQPResponse.Channel.Message.Delivery.Type:
-                return self.channel.removeConsumeListener(named: name)
+                return try self.channel.removeConsumeListener(named: name)
             case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
-                return removePublishListener(named: name)
+                return try removePublishListener(named: name)
             case is AMQPResponse.Channel.Message.Return.Type:
-                return removeReturnListener(named: name)
+                return try removeReturnListener(named: name)
             case is Bool.Type:
-                return removeFlowListener(named: name)
+                return try removeFlowListener(named: name)
             default:
                 preconditionUnexpectedListenerType(type)
         }

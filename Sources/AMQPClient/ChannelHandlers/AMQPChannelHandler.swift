@@ -66,11 +66,15 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         return self.consumeListeners.addListener(named: name, listener: listener)
     }
 
-    func removeConsumeListener(named name: String) {
+    func removeConsumeListener(named name: String) throws {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
         return self.consumeListeners.removeListener(named: name)
     }
     
-    func existsConsumeListener(named name: String) -> Bool {
+    func existsConsumeListener(named name: String) throws -> Bool {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
         return self.consumeListeners.exists(named: name)
     }
 
@@ -80,7 +84,9 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         return self.flowListeners.addListener(named: name, listener: listener)
     }
 
-    func removeFlowListener(named name: String) {
+    func removeFlowListener(named name: String) throws {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
         return self.flowListeners.removeListener(named: name)
     }
 
@@ -90,7 +96,9 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         return self.returnListeners.addListener(named: name, listener: listener)
     }
 
-    func removeReturnListener(named name: String) {
+    func removeReturnListener(named name: String) throws {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
         return self.returnListeners.removeListener(named: name)
     }
 
@@ -100,7 +108,9 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         return self.publishListeners.addListener(named: name, listener: listener)
     }
 
-    func removePublishListener(named name: String) {
+    func removePublishListener(named name: String) throws {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
         return self.publishListeners.removeListener(named: name)
     }
     
@@ -110,7 +120,9 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         return self.closeListeners.addListener(named: name, listener: listener)
     }
 
-    func removeCloseListener(named name: String)  {
+    func removeCloseListener(named name: String) throws {
+        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+
         return self.closeListeners.removeListener(named: name)
     }
     

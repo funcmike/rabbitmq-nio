@@ -240,7 +240,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
         return context.writeAndFlush(wrapOutboundOut(.bytes(PROTOCOL_START_0_9_1)), promise: nil)
     }
 
-    private func failAllResponses(because error: Error) {
+    func failAllResponses(because error: Error) {
         self.state = .error(error)
 
         let queue = self.responseQueue
@@ -256,7 +256,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
 
     deinit {
         if !self.responseQueue.isEmpty {
-            assertionFailure("AMQP Frame handler deinit when queue is not empty! Queue size: \(self.responseQueue.count)")
+            assertionFailure("Queue is not empty! Queue size: \(self.responseQueue.count)")
         }
     }
 }
