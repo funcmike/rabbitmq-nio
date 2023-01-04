@@ -127,7 +127,7 @@ public extension AMQPChannel {
             AMQPStream(
                 channel: self,
                 named: response.consumerTag,
-                onDeinit: { listener in
+                onCancelled: { listener in
                     do {
                         try listener.channel.basicCancelNoWait(consumerTag: listener.name)
                     } catch AMQPConnectionError.consumerAlreadyCancelled {}
@@ -388,18 +388,18 @@ public struct AMQPSequence<Element>: AsyncSequence {
 }
 
 final class AMQPStream<Element> {
-    typealias DeinitCallback = (AMQPStream) throws -> Void
+    typealias CancelledCallback = (AMQPStream) throws -> Void
     typealias ThrowSkipCallback = (Error) -> Bool
     
     let channel: AMQPChannel
     let name: String
-    let onDeinit: DeinitCallback?
+    let onCancelled: CancelledCallback?
     let onThrowSkip: ThrowSkipCallback?
 
-    init(channel: AMQPChannel, named name: String, onDeinit: DeinitCallback? = nil, onThrowSkip: ThrowSkipCallback? = nil) {
+    init(channel: AMQPChannel, named name: String, onCancelled: CancelledCallback? = nil, onThrowSkip: ThrowSkipCallback? = nil) {
         self.channel = channel
         self.name = name
-        self.onDeinit = onDeinit
+        self.onCancelled = onCancelled
         self.onThrowSkip = onThrowSkip
     }
 
@@ -448,7 +448,7 @@ final class AMQPStream<Element> {
                     return
                 }
 
-                if let callback = self.onDeinit {
+                if let callback = self.onCancelled {
                     do {
                         try callback(self)
                     } catch {
