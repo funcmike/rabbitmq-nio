@@ -11,50 +11,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIOConcurrencyHelpers
-
 struct AMQPListeners<ReturnType>: Sendable {
     public typealias Listener = @Sendable (Result<ReturnType, Error>) -> Void
 
-    private let lock = NIOLock()
     private var listeners: [String: Listener] = [:]
 
-
-    func notify(named name: String, _ result: Result<ReturnType, Error>) {
-        self.lock.withLock {
-            if let listener = self.listeners[name] {
-                listener(result)
-            }
-        }
+    func get(named name: String) -> Listener? {
+        return self.listeners[name]
     }
 
-    func notify(_ result: Result<ReturnType, Error>) {
-        self.lock.withLock {
-            self.listeners.values.forEach { listener in
-                listener(result)
-            }
-        }
+    func get() -> Dictionary<String, Listener>.Values {
+        return self.listeners.values
     }
     
     func exists(named name: String) -> Bool {
-        return self.lock.withLock { () -> Bool in
-            if let _ = self.listeners[name] {
-                return true
-            }
-            return false
+        if let _ = self.listeners[name] {
+            return true
         }
+        return false
     }
 
     mutating func addListener(named name: String, listener: @escaping Listener) {
-        self.lock.withLock {
-            self.listeners[name] = listener
-        }
+        self.listeners[name] = listener
     }
 
     mutating func removeListener(named name: String) {
-        self.lock.withLock {
-            self.listeners[name] = nil
-        }
+        self.listeners[name] = nil
     }
     
     mutating func removeAll() {

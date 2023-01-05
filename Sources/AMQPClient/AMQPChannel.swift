@@ -130,7 +130,7 @@ public final class AMQPChannel {
     ) -> Void) -> EventLoopFuture<AMQPResponse.Channel.Basic.ConsumeOk> {
         return self.basicConsume(queue: queue, consumerTag: consumerTag, noAck: noAck, exclusive: exclusive,args: arguments)
             .flatMapThrowing { response in
-                try self.channel.addConsumeListener(named: response.consumerTag, listener: listener)
+                try self.addListener(type: AMQPResponse.Channel.Message.Delivery.self, named: response.consumerTag, listener: listener)
                 return response
             }
     }
@@ -565,14 +565,14 @@ public final class AMQPChannel {
     ///     - name: listener identifier.
     ///     - listener: callback when channel is closed.
     public func addCloseListener(named name: String, listener: @escaping @Sendable (Result<Void, Error>) -> Void) throws  {
-        return try self.channel.addCloseListener(named: name, listener: listener)
+        return try self.addListener(type: Void.self, named: name, listener: listener)
     }
 
     /// Remove close listener.
     /// - Parameters:
     ///     - name: listener identifier.
-    public func removeCloseListener(named name: String) throws {
-        return try self.channel.removeCloseListener(named: name)
+    public func removeCloseListener(named name: String) {
+        return self.removeListener(type: Void.self, named: name)
     }
 
 
@@ -589,14 +589,14 @@ public final class AMQPChannel {
             throw AMQPConnectionError.channelNotInConfirmMode
         }
 
-        return try self.channel.addPublishListener(named: name, listener: listener)
+        return try self.addListener(type: AMQPResponse.Channel.Basic.PublishConfirm.self, named: name, listener: listener)
     }
 
     /// Remove publish listener.
     /// - Parameters:
     ///     - name: identifier of consumer.
-    public func removePublishListener(named name: String) throws  {
-        return try self.channel.removePublishListener(named: name)
+    public func removePublishListener(named name: String)  {
+        return self.removeListener(type: AMQPResponse.Channel.Basic.PublishConfirm.self, named: name)
     }
 
     /// Add return listener.
@@ -605,14 +605,14 @@ public final class AMQPChannel {
     ///     - name: identifier of listner.
     ///     - listener: callback when return message is received.
     public func addReturnListener(named name: String, listener: @escaping @Sendable (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void) throws {
-        return try self.channel.addReturnListener(named: name, listener: listener)
+        return try self.addListener(type: AMQPResponse.Channel.Message.Return.self, named: name, listener: listener)
     }
 
     /// Remove return message listener.
     /// - Parameters:
     ///     - name: number of listner.
-    public func removeReturnListener(named name: String) throws  {
-        return try self.channel.removeReturnListener(named: name)
+    public func removeReturnListener(named name: String)  {
+        return self.removeListener(type: AMQPResponse.Channel.Message.Return.self, named: name)
     }
 
     /// Add flow listener.
@@ -622,44 +622,22 @@ public final class AMQPChannel {
     ///     - name: identifier of listner.
     ///     - listener: callback when flow signal is received.
     public func addFlowListener(named name: String, listener: @escaping @Sendable (Result<Bool, Error>) -> Void) throws {
-        return try self.channel.addFlowListener(named: name, listener: listener)
+        return try self.addListener(type: Bool.self, named: name, listener: listener)
     }
 
     /// Remove flow listener.
     /// - Parameters:
     ///     - name: listener identifier.
-    public func removeFlowListener(named name: String) throws  {
-        return try self.channel.removeFlowListener(named: name)
+    public func removeFlowListener(named name: String)  {
+        return self.removeListener(type: Bool.self, named: name)
     }
 
     func addListener<Value>(type: Value.Type, named name: String, listener: @escaping @Sendable (Result<Value, Error>) -> Void) throws {
-        switch listener {
-            case let l as @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void:
-                return try self.channel.addConsumeListener(named: name, listener: l)
-            case let l as @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
-                return try addPublishListener(named: name, listener: l)
-            case let l as @Sendable (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void:
-                return try addReturnListener(named: name, listener: l)
-            case let l as @Sendable (Result<Bool, Error>) -> Void:
-                return try addFlowListener(named: name, listener: l)
-            default:
-                preconditionUnexpectedListenerType(type)
-        }
+        return try self.channel.addListener(type: type, named: name, listener: listener)
     }
 
-    func removeListener<Value>(type: Value.Type, named name: String) throws {
-        switch type {
-            case is AMQPResponse.Channel.Message.Delivery.Type:
-                return try self.channel.removeConsumeListener(named: name)
-            case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
-                return try removePublishListener(named: name)
-            case is AMQPResponse.Channel.Message.Return.Type:
-                return try removeReturnListener(named: name)
-            case is Bool.Type:
-                return try removeFlowListener(named: name)
-            default:
-                preconditionUnexpectedListenerType(type)
-        }
+    func removeListener<Value>(type: Value.Type, named name: String) {
+        return self.channel.removeListener(type: type, named: name)
     }
     
     deinit {

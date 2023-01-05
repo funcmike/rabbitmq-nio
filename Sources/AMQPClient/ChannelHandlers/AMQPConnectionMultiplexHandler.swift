@@ -144,7 +144,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
                 case .closeOk:
                     if let channel = self.channels.removeValue(forKey: frame.channelID) {
                         channel.receive(payload: frame.payload)
-                        channel.close(error: AMQPConnectionError.channelClosed())
+                        channel.close()
                     }
                 case .flow(let active):
                     if let channel = self.channels.removeValue(forKey: frame.channelID) {

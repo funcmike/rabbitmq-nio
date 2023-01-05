@@ -47,9 +47,9 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
     private let _lock = NIOLock()
 
     private var consumeListeners = AMQPListeners<AMQPResponse.Channel.Message.Delivery>()
-    private var flowListeners = AMQPListeners<Bool>()
-    private var returnListeners = AMQPListeners<AMQPResponse.Channel.Message.Return>()
     private var publishListeners = AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>()
+    private var returnListeners = AMQPListeners<AMQPResponse.Channel.Message.Return>()
+    private var flowListeners = AMQPListeners<Bool>()
     private var closeListeners = AMQPListeners<Void>()
 
     init(parent: Parent, channelID: Frame.ChannelID, eventLoop: EventLoop) {
@@ -57,73 +57,86 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         self.channelID = channelID
         self.eventLoop = eventLoop
         self.closePromise = eventLoop.makePromise()
-        self.closePromise.futureResult.whenComplete { self.closeListeners.notify($0) }
     }
-
-    func addConsumeListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener) throws {
+    
+    func addListener<Value>(type: Value.Type, named name: String, listener: @escaping @Sendable (Result<Value, Error>) -> Void) throws {
         guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
 
-        return self.consumeListeners.addListener(named: name, listener: listener)
+        switch listener {
+            case let l as @Sendable (Result<AMQPResponse.Channel.Message.Delivery, Error>) -> Void:
+                return self._lock.withLock { self.consumeListeners.addListener(named: name, listener: l) }
+            case let l as @Sendable (Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>) -> Void:
+                return self._lock.withLock { self.publishListeners.addListener(named: name, listener: l) }
+            case let l as @Sendable (Result<AMQPResponse.Channel.Message.Return, Error>) -> Void:
+                return self._lock.withLock { self.returnListeners.addListener(named: name, listener: l) }
+            case let l as @Sendable (Result<Bool, Error>) -> Void:
+                return self._lock.withLock { self.flowListeners.addListener(named: name, listener: l) }
+            case let l as @Sendable (Result<Void, Error>) -> Void:
+                return self._lock.withLock { self.closeListeners.addListener(named: name, listener: l) }
+            default:
+                preconditionUnexpectedType(type)
+        }
     }
 
-    func removeConsumeListener(named name: String) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
+    func removeListener<Value>(type: Value.Type, named name: String) {
+        guard self.isOpen else { return }
 
-        return self.consumeListeners.removeListener(named: name)
+        switch type {
+            case is AMQPResponse.Channel.Message.Delivery.Type:
+                return self._lock.withLock { self.consumeListeners.removeListener(named: name) }
+            case is AMQPResponse.Channel.Basic.PublishConfirm.Type:
+                return self._lock.withLock { self.publishListeners.removeListener(named: name) }
+            case is AMQPResponse.Channel.Message.Return.Type:
+                return self._lock.withLock { self.returnListeners.removeListener(named: name) }
+            case is Bool.Type:
+                return self._lock.withLock { self.flowListeners.removeListener(named: name) }
+            case is Void.Type:
+                return self._lock.withLock { self.closeListeners.removeListener(named: name) }
+            default:
+                preconditionUnexpectedType(type)
+        }
+    }
+    
+    private func notify<ReturnType>(type: ReturnType.Type, named name: String, _ result: Result<ReturnType, Error>) {
+        switch result {
+        case let r as Result<AMQPResponse.Channel.Message.Delivery, Error>:
+            if let listener = self._lock.withLock({ () -> AMQPListeners<AMQPResponse.Channel.Message.Delivery>.Listener? in
+                self.consumeListeners.get(named: name)
+            }) {
+                listener(r)
+            }
+        default:
+            preconditionUnexpectedType(type)
+        }
+    }
+    
+    private func notify<ReturnType>(type: ReturnType.Type, _ result: Result<ReturnType, Error>) {
+        switch result {
+        case let r as Result<AMQPResponse.Channel.Basic.PublishConfirm, Error>:
+            let listeners = self._lock.withLock { () -> Dictionary<String, AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener>.Values in
+                self.publishListeners.get()
+            }
+            listeners.forEach { $0(r) }
+        case let r as Result<AMQPResponse.Channel.Message.Return, Error>:
+            let listeners = self._lock.withLock { () -> Dictionary<String, AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener>.Values in
+                self.returnListeners.get()
+            }
+            listeners.forEach { $0(r) }
+        case let r as Result<Bool, Error>:
+            let listeners = self._lock.withLock { () -> Dictionary<String, AMQPListeners<Bool>.Listener>.Values in  self.flowListeners.get() }
+            listeners.forEach { $0(r) }
+        case let r as Result<Void, Error>:
+            let listeners = self._lock.withLock { () -> Dictionary<String, AMQPListeners<Void>.Listener>.Values in  self.closeListeners.get() }
+            listeners.forEach { $0(r) }
+        default:
+            preconditionUnexpectedType(type)
+        }
     }
     
     func existsConsumeListener(named name: String) throws -> Bool {
         guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
 
-        return self.consumeListeners.exists(named: name)
-    }
-
-    func addFlowListener(named name: String, listener: @escaping AMQPListeners<Bool>.Listener) throws  {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.flowListeners.addListener(named: name, listener: listener)
-    }
-
-    func removeFlowListener(named name: String) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.flowListeners.removeListener(named: name)
-    }
-
-    func addReturnListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Message.Return>.Listener) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.returnListeners.addListener(named: name, listener: listener)
-    }
-
-    func removeReturnListener(named name: String) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.returnListeners.removeListener(named: name)
-    }
-
-    func addPublishListener(named name: String, listener: @escaping AMQPListeners<AMQPResponse.Channel.Basic.PublishConfirm>.Listener) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.publishListeners.addListener(named: name, listener: listener)
-    }
-
-    func removePublishListener(named name: String) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.publishListeners.removeListener(named: name)
-    }
-    
-    func addCloseListener(named name: String, listener: @escaping AMQPListeners<Void>.Listener) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.closeListeners.addListener(named: name, listener: listener)
-    }
-
-    func removeCloseListener(named name: String) throws {
-        guard self.isOpen else { throw AMQPConnectionError.channelClosed() }
-
-        return self.closeListeners.removeListener(named: name)
+        return self._lock.withLock { self.consumeListeners.exists(named: name) }
     }
     
     func send(payload: Frame.Payload) throws {
@@ -213,19 +226,27 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
                         promise.succeed(.channel(.basic(.consumeOk(.init(consumerTag: consumerTag)))))
                     }
                 case .ack(let deliveryTag, let multiple):
-                    self.publishListeners.notify(.success(.ack(deliveryTag: deliveryTag, multiple: multiple)))             
+                    self.notify(type: AMQPResponse.Channel.Basic.PublishConfirm.self, .success(.ack(deliveryTag: deliveryTag, multiple: multiple)))
                 case .nack(let nack):
-                    self.publishListeners.notify(.success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))       
+                    self.notify(type: AMQPResponse.Channel.Basic.PublishConfirm.self, .success(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple)))
                 case .cancel(let cancel):
-                    self.consumeListeners.notify(named: cancel.consumerTag, .failure(AMQPConnectionError.consumerCancelled))
-                    self.consumeListeners.removeListener(named: cancel.consumerTag)
+                    self.notify(type: AMQPResponse.Channel.Message.Delivery.self,
+                                named: cancel.consumerTag,
+                                .failure(AMQPConnectionError.consumerCancelled))
+
+                    self._lock.withLock {
+                        self.consumeListeners.removeListener(named: cancel.consumerTag)
+                    }
                 case .cancelOk(let consumerTag):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.basic(.canceled)))
                     }
 
-                    self.consumeListeners.notify(named: consumerTag, .failure(AMQPConnectionError.consumerCancelled))
-                    self.consumeListeners.removeListener(named: consumerTag)
+                    self.notify(type: AMQPResponse.Channel.Message.Delivery.self, named: consumerTag, .failure(AMQPConnectionError.consumerCancelled))
+
+                    self._lock.withLock {
+                        self.consumeListeners.removeListener(named: consumerTag)
+                    }
                 default:
                     preconditionUnexpectedPayload(payload)
                 }
@@ -236,7 +257,7 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
                         promise.succeed(.channel(.closed(self.channelID)))
                     }
                 case .flow(let active):
-                    self.flowListeners.notify(.success(active))
+                    self.notify(type: Bool.self, .success(active))
                 case .flowOk(let active):
                     if let promise = self.responseQueue.popFirst() {
                         promise.succeed(.channel(.flowed(.init(active: active))))
@@ -333,33 +354,36 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
             switch msg.frame {
             case .getOk(let getOk):
-                    if let promise = self.responseQueue.popFirst() {
-                            promise.succeed(.channel(.message(.get(.init(
-                                message: AMQPResponse.Channel.Message.Delivery(
-                                    exchange: getOk.exchange,
-                                    routingKey: getOk.routingKey,
-                                    deliveryTag: getOk.deliveryTag,
-                                    properties: properties,
-                                    redelivered: getOk.redelivered,
-                                    body: body),
-                                messageCount: getOk.messageCount)))))
-                    }
+                if let promise = self.responseQueue.popFirst() {
+                        promise.succeed(.channel(.message(.get(.init(
+                            message: AMQPResponse.Channel.Message.Delivery(
+                                exchange: getOk.exchange,
+                                routingKey: getOk.routingKey,
+                                deliveryTag: getOk.deliveryTag,
+                                properties: properties,
+                                redelivered: getOk.redelivered,
+                                body: body),
+                            messageCount: getOk.messageCount)))))
+                }
             case .deliver(let deliver):
-                self.consumeListeners.notify(named: deliver.consumerTag, .success(.init(
-                    exchange: deliver.exchange,
-                    routingKey: deliver.routingKey,
-                    deliveryTag: deliver.deliveryTag,
-                    properties: properties,
-                    redelivered: deliver.redelivered,
-                    body: body)))
+                self.notify(type: AMQPResponse.Channel.Message.Delivery.self,
+                            named: deliver.consumerTag,
+                            .success(.init(
+                                exchange: deliver.exchange,
+                                routingKey: deliver.routingKey,
+                                deliveryTag: deliver.deliveryTag,
+                                properties: properties,
+                                redelivered: deliver.redelivered,
+                                body: body)))
             case .return(let `return`):
-                self.returnListeners.notify(.success(.init(
-                    replyCode: `return`.replyCode,
-                    replyText: `return`.replyText,
-                    exchange: `return`.exchange,
-                    routingKey: `return`.routingKey,
-                    properties: properties,
-                    body: body)))                   
+                self.notify(type: AMQPResponse.Channel.Message.Return.self,
+                            .success(.init(
+                                replyCode: `return`.replyCode,
+                                replyText: `return`.replyText,
+                                exchange: `return`.exchange,
+                                routingKey: `return`.routingKey,
+                                properties: properties,
+                                body: body)))
             default:
                 preconditionUnexpectedPayload(payload)
             }
@@ -370,7 +394,7 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         }
     }
 
-    func close(error: Error) {
+    func close(error: Error? = nil) {
         guard self.isOpen else { return }
 
         self.state = .shuttingDown
@@ -378,16 +402,18 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         let queue = self.responseQueue
         self.responseQueue.removeAll()
 
-        queue.forEach { $0.fail(error) }
+        queue.forEach { $0.fail(error ?? AMQPConnectionError.channelClosed()) }
+
+        self.notify(type: Void.self, error == nil ? .success(()) : .failure(error!) )
 
         self.consumeListeners.removeAll()
-        self.flowListeners.removeAll()
-        self.returnListeners.removeAll()
         self.publishListeners.removeAll()
+        self.returnListeners.removeAll()
+        self.flowListeners.removeAll()
         self.closeListeners.removeAll()
 
-        closePromise.succeed(())
-        
+        error == nil ? closePromise.succeed(()) : closePromise.fail(error!)
+
         self.state = .closed
     }
 

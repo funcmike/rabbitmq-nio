@@ -444,30 +444,22 @@ final class AMQPStream<Element> {
             }
 
             cont.onTermination = { result in
-                guard case .cancelled = result else {
-                    return
-                }
-
-                if let callback = self.onCancelled {
-                    do {
-                        try callback(self)
-                    } catch {
-                        //TODO: add debugg logging
+                if case .cancelled = result {
+                    if let callback = self.onCancelled {
+                        do {
+                            try callback(self)
+                        } catch {
+                            //TODO: add debugg logging
+                        }
                     }
                 }
+
+                self.channel.removeListener(type: Element.self, named: self.name)
+                self.channel.removeCloseListener(named: self.name)
             }
         }
 
         return AMQPSequence(stream, name: self.name)
-    }
-    
-    deinit {
-        do {
-            try self.channel.removeListener(type: Element.self, named: self.name)
-            try self.channel.removeCloseListener(named: self.name)
-        } catch {
-            //TODO: add debugg logging
-        }
     }
 }
 
