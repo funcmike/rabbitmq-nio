@@ -17,7 +17,7 @@ final class AMQPChannelTest: XCTestCase {
     }
 
     override func tearDown() async throws {
-        try await self.connection.close()
+        try await self.connection?.close()
     }
 
     func testCanCloseChannel() async throws {
