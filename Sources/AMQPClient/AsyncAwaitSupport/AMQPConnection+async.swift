@@ -41,7 +41,6 @@ public extension AMQPConnection {
     /// - Parameters:
     ///     - reason: Reason that can be logged by broker.
     ///     - code: Code that can be logged by broker.
-    /// - Returns: EventLoopFuture that is resolved when connection is closed.
     func close(reason: String = "", code: UInt16 = 200) async throws {
         return try await self.close(reason: reason, code: code).get()
     }

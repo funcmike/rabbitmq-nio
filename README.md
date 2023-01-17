@@ -111,7 +111,7 @@ try await channel.basicCancel(consumerTag: consumer.name)
 Close a channel, connection.
 ```swift
 do {
-    let _ = try await channel.close()
+    try await channel.close()
     try await connection.close()
 
     print("Succesfully closed", msg)
