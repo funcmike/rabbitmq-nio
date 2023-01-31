@@ -15,7 +15,6 @@ import NIOCore
 import NIOPosix
 import NIOSSL
 import NIOConcurrencyHelpers
-import AMQPProtocol
 
 public final class AMQPConnection {
     internal enum ConnectionState {
