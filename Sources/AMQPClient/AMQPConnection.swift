@@ -65,7 +65,7 @@ public final class AMQPConnection {
         let multiplexer = AMQPConnectionMultiplexHandler(config: config.server, onReady: promise)
 
         return eventLoop.flatSubmit { () -> EventLoopFuture<AMQPConnection> in
-            self.boostrapChannel(use: eventLoop, from: config, with: multiplexer).flatMap { channel in
+            let result = self.boostrapChannel(use: eventLoop, from: config, with: multiplexer).flatMap { channel in
                 promise.futureResult.flatMapThrowing { response in
                     guard case .connection(let connection) = response, case .connected(let connected) = connection else {
                         throw AMQPConnectionError.invalidResponse(response)
@@ -74,6 +74,9 @@ public final class AMQPConnection {
                     return AMQPConnection(channel: channel, multiplexer: multiplexer, channelMax: connected.channelMax)
                 }
             }
+
+            result.whenFailure { err in multiplexer.failAllResponses(because: err) }
+            return result
         }
     }
 

@@ -43,6 +43,6 @@ func preconditionUnexpectedChannel(_ channelID: Frame.ChannelID) -> Never  {
     return preconditionFailure("Unexepected channel: \(channelID)")
 }
 
-func preconditionUnexpectedListenerType(_ type: Any.Type) -> Never  {
-    return preconditionFailure("Unexpected listener type \(type)")
+func preconditionUnexpectedType(_ type: Any.Type) -> Never  {
+    return preconditionFailure("Unexpected type \(type)")
 }
