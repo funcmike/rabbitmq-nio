@@ -2,7 +2,7 @@
 //
 // This source file is part of the RabbitMQNIO project
 //
-// Copyright (c) 2022 Krzysztof Majk
+// Copyright (c) 2023 RabbitMQNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
