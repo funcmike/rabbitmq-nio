@@ -48,7 +48,8 @@ struct AMQPChannels {
         guard !(self.channels.contains { $0.key == id}) else {
             return false
         }
+
         self.channels[id] = nil
         return true
     }
-} 
+}

@@ -16,12 +16,9 @@ import AMQPProtocol
 public enum AMQPConnectionError: Error, Sendable {
     case invalidUrl
     case invalidUrlScheme
-    case alreadyShutdown
     case tooManyOpenedChannels
-    case alreadyConnect
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
-    case channelAlreadyReserved
     case channelNotInConfirmMode
     case consumerCancelled
     case consumerAlreadyCancelled
@@ -37,10 +34,6 @@ func preconditionUnexpectedFrame(_ frame: Frame) -> Never  {
 
 func preconditionUnexpectedPayload(_ payload: Frame.Payload) -> Never  {
     return preconditionFailure("Unexepected payload:\(payload)")
-}
-
-func preconditionUnexpectedChannel(_ channelID: Frame.ChannelID) -> Never  {
-    return preconditionFailure("Unexepected channel: \(channelID)")
 }
 
 func preconditionUnexpectedType(_ type: Any.Type) -> Never  {

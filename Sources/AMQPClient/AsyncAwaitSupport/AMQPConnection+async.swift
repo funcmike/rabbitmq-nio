@@ -23,14 +23,15 @@ public extension AMQPConnection {
     /// - Parameters:
     ///     - eventLoop: EventLoop on which to connect.
     ///     - config: Configuration data.
-    /// - Returns: New Connection object.
+    /// - Returns: New AMQP Connection.
     static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) async throws -> AMQPConnection {
         return try await self.connect(use: eventLoop, from: config).get()
     }
 
     /// Open new channel.
     /// Can be used only when connection is connected.
-    /// - Returns: New Channel object.
+    /// Channel ID is automatically assigned (next free one).
+    /// - Returns: New opened AMQP Channel.
     func openChannel() async throws -> AMQPChannel {
         return try await self.openChannel().get()
     }

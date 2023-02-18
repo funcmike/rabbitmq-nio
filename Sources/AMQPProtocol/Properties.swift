@@ -247,59 +247,59 @@ public struct Properties: PayloadDecodable, PayloadEncodable, Equatable, Sendabl
 
         buffer.writeInteger(flags)
 
-        if let contentType = contentType {
+        if let contentType {
             try buffer.writeShortString(contentType)
         }
 
-        if let contentEncoding = contentEncoding{
+        if let contentEncoding {
             try buffer.writeShortString(contentEncoding)
         }
 
-        if let headers = headers {
+        if let headers {
             try headers.encode(into: &buffer)
         }
 
-        if let deliveryMode = deliveryMode {
+        if let deliveryMode {
             buffer.writeInteger(deliveryMode)
         }
 
-        if let priority = priority {
+        if let priority {
             buffer.writeInteger(priority)
         }
 
-        if let correlationID = correlationID{
+        if let correlationID {
             try buffer.writeShortString(correlationID)
         }
 
-        if let replyTo = replyTo {
+        if let replyTo {
             try buffer.writeShortString(replyTo)
         }
 
-        if let expiration = expiration {
+        if let expiration {
             try buffer.writeShortString(expiration)
         }
 
-        if let messageID = messageID {
+        if let messageID {
             try buffer.writeShortString(messageID)
         }
 
-        if let timestamp = timestamp {
+        if let timestamp {
             buffer.writeInteger(timestamp)
         }
 
-        if let type = type {
+        if let type {
             try buffer.writeShortString(type)
         }
 
-        if let userID = userID {
+        if let userID {
             try buffer.writeShortString(userID)
         }
 
-        if let appID = appID {
+        if let appID {
             try buffer.writeShortString(appID)
         }
 
-        if let reserved1 = reserved1 {
+        if let reserved1 {
             try buffer.writeShortString(reserved1)
         }
     }

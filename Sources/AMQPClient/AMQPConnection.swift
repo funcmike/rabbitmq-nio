@@ -22,6 +22,16 @@ public final class AMQPConnection {
         case shuttingDown
         case closed
     }
+    
+    public var isConnected: Bool {
+        // `Channel.isActive` is set to false before the `closeFuture` resolves in cases where the channel might be
+        // closed, or closing, before our state has been updated
+        return self.channel.isActive && self.state == .open
+    }
+
+    public var closeFuture: NIOCore.EventLoopFuture<Void> {
+        get { return  self.channel.closeFuture }
+    }
 
     public var eventLoop: EventLoop { return self.channel.eventLoop }
     public let channelMax: UInt16
@@ -36,16 +46,6 @@ public final class AMQPConnection {
         set(newValue) { _lock.withLockVoid { self._state = newValue } }
     }
 
-    public var isConnected: Bool {
-        // `Channel.isActive` is set to false before the `closeFuture` resolves in cases where the channel might be
-        // closed, or closing, before our state has been updated
-        return self.channel.isActive && self.state == .open
-    }
-
-    public var closeFuture: NIOCore.EventLoopFuture<Void> {
-        get { return  self.channel.closeFuture }
-    }
-
     private var _channels = AMQPChannels()
 
     init(channel: NIOCore.Channel, multiplexer: AMQPConnectionMultiplexHandler, channelMax: UInt16) {
@@ -58,7 +58,7 @@ public final class AMQPConnection {
     /// - Parameters:
     ///     - eventLoop: EventLoop on which to connect.
     ///     - config: Configuration data.
-    /// - Returns:  EventLoopFuture with Connection object.
+    /// - Returns:  EventLoopFuture with AMQP Connection.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
         let multiplexer = AMQPConnectionMultiplexHandler(config: config.server, onReady: promise)
@@ -81,6 +81,7 @@ public final class AMQPConnection {
 
     /// Open new channel.
     /// Can be used only when connection is connected.
+    /// Channel ID is automatically assigned (next free one).
     /// - Returns: EventLoopFuture with AMQP Channel.
     public func openChannel() -> EventLoopFuture<AMQPChannel> {
         guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
