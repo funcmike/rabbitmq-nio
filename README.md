@@ -88,6 +88,11 @@ do {
 }
 ```
 
+Set a QOS limit to prevent memory overflow of consumer.
+```swift
+try await channel.basicQos(count: 1000)
+```
+
 Consume a multiple message as AsyncThrowingStream.
 ```swift
 do {
