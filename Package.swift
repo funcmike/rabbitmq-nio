@@ -10,8 +10,8 @@ let package = Package(
         .library(name: "AMQPClient", targets: ["AMQPClient"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.43.1"),
-        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.22.1"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.48.0"),
+        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.23.0"),
         .package(url: "https://github.com/apple/swift-collections.git",  .upToNextMajor(from: "1.0.0"))
     ],
     targets: [
