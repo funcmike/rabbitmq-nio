@@ -30,7 +30,7 @@ public final class AMQPConnection {
     }
 
     public var closeFuture: NIOCore.EventLoopFuture<Void> {
-        get { return  self.channel.closeFuture }
+        return self.channel.closeFuture
     }
 
     public var eventLoop: EventLoop { return self.channel.eventLoop }
@@ -136,7 +136,7 @@ public final class AMQPConnection {
                 }
             return result.flatMapThrowing {
                 let (broker, conn) = $0
-                if (broker ?? conn) != nil { throw AMQPConnectionError.close(broker: broker, connection: conn) }
+                if (broker ?? conn) != nil { throw AMQPConnectionError.connectionClose(broker: broker, connection: conn) }
                 return ()
             }
         }

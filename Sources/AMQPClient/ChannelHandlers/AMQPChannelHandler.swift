@@ -41,7 +41,7 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
     private let closePromise: NIOCore.EventLoopPromise<Void>
     var closeFuture: NIOCore.EventLoopFuture<Void> {
-        get { self.closePromise.futureResult }
+        return self.closePromise.futureResult
     }
     
     private let _lock = NIOLock()

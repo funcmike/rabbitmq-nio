@@ -16,16 +16,16 @@ import AMQPProtocol
 public enum AMQPConnectionError: Error, Sendable {
     case invalidUrl
     case invalidUrlScheme
-    case tooManyOpenedChannels
     case connectionClosed(replyCode: UInt16? = nil, replyText: String? = nil)
+    case connectionClose(broker: Error? = nil, connection: Error? = nil)
+    case connectionBlocked
     case channelClosed(replyCode: UInt16? = nil, replyText: String? = nil)
+    case tooManyOpenedChannels
     case channelNotInConfirmMode
     case consumerCancelled
     case consumerAlreadyCancelled
-    case connectionBlocked
     case invalidMessage
     case invalidResponse(AMQPResponse)
-    case close(broker: Error? = nil, connection: Error? = nil)
 }
 
 func preconditionUnexpectedFrame(_ frame: Frame) -> Never  {

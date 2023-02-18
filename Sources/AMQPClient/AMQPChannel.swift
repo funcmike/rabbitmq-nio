@@ -19,7 +19,11 @@ public final class AMQPChannel {
     public let ID: Frame.ChannelID
     public let eventLoop: EventLoop
     public var closeFuture: NIOCore.EventLoopFuture<Void> {
-        get { return  self.channel.closeFuture }
+        return  self.channel.closeFuture
+    }
+    
+    public var isOpen: Bool {
+        return self.channel.isOpen
     }
 
     private typealias ChannelHandler = AMQPChannelHandler<AMQPConnectionMultiplexHandler>
