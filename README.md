@@ -21,23 +21,23 @@ Please report bugs or missing features. <br>
 AMQPProtocol library currently should cover all of AMQP 0.9.1 specification.
 
 AMQPClient library's architecture using NIO Channels is already done and all of AMQP operations (without WebSockets) should be supported.
-Current work is focused on testing, finding bugs, API stablization and code refactoring / polishing (based on Swift Server Side Community feedback).
+Current work is focused on testing, finding bugs, API stabilization and code refactoring / polishing (based on Swift Server Side Community feedback).
 
 ## Basic usage
 
 Create a connection and connect to the AMQP broker using connection string.
 ```swift
-    let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 
-    var connection: AMQPConnection
+var connection: AMQPConnection
 
-    do {
-        connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(url: "amqp://guest:guest@localhost:5672//"))
+do {
+    connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(url: "amqp://guest:guest@localhost:5672//"))
 
-        print("Succesfully connected")
-    } catch {
-        print("Error while connecting", error)
-    }
+    print("Succesfully connected")
+} catch {
+    print("Error while connecting", error)
+}
 ```
 
 Create a connection and connect to the AMQP broker using configuration object.
