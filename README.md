@@ -195,7 +195,7 @@ while(true) {
 }
 ```
 
-Handling channel and connection close exceptions (simple retry pattern - re-create channel or connection when exception occurs).
+Handling channel and connection close errors (simple retry pattern - re-create channel or connection when errors occurs).
 ```swift
 let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 var connection =  try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(connection: .plain, server: .init()))
