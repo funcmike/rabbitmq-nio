@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 import NIOCore
+@preconcurrency
 import Foundation
 
 public typealias Table = [String:Field]
