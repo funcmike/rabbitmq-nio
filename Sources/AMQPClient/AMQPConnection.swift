@@ -185,7 +185,7 @@ public final class AMQPConnection {
         case .plain: 
             return NIOClientTCPBootstrap(clientBootstrap, tls: NIOInsecureNoTLS())
         case .tls(let tls, let sniServerName):
-            let sslContext = try NIOSSLContext(configuration: tls ?? TLSConfiguration.makeClientConfiguration())
+            let sslContext = try NIOSSLContext(configuration: tls ?? TLSConfiguration.clientDefault)
             let tlsProvider = try NIOSSLClientTLSProvider<ClientBootstrap>(context: sslContext, serverHostname: sniServerName ?? config.server.host)
             let bootstrap = NIOClientTCPBootstrap(clientBootstrap, tls: tlsProvider)
             return bootstrap.enableTLS()
