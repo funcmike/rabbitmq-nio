@@ -9,6 +9,10 @@ services:
         interval: 3s
         timeout: 3s
         retries: 5
+    volumes:
+        - ./docker/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+        - ./docker/ssl:/etc/rabbitmq/ssl
     ports:
+      - 5671:5671
       - 5672:5672
       - 15672:15672
