@@ -32,7 +32,7 @@ let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 var connection: AMQPConnection
 
 do {
-    connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(url: "amqp://guest:guest@localhost:5672//"))
+    connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(url: "amqp://guest:guest@localhost:5672/%2f"))
 
     print("Succesfully connected")
 } catch {
