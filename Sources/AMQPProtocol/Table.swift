@@ -11,9 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIOCore
+#if os(Linux)
 @preconcurrency
-import Foundation
+import struct Foundation.Date
+#else
+import struct Foundation.Date
+#endif
+
+import NIOCore
 
 public typealias Table = [String:Field]
 
@@ -242,7 +247,7 @@ extension Table: PayloadDecodable {
             guard let timestamp = buffer.readInteger(as: Int64.self) else {
                 throw ProtocolError.decode(type: Int64.self, kind: kind, context: self)
             }
-            return (.timestamp(Date(timeIntervalSince1970: TimeInterval(timestamp))), 1+8)
+            return (.timestamp(Date(timeIntervalSince1970: Double(timestamp))), 1+8)
         case .table:
             do {
                 let (value, valueSize) = try readTable(from: &buffer)

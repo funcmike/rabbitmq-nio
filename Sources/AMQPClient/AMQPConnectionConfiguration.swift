@@ -11,9 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import struct Foundation.URL
 import NIOSSL
 import NIOCore
-import Foundation
 
 public struct AMQPConnectionConfiguration: Sendable {
     let connection: Connection
@@ -111,7 +111,6 @@ extension AMQPConnectionConfiguration.Server {
         static let password = "guest"
         static let vhost = "/"
         static var timeout: TimeAmount { TimeAmount.seconds(60) }
-        //NOTE: seems like an unneccassary dependency on Foundation / Bundle / NSString
-        static var connectionName: String { ((Bundle.main.executablePath ?? "RabbitMQNIO") as NSString).lastPathComponent }
+        static let connectionName = "RabbitMQNIO"
     }
 }

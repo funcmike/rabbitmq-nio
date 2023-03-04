@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
+import struct Foundation.Date
 
 internal extension Date {
     @usableFromInline
