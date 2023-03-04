@@ -1,4 +1,7 @@
 # RabbitMQNIO
+[<img src="https://img.shields.io/badge/platform-macOS | Linux-brightgreen.svg" alt="Platform macOS | Linux" />](https://swift.org)
+[<img src="https://img.shields.io/badge/swift-5.7-brightgreen.svg" alt="Swift 5.7" />](https://swift.org)
+
 
 A Swift implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) and non-blocking client (AMQPClient).
 
