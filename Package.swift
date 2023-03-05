@@ -29,8 +29,7 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
                 .product(name: "Collections", package: "swift-collections"),
-            ],
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-lm"])]),
+            ]),
         .testTarget(
             name: "AMQPClientTests",
             dependencies: ["AMQPClient"]),
