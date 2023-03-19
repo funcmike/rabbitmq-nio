@@ -34,6 +34,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
     public typealias InboundIn = Frame
     public typealias OutboundOut = AMQPOutbound
 
+    private let eventLoop: EventLoop
     private var context: ChannelHandlerContext!
     private var channels: [Frame.ChannelID: AMQPChannelHandler<AMQPConnectionMultiplexHandler>] = [:]
     private var channelMax: UInt16 = 0
@@ -42,9 +43,10 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
 
     private let config: AMQPConnectionConfiguration.Server
 
-    init(config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>) {
+    init(eventLoop: EventLoop, config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>) {
         self.config = config
         self.responseQueue.append(onReady)
+        self.eventLoop = eventLoop
     }
 
     func channelActive(context: ChannelHandlerContext) {
@@ -66,7 +68,13 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
     }
 
     func handlerRemoved(context: ChannelHandlerContext) {
-        self.context = nil
+        switch state {
+        case .unblocked, .blocked(_):
+            self.state = .error(AMQPConnectionError.connectionClosed())
+            self.context = nil
+        case .error(_):
+            self.context = nil
+        }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {        
@@ -189,7 +197,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
 
     func openChannel(id: Frame.ChannelID) -> EventLoopFuture<AMQPChannelHandler<AMQPConnectionMultiplexHandler>> {
         if let channel = self.channels[id] {
-            return self.context.eventLoop.makeSucceededFuture(channel)
+            return self.eventLoop.makeSucceededFuture(channel)
         }
 
         return self.write(outband: .frame(.init(channelID: id, payload: .method(.channel(.open(reserved1: ""))))))
@@ -198,7 +206,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
                     throw AMQPConnectionError.invalidResponse(response)
                 }
 
-                let channelHandler = AMQPChannelHandler(parent: self, channelID: channelID, eventLoop: self.context.eventLoop)
+                let channelHandler = AMQPChannelHandler(parent: self, channelID: channelID, eventLoop: self.eventLoop)
 
                 self.channels[channelID] = channelHandler
 
@@ -218,9 +226,9 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
 
     private func write(outband: AMQPOutbound) -> EventLoopFuture<AMQPResponse> {
         switch self.state {
-        case .error(let e), .blocked(let e): return self.context.eventLoop.makeFailedFuture(e)
+        case .error(let e), .blocked(let e): return self.eventLoop.makeFailedFuture(e)
         default:
-            let promise = self.context.eventLoop.makePromise(of: AMQPResponse.self)
+            let promise = self.eventLoop.makePromise(of: AMQPResponse.self)
             
             let writeFuture = self.context.writeAndFlush(wrapOutboundOut(outband))
         

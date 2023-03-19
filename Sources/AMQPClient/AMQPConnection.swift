@@ -61,7 +61,7 @@ public final class AMQPConnection {
     /// - Returns:  EventLoopFuture with AMQP Connection.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
-        let multiplexer = AMQPConnectionMultiplexHandler(config: config.server, onReady: promise)
+        let multiplexer = AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server, onReady: promise)
 
         return eventLoop.flatSubmit { () -> EventLoopFuture<AMQPConnection> in
             let result = self.boostrapChannel(use: eventLoop, from: config, with: multiplexer).flatMap { channel in
