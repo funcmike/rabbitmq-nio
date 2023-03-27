@@ -26,7 +26,7 @@ public final class AMQPConnection {
     public var isConnected: Bool {
         // `Channel.isActive` is set to false before the `closeFuture` resolves in cases where the channel might be
         // closed, or closing, before our state has been updated
-        return self.channel.isActive && self.state == .open
+        return self.channel.isActive && self.state.withLockedValue { $0 == .open }
     }
 
     public var closeFuture: NIOCore.EventLoopFuture<Void> {
@@ -38,19 +38,13 @@ public final class AMQPConnection {
     private let channel: NIOCore.Channel
     private let multiplexer: AMQPConnectionMultiplexHandler
 
-    private let _lock = NIOLock()
-    private var _state = ConnectionState.open
-    private var state: ConnectionState {
-        get { return _lock.withLock { self._state } }
-        set(newValue) { _lock.withLockVoid { self._state = newValue } }
-    }
-
-    private var _channels: NIOLockedValueBox<AMQPChannels>
+    private let state = NIOLockedValueBox(ConnectionState.open)
+    private let channels: NIOLockedValueBox<AMQPChannels>
 
     init(channel: NIOCore.Channel, multiplexer: AMQPConnectionMultiplexHandler, channelMax: UInt16) {
         self.channel = channel
         self.multiplexer = multiplexer
-        self._channels = .init(AMQPChannels(channelMax: channelMax))
+        self.channels = .init(AMQPChannels(channelMax: channelMax))
     }
 
     /// Connect to broker.
@@ -85,7 +79,7 @@ public final class AMQPConnection {
     public func openChannel() -> EventLoopFuture<AMQPChannel> {
         guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
 
-        let channelID = _channels.withLockedValue { $0.reserveNext() }
+        let channelID = channels.withLockedValue { $0.reserveNext() }
         
         guard let channelID = channelID else {
             return self.eventLoop.makeFailedFuture(AMQPConnectionError.tooManyOpenedChannels)
@@ -94,11 +88,11 @@ public final class AMQPConnection {
         return self.eventLoop.flatSubmit {
             let future = self.multiplexer.openChannel(id: channelID)
 
-            future.whenFailure { _ in self._channels.withLockedValue { $0.remove(id: channelID) } }
+            future.whenFailure { _ in self.channels.withLockedValue { $0.remove(id: channelID) } }
  
             return future.map { channel in
                 let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
-                self._channels.withLockedValue { $0.add(channel: amqpChannel) }
+                self.channels.withLockedValue { $0.add(channel: amqpChannel) }
                 return amqpChannel
             }
         }
@@ -110,10 +104,17 @@ public final class AMQPConnection {
     ///     - code: Code that can be logged by broker.
     /// - Returns: EventLoopFuture that is resolved when connection is closed.
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
-        guard self.isConnected else { return self.channel.closeFuture }
-
-        self.state = .shuttingDown
-
+        let shouldClose = state.withLockedValue { state in
+            if(state == .open) {
+                state = .shuttingDown
+                return true
+            }
+            
+            return false
+        }
+        
+        guard shouldClose else { return self.channel.closeFuture }
+        
         return self.eventLoop.flatSubmit {
             let result = self.multiplexer.close(reason: reason, code: code)
                 .map { () in
@@ -122,15 +123,15 @@ public final class AMQPConnection {
                 .recover { $0 }
                 .flatMap { result in
                     self.channel.close().map {
-                        self.state = .closed
+                        self.state.withLockedValue { $0 = .closed }
                         return (result, nil) as (Error?, Error?)
                     }
                     .recover { error in
                         if case ChannelError.alreadyClosed = error  {
-                            self.state = .closed
+                            self.state.withLockedValue { $0 = .closed }
                             return (result, nil)
                         }
-
+                        
                         return (result, error)
                     }
                 }

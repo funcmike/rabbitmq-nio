@@ -35,4 +35,14 @@ final class AMQPClientTest: XCTestCase {
 
         try await connection.close()
     }
+    
+    func testCloseMultipleTimes() async throws {
+        let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let connection = try await AMQPConnection.connect(use: eventLoopGroup.next(), from: .init(connection: .plain, server: .init()))
+
+        async let c1: Void = connection.close()
+        async let c2: Void = connection.close()
+        
+        _ = try await (c1, c2)
+    }
 }
