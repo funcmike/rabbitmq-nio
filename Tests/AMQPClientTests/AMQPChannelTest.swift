@@ -318,4 +318,12 @@ final class AMQPChannelTest: XCTestCase {
         try await channel.queueDelete(name: "test_consume")
         try await channel.close()
     }
+    
+    func testOpenChannelsConcurrencly() async throws {
+        async let first = connection.openChannel()
+        async let second = connection.openChannel()
+        
+        try await first.close()
+        try await second.close()
+    }
 }
