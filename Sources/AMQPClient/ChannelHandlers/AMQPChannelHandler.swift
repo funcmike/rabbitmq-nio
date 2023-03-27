@@ -164,10 +164,12 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
         let writePromise = self.eventLoop.makePromise(of: Void.self)
         writePromise.futureResult.whenFailure { promise.fail($0) }
-        writePromise.futureResult.whenSuccess { self.responseQueue.append(promise) }
 
         return self.eventLoop.flatSubmit {
+            self.responseQueue.append(promise)
+
             self.parent.write(frame: frame, promise: writePromise)
+
             return writePromise.futureResult.flatMap {
                     promise.futureResult
                 }
