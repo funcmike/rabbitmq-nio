@@ -191,7 +191,7 @@ public final class AMQPChannel {
     func basicCancelNoWait(consumerTag: String) throws {
         guard try self.channel.existsConsumeListener(named: consumerTag) else { throw AMQPConnectionError.consumerAlreadyCancelled }
 
-        return try self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: false)))))
+        return try self.channel.send(payload: .method(.basic(.cancel(.init(consumerTag: consumerTag, noWait: true)))))
     }
 
     /// Acknowledge a message.
