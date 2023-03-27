@@ -34,7 +34,6 @@ public final class AMQPConnection {
     }
 
     public var eventLoop: EventLoop { return self.channel.eventLoop }
-    public let channelMax: UInt16
 
     private let channel: NIOCore.Channel
     private let multiplexer: AMQPConnectionMultiplexHandler
@@ -46,12 +45,12 @@ public final class AMQPConnection {
         set(newValue) { _lock.withLockVoid { self._state = newValue } }
     }
 
-    private var _channels = AMQPChannels()
+    private var _channels: NIOLockedValueBox<AMQPChannels>
 
     init(channel: NIOCore.Channel, multiplexer: AMQPConnectionMultiplexHandler, channelMax: UInt16) {
         self.channel = channel
         self.multiplexer = multiplexer
-        self.channelMax = channelMax
+        self._channels = .init(AMQPChannels(channelMax: channelMax))
     }
 
     /// Connect to broker.
@@ -86,23 +85,24 @@ public final class AMQPConnection {
     public func openChannel() -> EventLoopFuture<AMQPChannel> {
         guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
 
-        guard let channelID = self._lock.withLock({ () -> UInt16? in
-            self._channels.tryReserveAny(max: self.channelMax > 0 ? self.channelMax : UInt16.max) })  else {
+        let channelID = _channels.withLockedValue { $0.reserveNext() }
+        
+        guard let channelID = channelID else {
             return self.eventLoop.makeFailedFuture(AMQPConnectionError.tooManyOpenedChannels)
         }
 
         return self.eventLoop.flatSubmit {
             let future = self.multiplexer.openChannel(id: channelID)
 
-            future.whenFailure { _ in self._lock.withLock { self._channels.remove(id: channelID) } }
+            future.whenFailure { _ in self._channels.withLockedValue { $0.remove(id: channelID) } }
  
             return future.map { channel in
                 let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
-                self._lock.withLock { self._channels.add(channel: amqpChannel) }
+                self._channels.withLockedValue { $0.add(channel: amqpChannel) }
                 return amqpChannel
             }
         }
-    }    
+    }
 
     /// Close a connection.
     /// - Parameters:

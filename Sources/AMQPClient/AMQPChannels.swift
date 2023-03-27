@@ -13,43 +13,44 @@
 
 
 struct AMQPChannels {
-    private var channels: [UInt16: AMQPChannel?] = [:]
+    private enum ChannelSlot {
+        case reserved
+        case channel(AMQPChannel)
+    }
+    
+    private var channels: [UInt16: ChannelSlot] = [:]
+    
+    let channelMax: UInt16
+    
+    init(channelMax: UInt16) {
+        self.channelMax = channelMax
+    }
 
     func get(id: UInt16) -> AMQPChannel? {
-        guard let channel = self.channels[id] else {
+        guard case let .channel(channel) = self.channels[id] else {
             return nil
         }
         return channel
     }
     
-    mutating func tryReserveAny(max: UInt16) -> UInt16? {
-        guard self.channels.count < max else {
+    mutating func reserveNext() -> UInt16? {
+        guard self.channels.count < channelMax else {
             return nil
         }
             
-        for i in 1...max {
-            if self.reserve(id: i) { 
-                return i
-            }
+        for i in 1...channelMax where channels[i] == nil {
+            channels[i] = .reserved
+            return i
         }
 
         return nil
     }
 
     mutating func add(channel: AMQPChannel) {
-        self.channels[channel.ID] = channel
+        self.channels[channel.ID] = .channel(channel)
     }
 
     mutating func remove(id: UInt16) {
-        let _ = self.channels.removeValue(forKey: id)
-    }
-
-    mutating private func reserve(id: UInt16) -> Bool {
-        guard !(self.channels.contains { $0.key == id}) else {
-            return false
-        }
-
-        self.channels[id] = nil
-        return true
+      self.channels[id] = nil
     }
 }
