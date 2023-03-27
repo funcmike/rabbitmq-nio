@@ -105,7 +105,7 @@ public final class AMQPConnection {
     /// - Returns: EventLoopFuture that is resolved when connection is closed.
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         let shouldClose = state.withLockedValue { state in
-            if(state == .open) {
+            if state == .open {
                 state = .shuttingDown
                 return true
             }

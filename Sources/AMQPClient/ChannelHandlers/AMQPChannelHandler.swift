@@ -23,14 +23,10 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
         case closed
     }
 
-    private var _state = ConnectionState.open
-    private var state: ConnectionState {
-        get { return _lock.withLock { self._state } }
-        set(newValue) { _lock.withLockVoid { self._state = newValue } }
-    }
+    private let state = NIOLockedValueBox(ConnectionState.open)
 
     public var isOpen: Bool {
-        return self.state == .open
+        return self.state.withLockedValue{ $0 == .open }
     }
     
     private let parent: Parent
@@ -399,9 +395,16 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
     }
 
     func close(error: Error? = nil) {
-        guard self.isOpen else { return }
+        let shouldClose = self.state.withLockedValue { state in
+            if state == .open {
+                state = .shuttingDown
+                return true
+            }
 
-        self.state = .shuttingDown
+            return false
+        }
+        
+        guard shouldClose else { return }
 
         let queue = self.responseQueue
         self.responseQueue.removeAll()
@@ -418,7 +421,7 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
         error == nil ? closePromise.succeed(()) : closePromise.fail(error!)
 
-        self.state = .closed
+        self.state.withLockedValue{ $0 = .closed }
     }
 
     deinit {
