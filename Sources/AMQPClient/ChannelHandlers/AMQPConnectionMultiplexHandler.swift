@@ -230,12 +230,16 @@ internal final class AMQPConnectionMultiplexHandler: ChannelInboundHandler {
         default:
             let promise = self.eventLoop.makePromise(of: AMQPResponse.self)
             
-            let writeFuture = self.context.writeAndFlush(wrapOutboundOut(outband))
-        
-            writeFuture.whenFailure { promise.fail($0) }
-            writeFuture.whenSuccess { self.responseQueue.append(promise) }
+            let outbound = wrapOutboundOut(outband)
 
-            return writeFuture.flatMap { promise.futureResult }
+            return self.eventLoop.flatSubmit {
+                self.responseQueue.append(promise)
+
+                let writeResult = self.context.writeAndFlush(outbound)
+                writeResult.whenFailure { promise.fail($0) }
+                
+                return writeResult.flatMap { promise.futureResult }
+            }
         }
     }
 

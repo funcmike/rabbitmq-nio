@@ -157,21 +157,21 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
     func send(payload: Frame.Payload) -> EventLoopFuture<AMQPResponse> {
         guard self.isOpen else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.channelClosed()) }
-
-        let promise = self.eventLoop.makePromise(of: AMQPResponse.self)
         
         let frame = Frame(channelID: self.channelID, payload: payload)
 
+        let responsePromise = self.eventLoop.makePromise(of: AMQPResponse.self)
+
         let writePromise = self.eventLoop.makePromise(of: Void.self)
-        writePromise.futureResult.whenFailure { promise.fail($0) }
+        writePromise.futureResult.whenFailure { responsePromise.fail($0) }
 
         return self.eventLoop.flatSubmit {
-            self.responseQueue.append(promise)
+            self.responseQueue.append(responsePromise)
 
             self.parent.write(frame: frame, promise: writePromise)
 
             return writePromise.futureResult.flatMap {
-                    promise.futureResult
+                    responsePromise.futureResult
                 }
             }
     }
@@ -181,11 +181,11 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
         let frame = Frame(channelID: self.channelID, payload: payload)
 
-        let writePromise = self.eventLoop.makePromise(of: Void.self)
+        let promise = self.eventLoop.makePromise(of: Void.self)
 
         return self.eventLoop.flatSubmit {
-            self.parent.write(frame: frame, promise: writePromise)
-            return writePromise.futureResult
+            self.parent.write(frame: frame, promise: promise)
+            return promise.futureResult
         }
     }
     
@@ -194,11 +194,11 @@ internal final class AMQPChannelHandler<Parent: AMPQChannelHandlerParent> {
 
         let frames = payloads.map { Frame(channelID: self.channelID, payload: $0) }
 
-        let writePromise = self.eventLoop.makePromise(of: Void.self)
+        let promise = self.eventLoop.makePromise(of: Void.self)
 
         return self.eventLoop.flatSubmit {
-            self.parent.write(frames: frames, promise: writePromise)
-            return writePromise.futureResult
+            self.parent.write(frames: frames, promise: promise)
+            return promise.futureResult
          }
     }
 
