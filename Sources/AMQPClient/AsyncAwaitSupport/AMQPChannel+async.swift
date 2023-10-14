@@ -10,9 +10,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-
-#if compiler(>=5.5) && canImport(_Concurrency)
-
 import NIOCore
 import AMQPProtocol
 
@@ -462,5 +459,3 @@ final class AMQPStream<Element> {
         return AMQPSequence(stream, name: self.name)
     }
 }
-
-#endif // compiler(>=5.5)

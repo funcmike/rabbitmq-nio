@@ -11,40 +11,36 @@
 //
 //===----------------------------------------------------------------------===//
 
+import NIOConcurrencyHelpers
 import NIOCore
 import NIOPosix
 import NIOSSL
-import NIOConcurrencyHelpers
 
-public final class AMQPConnection {
+public final class AMQPConnection: Sendable {
     internal enum ConnectionState {
         case open
         case shuttingDown
         case closed
     }
-    
+
     public var isConnected: Bool {
         // `Channel.isActive` is set to false before the `closeFuture` resolves in cases where the channel might be
         // closed, or closing, before our state has been updated
-        return self.channel.isActive && self.state.withLockedValue { $0 == .open }
+        return channel.isActive && state.withLockedValue { $0 == .open }
     }
 
-    public var closeFuture: NIOCore.EventLoopFuture<Void> {
-        return self.channel.closeFuture
-    }
+    public var closeFuture: NIOCore.EventLoopFuture<Void> { connectionHandler.channel.closeFuture }
+    public var eventLoop: EventLoop { return connectionHandler.channel.eventLoop }
 
-    public var eventLoop: EventLoop { return self.channel.eventLoop }
-
-    private let channel: NIOCore.Channel
-    private let multiplexer: AMQPConnectionMultiplexHandler
+    private let connectionHandler: AMQPConnectionHandler
+    private var channel: NIOCore.Channel { connectionHandler.channel }
 
     private let state = NIOLockedValueBox(ConnectionState.open)
     private let channels: NIOLockedValueBox<AMQPChannels>
 
-    init(channel: NIOCore.Channel, multiplexer: AMQPConnectionMultiplexHandler, channelMax: UInt16) {
-        self.channel = channel
-        self.multiplexer = multiplexer
-        self.channels = .init(AMQPChannels(channelMax: channelMax))
+    init(connectionHandler: AMQPConnectionHandler, channelMax: UInt16) {
+        self.connectionHandler = connectionHandler
+        channels = .init(AMQPChannels(channelMax: channelMax))
     }
 
     /// Connect to broker.
@@ -54,20 +50,27 @@ public final class AMQPConnection {
     /// - Returns:  EventLoopFuture with AMQP Connection.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
         let promise = eventLoop.makePromise(of: AMQPResponse.self)
-        let multiplexer = AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server, onReady: promise)
 
         return eventLoop.flatSubmit { () -> EventLoopFuture<AMQPConnection> in
-            let result = self.boostrapChannel(use: eventLoop, from: config, with: multiplexer).flatMap { channel in
+            let multiplexer = NIOLoopBound(
+                AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server, onReady: promise),
+                eventLoop: eventLoop
+            )
+            let result = self.boostrapChannel(use: eventLoop, from: config, with: multiplexer.value).flatMap { channel in
                 promise.futureResult.flatMapThrowing { response in
-                    guard case .connection(let connection) = response, case .connected(let connected) = connection else {
+                    guard case let .connection(connection) = response, case let .connected(connected) = connection else {
                         throw AMQPConnectionError.invalidResponse(response)
                     }
 
-                    return AMQPConnection(channel: channel, multiplexer: multiplexer, channelMax: connected.channelMax)
+                    return AMQPConnection(
+                        connectionHandler: .init(channel: channel, multiplexer: multiplexer.value),
+                        channelMax: connected.channelMax
+                    )
                 }
             }
 
-            result.whenFailure { err in multiplexer.failAllResponses(because: err) }
+            // TODO: fix passing around of multiplexer
+            result.whenFailure { err in multiplexer.value.failAllResponses(because: err) }
             return result
         }
     }
@@ -77,24 +80,22 @@ public final class AMQPConnection {
     /// Channel ID is automatically assigned (next free one).
     /// - Returns: EventLoopFuture with AMQP Channel.
     public func openChannel() -> EventLoopFuture<AMQPChannel> {
-        guard self.isConnected else { return self.eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
+        guard isConnected else { return eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
 
         let channelID = channels.withLockedValue { $0.reserveNext() }
-        
+
         guard let channelID = channelID else {
-            return self.eventLoop.makeFailedFuture(AMQPConnectionError.tooManyOpenedChannels)
+            return eventLoop.makeFailedFuture(AMQPConnectionError.tooManyOpenedChannels)
         }
 
-        return self.eventLoop.flatSubmit {
-            let future = self.multiplexer.openChannel(id: channelID)
+        let future = connectionHandler.openChannel(id: channelID)
 
-            future.whenFailure { _ in self.channels.withLockedValue { $0.remove(id: channelID) } }
- 
-            return future.map { channel in
-                let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
-                self.channels.withLockedValue { $0.add(channel: amqpChannel) }
-                return amqpChannel
-            }
+        future.whenFailure { _ in self.channels.withLockedValue { $0.remove(id: channelID) } }
+
+        return future.map { channel in
+            let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
+            self.channels.withLockedValue { $0.add(channel: amqpChannel) }
+            return amqpChannel
         }
     }
 
@@ -109,37 +110,35 @@ public final class AMQPConnection {
                 state = .shuttingDown
                 return true
             }
-            
+
             return false
         }
-        
-        guard shouldClose else { return self.channel.closeFuture }
-        
-        return self.eventLoop.flatSubmit {
-            let result = self.multiplexer.close(reason: reason, code: code)
-                .map { () in
-                    return nil as Error?
-                }
-                .recover { $0 }
-                .flatMap { result in
-                    self.channel.close().map {
-                        self.state.withLockedValue { $0 = .closed }
-                        return (result, nil) as (Error?, Error?)
-                    }
-                    .recover { error in
-                        if case ChannelError.alreadyClosed = error  {
-                            self.state.withLockedValue { $0 = .closed }
-                            return (result, nil)
-                        }
-                        
-                        return (result, error)
-                    }
-                }
-            return result.flatMapThrowing {
-                let (broker, conn) = $0
-                if (broker ?? conn) != nil { throw AMQPConnectionError.connectionClose(broker: broker, connection: conn) }
-                return ()
+
+        guard shouldClose else { return closeFuture }
+
+        let result = connectionHandler.close(reason: reason, code: code)
+            .map { () in
+                nil as Error?
             }
+            .recover { $0 }
+            .flatMap { result in
+                self.channel.close().map {
+                    self.state.withLockedValue { $0 = .closed }
+                    return (result, nil) as (Error?, Error?)
+                }
+                .recover { error in
+                    if case ChannelError.alreadyClosed = error {
+                        self.state.withLockedValue { $0 = .closed }
+                        return (result, nil)
+                    }
+
+                    return (result, error)
+                }
+            }
+        return result.flatMapThrowing {
+            let (broker, conn) = $0
+            if (broker ?? conn) != nil { throw AMQPConnectionError.connectionClose(broker: broker, connection: conn) }
+            return ()
         }
     }
 
@@ -161,17 +160,16 @@ public final class AMQPConnection {
                     channel.pipeline.addHandlers([
                         MessageToByteHandler(AMQPFrameEncoder()),
                         ByteToMessageHandler(AMQPFrameDecoder()),
-                        handler
+                        handler,
                     ])
                 }
                 .connect(host: config.server.host, port: config.server.port)
-                .map { channelPromise.succeed($0) }
-                .cascadeFailure(to: channelPromise)
+                .cascade(to: channelPromise)
         } catch {
             channelPromise.fail(error)
         }
 
-        return channelPromise.futureResult        
+        return channelPromise.futureResult
     }
 
     private static func boostrapClient(
@@ -182,17 +180,17 @@ public final class AMQPConnection {
             preconditionFailure("Cannot create bootstrap for the supplied EventLoop")
         }
 
-        switch config.connection {            
-        case .plain: 
+        switch config.connection {
+        case .plain:
             return NIOClientTCPBootstrap(clientBootstrap, tls: NIOInsecureNoTLS())
-        case .tls(let tls, let sniServerName):
+        case let .tls(tls, sniServerName):
             let sslContext = try NIOSSLContext(configuration: tls ?? TLSConfiguration.clientDefault)
             let tlsProvider = try NIOSSLClientTLSProvider<ClientBootstrap>(context: sslContext, serverHostname: sniServerName ?? config.server.host)
             let bootstrap = NIOClientTCPBootstrap(clientBootstrap, tls: tlsProvider)
             return bootstrap.enableTLS()
-        }        
+        }
     }
-    
+
     deinit {
         if isConnected {
             assertionFailure("close() was not called before deinit!")

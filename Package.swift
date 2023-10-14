@@ -1,6 +1,4 @@
-// swift-tools-version: 5.7
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
@@ -12,14 +10,19 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.48.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.23.0"),
-        .package(url: "https://github.com/apple/swift-collections.git",  .upToNextMajor(from: "1.0.0"))
+        .package(url: "https://github.com/apple/swift-collections.git", .upToNextMajor(from: "1.0.0")),
     ],
     targets: [
         .target(
             name: "AMQPProtocol",
             dependencies: [
                 .product(name: "NIOCore", package: "swift-nio"),
-            ]),
+            ],
+            swiftSettings: [
+                SwiftSetting.unsafeFlags(["-Xfrontend", "-strict-concurrency=complete"]),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
         .target(
             name: "AMQPClient",
             dependencies: [
@@ -29,9 +32,19 @@ let package = Package(
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
                 .product(name: "Collections", package: "swift-collections"),
-            ]),
+            ],
+            swiftSettings: [
+                SwiftSetting.unsafeFlags(["-Xfrontend", "-strict-concurrency=complete"]),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
         .testTarget(
             name: "AMQPClientTests",
-            dependencies: ["AMQPClient"]),
+            dependencies: ["AMQPClient"],
+            swiftSettings: [
+                SwiftSetting.unsafeFlags(["-Xfrontend", "-strict-concurrency=complete"]),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
     ]
 )
