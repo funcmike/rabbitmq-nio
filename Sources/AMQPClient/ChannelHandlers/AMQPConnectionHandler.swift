@@ -18,17 +18,21 @@ struct AMQPConnectionHandler: Sendable {
         channel.writeAndFlush((outbound, responsePromise), promise: writePromise)
     }
 
-    func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
-        let responsePromise = channel.eventLoop.makePromise(of: AMQPResponse.self)
+    func startConnection() -> EventLoopFuture<AMQPResponse.Connection.Connected> {
+        let promise = channel.eventLoop.makePromise(of: AMQPResponse.self)
 
-        write(.frame(.init(channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))),
-            responsePromise: responsePromise,
-            writePromise: nil)
+        write(
+            .bytes(PROTOCOL_START_0_9_1),
+            responsePromise: promise,
+            writePromise: nil
+        )
 
-        return responsePromise.futureResult.flatMapThrowing { response in
-            guard case let .connection(connection) = response, case .closed = connection else {
+        return promise.futureResult.flatMapThrowing { response in
+            guard case let .connection(connection) = response, case let .connected(connected) = connection else {
+                multiplexer.value.failAllPendingRequestsAndChannels(because: AMQPConnectionError.invalidResponse(response))
                 throw AMQPConnectionError.invalidResponse(response)
             }
+            return connected
         }
     }
 
@@ -48,6 +52,20 @@ struct AMQPConnectionHandler: Sendable {
             self.multiplexer.value.addChannelHandler(channelHandler, forId: id)
 
             return channelHandler
+        }
+    }
+
+    func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
+        let responsePromise = channel.eventLoop.makePromise(of: AMQPResponse.self)
+
+        write(.frame(.init(channelID: 0, payload: .method(.connection(.close(.init(replyCode: code, replyText: reason, failingClassID: 0, failingMethodID: 0)))))),
+              responsePromise: responsePromise,
+              writePromise: nil)
+
+        return responsePromise.futureResult.flatMapThrowing { response in
+            guard case let .connection(connection) = response, case .closed = connection else {
+                throw AMQPConnectionError.invalidResponse(response)
+            }
         }
     }
 }

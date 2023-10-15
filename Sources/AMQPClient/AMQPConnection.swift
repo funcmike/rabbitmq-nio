@@ -49,29 +49,15 @@ public final class AMQPConnection: Sendable {
     ///     - config: Configuration data.
     /// - Returns:  EventLoopFuture with AMQP Connection.
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
-        let promise = eventLoop.makePromise(of: AMQPResponse.self)
-
-        return eventLoop.flatSubmit { () -> EventLoopFuture<AMQPConnection> in
-            let multiplexer = NIOLoopBound(
-                AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server, onReady: promise),
-                eventLoop: eventLoop
-            )
-            let result = self.boostrapChannel(use: eventLoop, from: config, with: multiplexer.value).flatMap { channel in
-                promise.futureResult.flatMapThrowing { response in
-                    guard case let .connection(connection) = response, case let .connected(connected) = connection else {
-                        throw AMQPConnectionError.invalidResponse(response)
-                    }
-
-                    return AMQPConnection(
-                        connectionHandler: .init(channel: channel, multiplexer: multiplexer.value),
-                        channelMax: connected.channelMax
+        eventLoop.flatSubmit {
+            self.boostrapChannel(use: eventLoop, from: config).flatMap { connectionHandler in
+                connectionHandler.startConnection().map {
+                    AMQPConnection(
+                        connectionHandler: connectionHandler,
+                        channelMax: $0.channelMax
                     )
                 }
             }
-
-            // TODO: fix passing around of multiplexer
-            result.whenFailure { err in multiplexer.value.failAllPendingRequestsAndChannels(because: err) }
-            return result
         }
     }
 
@@ -144,15 +130,15 @@ public final class AMQPConnection: Sendable {
 
     private static func boostrapChannel(
         use eventLoop: EventLoop,
-        from config: AMQPConnectionConfiguration,
-        with handler: AMQPConnectionMultiplexHandler
-    ) -> EventLoopFuture<NIOCore.Channel> {
-        let channelPromise = eventLoop.makePromise(of: NIOCore.Channel.self)
-
+        from config: AMQPConnectionConfiguration
+    ) -> EventLoopFuture<AMQPConnectionHandler> {
         do {
             let bootstrap = try boostrapClient(use: eventLoop, from: config)
+            let multiplexer = NIOLoopBound(
+                AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server),
+                eventLoop: eventLoop)
 
-            bootstrap
+            return bootstrap
                 .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
                 .channelOption(ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
                 .connectTimeout(config.server.timeout)
@@ -160,16 +146,14 @@ public final class AMQPConnection: Sendable {
                     channel.pipeline.addHandlers([
                         MessageToByteHandler(AMQPFrameEncoder()),
                         ByteToMessageHandler(AMQPFrameDecoder()),
-                        handler,
+                        multiplexer.value,
                     ])
                 }
                 .connect(host: config.server.host, port: config.server.port)
-                .cascade(to: channelPromise)
+                .map { AMQPConnectionHandler(channel: $0, multiplexer: multiplexer.value) }
         } catch {
-            channelPromise.fail(error)
+            return eventLoop.makeFailedFuture(error)
         }
-
-        return channelPromise.futureResult
     }
 
     private static func boostrapClient(

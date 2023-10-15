@@ -24,7 +24,7 @@ public enum AMQPOutbound {
         switch self {
         case let .frame(frame): return frame.channelID
         case let .bulk(frames): return frames.first?.channelID
-        case .bytes: return nil
+        case .bytes: return .init(0)
         }
     }
 }
@@ -56,10 +56,9 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 
     private let config: AMQPConnectionConfiguration.Server
 
-    init(eventLoop: EventLoop, config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>) {
+    init(eventLoop: EventLoop, config: AMQPConnectionConfiguration.Server) {
         self.config = config
         self.eventLoop = eventLoop
-        channels[.init(0)] = .init(initialResponsePromise: onReady)
     }
 
     func addChannelHandler(_ handler: AMQPChannelHandler, forId id: Frame.ChannelID) {
@@ -68,11 +67,6 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
         guard let channel = channels[id] else { preconditionFailure() }
         precondition(channel.eventHandler == nil)
         channel.eventHandler = handler
-    }
-
-    func channelActive(context: ChannelHandlerContext) {
-        context.fireChannelActive()
-        return start(use: context)
     }
 
     public func channelInactive(context _: ChannelHandlerContext) {
@@ -345,10 +339,6 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         failAllPendingRequestsAndChannels(because: error)
         return context.close(promise: nil)
-    }
-
-    private func start(use context: ChannelHandlerContext) {
-        return context.writeAndFlush(wrapOutboundOut(.bytes(PROTOCOL_START_0_9_1)), promise: nil)
     }
 
     func failAllPendingRequestsAndChannels(because error: Error) {
