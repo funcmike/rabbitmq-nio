@@ -19,36 +19,55 @@ public enum AMQPOutbound {
     case frame(Frame)
     case bulk([Frame])
     case bytes([UInt8])
+
+    var channelId: Frame.ChannelID? {
+        switch self {
+        case let .frame(frame): return frame.channelID
+        case let .bulk(frames): return frames.first?.channelID
+        case .bytes: return nil
+        }
+    }
 }
 
 internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
-    private enum State {
-        case unblocked, blocked(Error), error(Error)
-    }
-
     typealias InboundIn = Frame
     typealias OutboundIn = (AMQPOutbound, EventLoopPromise<AMQPResponse>?)
     typealias OutboundOut = AMQPOutbound
 
+    private enum State {
+        case unblocked, blocked(Error), error(Error)
+    }
+
+    fileprivate final class ChannelState {
+        var responseQueue: Deque<EventLoopPromise<AMQPResponse>>
+        weak var eventHandler: AMQPChannelHandler?
+        var nextMessage: (frame: Frame.Method.Basic, properties: Properties?)?
+
+        init(initialResponsePromise: EventLoopPromise<AMQPResponse>) {
+            responseQueue = .init([initialResponsePromise])
+        }
+    }
+
     private let eventLoop: EventLoop
     private var context: ChannelHandlerContext!
-    private var channels: [Frame.ChannelID: AMQPChannelHandler] = [:]
+    private var channels: [Frame.ChannelID: ChannelState] = [:]
     private var channelMax: UInt16 = 0
     private var state: State = .unblocked
-    //private var responseQueue = [Frame.ChannelID: Deque<EventLoopPromise<AMQPResponse>>]()
-    private var responseQueue = Deque<EventLoopPromise<AMQPResponse>>()
 
     private let config: AMQPConnectionConfiguration.Server
 
     init(eventLoop: EventLoop, config: AMQPConnectionConfiguration.Server, onReady: EventLoopPromise<AMQPResponse>) {
         self.config = config
-        responseQueue.append(onReady)
         self.eventLoop = eventLoop
+        channels[.init(0)] = .init(initialResponsePromise: onReady)
     }
 
     func addChannelHandler(_ handler: AMQPChannelHandler, forId id: Frame.ChannelID) {
-        precondition(channels[id] == nil)
-        channels[id] = handler
+        eventLoop.assertInEventLoop()
+
+        guard let channel = channels[id] else { preconditionFailure() }
+        precondition(channel.eventHandler == nil)
+        channel.eventHandler = handler
     }
 
     func channelActive(context: ChannelHandlerContext) {
@@ -59,9 +78,9 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
     public func channelInactive(context _: ChannelHandlerContext) {
         switch state {
         case let .error(error):
-            return failAllResponses(because: error)
+            return failAllPendingRequestsAndChannels(because: error)
         default:
-            return failAllResponses(because: AMQPConnectionError.connectionClosed())
+            return failAllPendingRequestsAndChannels(because: AMQPConnectionError.connectionClosed())
         }
     }
 
@@ -81,6 +100,11 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = unwrapInboundIn(data)
+        guard let channel = channels[frame.channelID] else {
+            // TODO: close channel with error
+            assertionFailure("unexpected frame received")
+            return
+        }
 
         switch frame.payload {
         case let .method(method):
@@ -119,77 +143,176 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 
                     context.writeAndFlush(wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
-                    if let promise = responseQueue.popFirst() {
-                        promise.succeed(.connection(.connected(.init(channelMax: channelMax))))
-                    }
+                    channel.deliverResponse(.connection(.connected(.init(channelMax: channelMax))))
                 case let .close(close):
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.connection(.closeOk)))
                     context.writeAndFlush(wrapOutboundOut(.frame(closeOk)), promise: nil)
 
                     state = .error(AMQPConnectionError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
-                    if let promise = responseQueue.popFirst() {
-                        promise.succeed(.connection(.closed))
-                    }
+                    channel.deliverResponse(.connection(.closed))
                 case .blocked:
                     state = .blocked(AMQPConnectionError.connectionBlocked)
                 case .unblocked:
                     state = .unblocked
                 default:
+                    // TODO: take down channel
                     preconditionUnexpectedFrame(frame)
                 }
-            case let .channel(channel):
-                switch channel {
+            case let .channel(channelMessage):
+                switch channelMessage {
                 case .openOk:
-                    if let promise = responseQueue.popFirst() {
-                        promise.succeed(.channel(.opened(frame.channelID)))
-                    }
+                    channel.deliverResponse(.channel(.opened(frame.channelID)))
                 case let .close(close):
-                    if let channel = channels.removeValue(forKey: frame.channelID) {
-                        channel.close(error: AMQPConnectionError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
-                    }
+                    channels.removeValue(forKey: frame.channelID)
+                    channel.reportAsClosed(error: AMQPConnectionError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
 
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.channel(.closeOk)))
                     context.writeAndFlush(wrapOutboundOut(.frame(closeOk)), promise: nil)
                 case .closeOk:
-                    if let channel = channels.removeValue(forKey: frame.channelID) {
-                        channel.receive(payload: frame.payload)
-                        channel.close()
-                    }
+                    channel.deliverResponse(.channel(.closed(frame.channelID)))
+                    channels.removeValue(forKey: frame.channelID)
+                    channel.reportAsClosed()
                 case let .flow(active):
-                    if let channel = channels.removeValue(forKey: frame.channelID) {
-                        channel.receive(payload: frame.payload)
-                    }
+                    channel.eventHandler?.receiveFlow(active)
 
                     let flowOk = Frame(channelID: frame.channelID, payload: .method(.channel(.flowOk(active: active))))
                     context.writeAndFlush(wrapOutboundOut(.frame(flowOk)), promise: nil)
+                case let .flowOk(active):
+                    channel.deliverResponse(.channel(.flowed(.init(active: active))))
                 default:
-                    if let channel = channels[frame.channelID] {
-                        channel.receive(payload: frame.payload)
-                    }
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
+                }
+            case let .queue(queue):
+                switch queue {
+                case let .declareOk(declareOk):
+                    channel.deliverResponse(.channel(.queue(.declared(
+                        .init(queueName: declareOk.queueName,
+                              messageCount: declareOk.messageCount,
+                              consumerCount: declareOk.consumerCount)))))
+
+                case .bindOk:
+                    channel.deliverResponse(.channel(.queue(.binded)))
+                case let .purgeOk(messageCount):
+                    channel.deliverResponse(.channel(.queue(.purged(.init(messageCount: messageCount)))))
+                case let .deleteOk(messageCount):
+                    channel.deliverResponse(.channel(.queue(.deleted(.init(messageCount: messageCount)))))
+                case .unbindOk:
+                    channel.deliverResponse(.channel(.queue(.unbinded)))
+                default:
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
                 }
             case let .basic(basic):
                 switch basic {
+                case .getEmpty:
+                    channel.deliverResponse(.channel(.message(.get())))
+                case .deliver, .getOk, .return:
+                    // TODO: wrap this away more nicely, assert message must be nil
+                    channel.nextMessage = (frame: basic, nil)
+                case .recoverOk:
+                    channel.deliverResponse(.channel(.basic(.recovered)))
+                case let .consumeOk(consumerTag):
+                    channel.deliverResponse(.channel(.basic(.consumeOk(.init(consumerTag: consumerTag)))))
+                case let .cancelOk(consumerTag):
+                    channel.deliverResponse(.channel(.basic(.canceled)))
+                    channel.eventHandler?.handleCancellation(consumerTag: consumerTag)
+                case .qosOk:
+                    channel.deliverResponse(.channel(.basic(.qosOk)))
                 case let .cancel(cancel):
-                    if let channel = channels[frame.channelID] {
-                        channel.receive(payload: frame.payload)
-                    }
+                    channel.eventHandler?.handleCancellation(consumerTag: cancel.consumerTag)
 
                     let cancelOk = Frame(channelID: frame.channelID, payload: .method(.basic(.cancelOk(consumerTag: cancel.consumerTag))))
                     context.writeAndFlush(wrapOutboundOut(.frame(cancelOk)), promise: nil)
+                case let .ack(deliveryTag, multiple):
+                    channel.eventHandler?.receivePublishConfirm(.ack(deliveryTag: deliveryTag, multiple: multiple))
+                case let .nack(nack):
+                    channel.eventHandler?.receivePublishConfirm(.nack(deliveryTag: nack.deliveryTag, multiple: nack.multiple))
                 default:
-                    if let channel = channels[frame.channelID] {
-                        channel.receive(payload: frame.payload)
-                    }
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
                 }
-            default:
-                if let channel = channels[frame.channelID] {
-                    channel.receive(payload: frame.payload)
+            case let .exchange(exchange):
+                switch exchange {
+                case .declareOk:
+                    channel.deliverResponse(.channel(.exchange(.declared)))
+                case .deleteOk:
+                    channel.deliverResponse(.channel(.exchange(.deleted)))
+                case .bindOk:
+                    channel.deliverResponse(.channel(.exchange(.binded)))
+                case .unbindOk:
+                    channel.deliverResponse(.channel(.exchange(.unbinded)))
+                default:
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
+                }
+            case let .confirm(confirm):
+                switch confirm {
+                case .selectOk:
+                    channel.deliverResponse(.channel(.confirm(.selected)))
+                default:
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
+                }
+            case let .tx(tx):
+                switch tx {
+                case .selectOk:
+                    channel.deliverResponse(.channel(.tx(.selected)))
+                case .commitOk:
+                    channel.deliverResponse(.channel(.tx(.committed)))
+                case .rollbackOk:
+                    channel.deliverResponse(.channel(.tx(.rollbacked)))
+                default:
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
                 }
             }
-        case .header, .body:
-            if let channel = channels[frame.channelID] {
-                channel.receive(payload: frame.payload)
+        case let .header(header):
+            channel.nextMessage?.properties = header.properties
+        case let .body(body):
+            guard let msg = channel.nextMessage, let properties = msg.properties else {
+                // TODO: take down channel
+                return
+            }
+
+            switch msg.frame {
+            case let .getOk(getOk):
+                channel.deliverResponse(.channel(.message(.get(.init(
+                    message: .init(
+                        exchange: getOk.exchange,
+                        routingKey: getOk.routingKey,
+                        deliveryTag: getOk.deliveryTag,
+                        properties: properties,
+                        redelivered: getOk.redelivered,
+                        body: body
+                    ),
+                    messageCount: getOk.messageCount
+                )))))
+            case let .deliver(deliver):
+                channel.eventHandler?.receiveDelivery(
+                    .init(
+                        exchange: deliver.exchange,
+                        routingKey: deliver.routingKey,
+                        deliveryTag: deliver.deliveryTag,
+                        properties: properties,
+                        redelivered: deliver.redelivered,
+                        body: body
+                    ),
+                    for: deliver.consumerTag
+                )
+            case let .return(`return`):
+                channel.eventHandler?.receiveReturn(.init(
+                    replyCode: `return`.replyCode,
+                    replyText: `return`.replyText,
+                    exchange: `return`.exchange,
+                    routingKey: `return`.routingKey,
+                    properties: properties,
+                    body: body
+                ))
+            default:
+                // TODO: take down channel
+                preconditionUnexpectedFrame(frame)
             }
         case .heartbeat:
             let heartbeat = Frame(channelID: frame.channelID, payload: .heartbeat)
@@ -204,14 +327,23 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             promise?.fail(e)
             responsePromise?.fail(e)
             return
-        default:
-            if let responsePromise { responseQueue.append(responsePromise) }
+        case .unblocked:
+            if let responsePromise {
+                guard let channelId = outbound.channelId else { preconditionFailure("Response expected without channel id") }
+
+                if let channel = channels[channelId] {
+                    channel.responseQueue.append(responsePromise)
+                } else {
+                    channels[channelId] = .init(initialResponsePromise: responsePromise)
+                }
+            }
+
             context.write(wrapOutboundOut(outbound), promise: promise)
         }
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        failAllResponses(because: error)
+        failAllPendingRequestsAndChannels(because: error)
         return context.close(promise: nil)
     }
 
@@ -219,23 +351,36 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
         return context.writeAndFlush(wrapOutboundOut(.bytes(PROTOCOL_START_0_9_1)), promise: nil)
     }
 
-    func failAllResponses(because error: Error) {
+    func failAllPendingRequestsAndChannels(because error: Error) {
         state = .error(error)
-
-        let queue = responseQueue
-        responseQueue.removeAll()
-
-        queue.forEach { $0.fail(error) }
 
         let channels = self.channels
         self.channels.removeAll()
 
-        channels.forEach { $1.close(error: error) }
+        channels.values.forEach { $0.reportAsClosed(error: error) }
     }
 
     deinit {
-        if !self.responseQueue.isEmpty {
-            assertionFailure("Queue is not empty! Queue size: \(self.responseQueue.count)")
+        // TODO: this is not exactly thread-safe
+        let allPending = self.channels.values.flatMap(\.responseQueue)
+        if !allPending.isEmpty {
+            assertionFailure("Queue is not empty! Queue size: \(allPending.count)")
         }
+    }
+}
+
+extension AMQPConnectionMultiplexHandler.ChannelState {
+    func deliverResponse(_ response: AMQPResponse) {
+        guard let promise = responseQueue.popFirst() else {
+            // TODO: treat as error, take channel down
+            return
+        }
+
+        promise.succeed(response)
+    }
+
+    func reportAsClosed(error: Error? = nil) {
+        responseQueue.forEach { $0.fail(error ?? AMQPConnectionError.channelClosed()) }
+        eventHandler?.reportAsClosed(error: error)
     }
 }

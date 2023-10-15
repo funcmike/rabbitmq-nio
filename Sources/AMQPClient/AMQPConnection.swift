@@ -70,7 +70,7 @@ public final class AMQPConnection: Sendable {
             }
 
             // TODO: fix passing around of multiplexer
-            result.whenFailure { err in multiplexer.value.failAllResponses(because: err) }
+            result.whenFailure { err in multiplexer.value.failAllPendingRequestsAndChannels(because: err) }
             return result
         }
     }
