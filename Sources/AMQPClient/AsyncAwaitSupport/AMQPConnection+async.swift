@@ -10,9 +10,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-
-#if compiler(>=5.5) && canImport(_Concurrency)
-
 import NIOCore
 import AMQPProtocol
 
@@ -44,6 +41,3 @@ public extension AMQPConnection {
         return try await self.close(reason: reason, code: code).get()
     }
 }
-
-
-#endif // compiler(>=5.5)

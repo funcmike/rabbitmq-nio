@@ -39,28 +39,23 @@ internal final class AMQPChannelHandler: Sendable {
         var closeListeners = [String: Listener<Close>]()
     }
 
-    private let state = NIOLockedValueBox(ConnectionState.open)
-    private let listeners = NIOLockedValueBox(Listeners())
-
     private let parent: AMQPConnectionHandler
     private let channelID: Frame.ChannelID
-    private let eventLoop: EventLoop
 
+    private let state = NIOLockedValueBox(ConnectionState.open)
+    private let listeners = NIOLockedValueBox(Listeners())
     private let closePromise: NIOCore.EventLoopPromise<Void>
 
-    var closeFuture: NIOCore.EventLoopFuture<Void> {
-        return closePromise.futureResult
-    }
+    private var eventLoop: EventLoop { parent.channel.eventLoop }
 
-    public var isOpen: Bool {
-        return state.withLockedValue { $0 == .open }
-    }
+    var closeFuture: NIOCore.EventLoopFuture<Void> { closePromise.futureResult }
+    var isOpen: Bool { state.withLockedValue { $0 == .open }}
 
-    init(parent: AMQPConnectionHandler, channelID: Frame.ChannelID, eventLoop: EventLoop) {
+    init(parent: AMQPConnectionHandler, channelID: Frame.ChannelID) {
         self.parent = parent
         self.channelID = channelID
-        self.eventLoop = eventLoop
-        closePromise = eventLoop.makePromise()
+
+        closePromise = parent.channel.eventLoop.makePromise()
     }
 
     func addListener<Value>(type: Value.Type, named name: String, listener: @escaping Listener<Value>) throws {

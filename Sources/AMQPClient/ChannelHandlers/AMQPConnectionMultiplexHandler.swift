@@ -39,12 +39,13 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
     }
 
     fileprivate final class ChannelState {
-        var responseQueue: Deque<EventLoopPromise<AMQPResponse>>
+        // NOTE: this can be extended to keep some state of the open request so a response can be verified against its request
+        var pendingRequests: Deque<EventLoopPromise<AMQPResponse>>
         weak var eventHandler: AMQPChannelHandler?
         var nextMessage: (frame: Frame.Method.Basic, properties: Properties?)?
 
         init(initialResponsePromise: EventLoopPromise<AMQPResponse>) {
-            responseQueue = .init([initialResponsePromise])
+            pendingRequests = .init([initialResponsePromise])
         }
     }
 
@@ -137,14 +138,14 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 
                     context.writeAndFlush(wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
-                    channel.deliverResponse(.connection(.connected(.init(channelMax: channelMax))))
+                    channel.fulfilNextPendingRequest(with: .connection(.connected(.init(channelMax: channelMax))))
                 case let .close(close):
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.connection(.closeOk)))
                     context.writeAndFlush(wrapOutboundOut(.frame(closeOk)), promise: nil)
 
                     state = .error(AMQPConnectionError.connectionClosed(replyCode: close.replyCode, replyText: close.replyText))
                 case .closeOk:
-                    channel.deliverResponse(.connection(.closed))
+                    channel.fulfilNextPendingRequest(with: .connection(.closed))
                 case .blocked:
                     state = .blocked(AMQPConnectionError.connectionBlocked)
                 case .unblocked:
@@ -156,7 +157,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             case let .channel(channelMessage):
                 switch channelMessage {
                 case .openOk:
-                    channel.deliverResponse(.channel(.opened(frame.channelID)))
+                    channel.fulfilNextPendingRequest(with: .channel(.opened(frame.channelID)))
                 case let .close(close):
                     channels.removeValue(forKey: frame.channelID)
                     channel.reportAsClosed(error: AMQPConnectionError.channelClosed(replyCode: close.replyCode, replyText: close.replyText))
@@ -164,7 +165,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.channel(.closeOk)))
                     context.writeAndFlush(wrapOutboundOut(.frame(closeOk)), promise: nil)
                 case .closeOk:
-                    channel.deliverResponse(.channel(.closed(frame.channelID)))
+                    channel.fulfilNextPendingRequest(with: .channel(.closed(frame.channelID)))
                     channels.removeValue(forKey: frame.channelID)
                     channel.reportAsClosed()
                 case let .flow(active):
@@ -173,7 +174,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                     let flowOk = Frame(channelID: frame.channelID, payload: .method(.channel(.flowOk(active: active))))
                     context.writeAndFlush(wrapOutboundOut(.frame(flowOk)), promise: nil)
                 case let .flowOk(active):
-                    channel.deliverResponse(.channel(.flowed(.init(active: active))))
+                    channel.fulfilNextPendingRequest(with: .channel(.flowed(.init(active: active))))
                 default:
                     // TODO: take down channel
                     preconditionUnexpectedFrame(frame)
@@ -181,19 +182,19 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             case let .queue(queue):
                 switch queue {
                 case let .declareOk(declareOk):
-                    channel.deliverResponse(.channel(.queue(.declared(
+                    channel.fulfilNextPendingRequest(with: .channel(.queue(.declared(
                         .init(queueName: declareOk.queueName,
                               messageCount: declareOk.messageCount,
                               consumerCount: declareOk.consumerCount)))))
 
                 case .bindOk:
-                    channel.deliverResponse(.channel(.queue(.binded)))
+                    channel.fulfilNextPendingRequest(with: .channel(.queue(.binded)))
                 case let .purgeOk(messageCount):
-                    channel.deliverResponse(.channel(.queue(.purged(.init(messageCount: messageCount)))))
+                    channel.fulfilNextPendingRequest(with: .channel(.queue(.purged(.init(messageCount: messageCount)))))
                 case let .deleteOk(messageCount):
-                    channel.deliverResponse(.channel(.queue(.deleted(.init(messageCount: messageCount)))))
+                    channel.fulfilNextPendingRequest(with: .channel(.queue(.deleted(.init(messageCount: messageCount)))))
                 case .unbindOk:
-                    channel.deliverResponse(.channel(.queue(.unbinded)))
+                    channel.fulfilNextPendingRequest(with: .channel(.queue(.unbinded)))
                 default:
                     // TODO: take down channel
                     preconditionUnexpectedFrame(frame)
@@ -201,19 +202,19 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             case let .basic(basic):
                 switch basic {
                 case .getEmpty:
-                    channel.deliverResponse(.channel(.message(.get())))
+                    channel.fulfilNextPendingRequest(with: .channel(.message(.get())))
                 case .deliver, .getOk, .return:
                     // TODO: wrap this away more nicely, assert message must be nil
                     channel.nextMessage = (frame: basic, nil)
                 case .recoverOk:
-                    channel.deliverResponse(.channel(.basic(.recovered)))
+                    channel.fulfilNextPendingRequest(with: .channel(.basic(.recovered)))
                 case let .consumeOk(consumerTag):
-                    channel.deliverResponse(.channel(.basic(.consumeOk(.init(consumerTag: consumerTag)))))
+                    channel.fulfilNextPendingRequest(with: .channel(.basic(.consumeOk(.init(consumerTag: consumerTag)))))
                 case let .cancelOk(consumerTag):
-                    channel.deliverResponse(.channel(.basic(.canceled)))
+                    channel.fulfilNextPendingRequest(with: .channel(.basic(.canceled)))
                     channel.eventHandler?.handleCancellation(consumerTag: consumerTag)
                 case .qosOk:
-                    channel.deliverResponse(.channel(.basic(.qosOk)))
+                    channel.fulfilNextPendingRequest(with: .channel(.basic(.qosOk)))
                 case let .cancel(cancel):
                     channel.eventHandler?.handleCancellation(consumerTag: cancel.consumerTag)
 
@@ -230,13 +231,13 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             case let .exchange(exchange):
                 switch exchange {
                 case .declareOk:
-                    channel.deliverResponse(.channel(.exchange(.declared)))
+                    channel.fulfilNextPendingRequest(with: .channel(.exchange(.declared)))
                 case .deleteOk:
-                    channel.deliverResponse(.channel(.exchange(.deleted)))
+                    channel.fulfilNextPendingRequest(with: .channel(.exchange(.deleted)))
                 case .bindOk:
-                    channel.deliverResponse(.channel(.exchange(.binded)))
+                    channel.fulfilNextPendingRequest(with: .channel(.exchange(.binded)))
                 case .unbindOk:
-                    channel.deliverResponse(.channel(.exchange(.unbinded)))
+                    channel.fulfilNextPendingRequest(with: .channel(.exchange(.unbinded)))
                 default:
                     // TODO: take down channel
                     preconditionUnexpectedFrame(frame)
@@ -244,7 +245,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             case let .confirm(confirm):
                 switch confirm {
                 case .selectOk:
-                    channel.deliverResponse(.channel(.confirm(.selected)))
+                    channel.fulfilNextPendingRequest(with: .channel(.confirm(.selected)))
                 default:
                     // TODO: take down channel
                     preconditionUnexpectedFrame(frame)
@@ -252,11 +253,11 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             case let .tx(tx):
                 switch tx {
                 case .selectOk:
-                    channel.deliverResponse(.channel(.tx(.selected)))
+                    channel.fulfilNextPendingRequest(with: .channel(.tx(.selected)))
                 case .commitOk:
-                    channel.deliverResponse(.channel(.tx(.committed)))
+                    channel.fulfilNextPendingRequest(with: .channel(.tx(.committed)))
                 case .rollbackOk:
-                    channel.deliverResponse(.channel(.tx(.rollbacked)))
+                    channel.fulfilNextPendingRequest(with: .channel(.tx(.rollbacked)))
                 default:
                     // TODO: take down channel
                     preconditionUnexpectedFrame(frame)
@@ -272,7 +273,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 
             switch msg.frame {
             case let .getOk(getOk):
-                channel.deliverResponse(.channel(.message(.get(.init(
+                channel.fulfilNextPendingRequest(with: .channel(.message(.get(.init(
                     message: .init(
                         exchange: getOk.exchange,
                         routingKey: getOk.routingKey,
@@ -323,10 +324,10 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             return
         case .unblocked:
             if let responsePromise {
-                guard let channelId = outbound.channelId else { preconditionFailure("Response expected without channel id") }
+                guard let channelId = outbound.channelId else { preconditionFailure("Frames without a channelId cannot wait for a response.") }
 
                 if let channel = channels[channelId] {
-                    channel.responseQueue.append(responsePromise)
+                    channel.pendingRequests.append(responsePromise)
                 } else {
                     channels[channelId] = .init(initialResponsePromise: responsePromise)
                 }
@@ -351,8 +352,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
     }
 
     deinit {
-        // TODO: this is not exactly thread-safe
-        let allPending = self.channels.values.flatMap(\.responseQueue)
+        let allPending = self.channels.values.flatMap(\.pendingRequests)
         if !allPending.isEmpty {
             assertionFailure("Queue is not empty! Queue size: \(allPending.count)")
         }
@@ -360,8 +360,9 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 }
 
 extension AMQPConnectionMultiplexHandler.ChannelState {
-    func deliverResponse(_ response: AMQPResponse) {
-        guard let promise = responseQueue.popFirst() else {
+    /// Succeeds the promise of the next pending request in the queue with a response.
+    func fulfilNextPendingRequest(with response: AMQPResponse) {
+        guard let promise = pendingRequests.popFirst() else {
             // TODO: treat as error, take channel down
             return
         }
@@ -369,8 +370,9 @@ extension AMQPConnectionMultiplexHandler.ChannelState {
         promise.succeed(response)
     }
 
+    /// Fails all pending requests and forwards closed state to all attached event handlers.
     func reportAsClosed(error: Error? = nil) {
-        responseQueue.forEach { $0.fail(error ?? AMQPConnectionError.channelClosed()) }
+        pendingRequests.forEach { $0.fail(error ?? AMQPConnectionError.channelClosed()) }
         eventHandler?.reportAsClosed(error: error)
     }
 }

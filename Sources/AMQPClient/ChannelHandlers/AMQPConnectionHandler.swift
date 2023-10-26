@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the RabbitMQNIO project
+//
+// Copyright (c) 2023 RabbitMQNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE.txt for license information
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 import AMQPProtocol
 import NIOCore
 
@@ -28,7 +41,7 @@ struct AMQPConnectionHandler: Sendable {
         )
 
         return promise.futureResult.flatMapThrowing { response in
-            guard case let .connection(connection) = response, case let .connected(connected) = connection else {
+            guard case let .connection(.connected(connected)) = response else {
                 multiplexer.value.failAllPendingRequestsAndChannels(because: AMQPConnectionError.invalidResponse(response))
                 throw AMQPConnectionError.invalidResponse(response)
             }
@@ -44,12 +57,12 @@ struct AMQPConnectionHandler: Sendable {
               writePromise: nil)
 
         return promise.futureResult.flatMapThrowing { response in
-            guard case let .channel(channel) = response, case let .opened(channelID) = channel, channelID == id else {
+            guard case let .channel(.opened(channelId)) = response, channelId == id else {
                 throw AMQPConnectionError.invalidResponse(response)
             }
 
-            let channelHandler = AMQPChannelHandler(parent: self, channelID: channelID, eventLoop: self.channel.eventLoop)
-            self.multiplexer.value.addChannelHandler(channelHandler, forId: id)
+            let channelHandler = AMQPChannelHandler(parent: self, channelID: channelId)
+            multiplexer.value.addChannelHandler(channelHandler, forId: id)
 
             return channelHandler
         }
@@ -63,7 +76,7 @@ struct AMQPConnectionHandler: Sendable {
               writePromise: nil)
 
         return responsePromise.futureResult.flatMapThrowing { response in
-            guard case let .connection(connection) = response, case .closed = connection else {
+            guard case .connection(.closed) = response else {
                 throw AMQPConnectionError.invalidResponse(response)
             }
         }

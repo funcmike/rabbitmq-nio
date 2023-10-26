@@ -319,7 +319,7 @@ final class AMQPChannelTest: XCTestCase {
         try await channel.close()
     }
     
-    func testOpenChannelsConcurrencly() async throws {
+    func testOpenChannelsConcurrently() async throws {
         let connection = self.connection!
         async let first = connection.openChannel()
         async let second = connection.openChannel()

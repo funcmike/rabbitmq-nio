@@ -19,7 +19,6 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
             ],
             swiftSettings: [
-                SwiftSetting.unsafeFlags(["-Xfrontend", "-strict-concurrency=complete"]),
                 .enableUpcomingFeature("StrictConcurrency"),
             ]
         ),
@@ -34,7 +33,6 @@ let package = Package(
                 .product(name: "Collections", package: "swift-collections"),
             ],
             swiftSettings: [
-                SwiftSetting.unsafeFlags(["-Xfrontend", "-strict-concurrency=complete"]),
                 .enableUpcomingFeature("StrictConcurrency"),
             ]
         ),
@@ -42,7 +40,6 @@ let package = Package(
             name: "AMQPClientTests",
             dependencies: ["AMQPClient"],
             swiftSettings: [
-                SwiftSetting.unsafeFlags(["-Xfrontend", "-strict-concurrency=complete"]),
                 .enableUpcomingFeature("StrictConcurrency"),
             ]
         ),
