@@ -10,9 +10,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 //===----------------------------------------------------------------------===//
-
-#if compiler(>=5.5) && canImport(_Concurrency)
-
 import NIOCore
 import AMQPProtocol
 
@@ -387,10 +384,10 @@ public struct AMQPSequence<Element>: AsyncSequence {
     }
 }
 
-final class AMQPStream<Element> {
-    typealias CancelledCallback = (AMQPStream) throws -> Void
-    typealias ThrowSkipCallback = (Error) -> Bool
-    
+final class AMQPStream<Element>: Sendable {
+    typealias CancelledCallback = @Sendable (AMQPStream) throws -> Void
+    typealias ThrowSkipCallback = @Sendable (Error) -> Bool
+     
     let channel: AMQPChannel
     let name: String
     let onCancelled: CancelledCallback?
@@ -462,5 +459,3 @@ final class AMQPStream<Element> {
         return AMQPSequence(stream, name: self.name)
     }
 }
-
-#endif // compiler(>=5.5)
