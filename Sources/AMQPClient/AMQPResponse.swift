@@ -131,6 +131,7 @@ public enum AMQPResponse: Sendable {
 
         public struct Connected: Sendable {
             public let channelMax: UInt16
+            public let frameMax: UInt32
         }
     }
 }

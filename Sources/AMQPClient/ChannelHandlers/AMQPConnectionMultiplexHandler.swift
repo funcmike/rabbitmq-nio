@@ -42,7 +42,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
         // NOTE: this can be extended to keep some state of the open request so a response can be verified against its request
         var pendingRequests: Deque<EventLoopPromise<AMQPResponse>>
         weak var eventHandler: AMQPChannelHandler?
-        var nextMessage: (frame: Frame.Method.Basic, properties: Properties?)?
+        var nextMessage: (frame: Frame.Method.Basic, properties: Properties?, bodySize: UInt64?, prevBody: ByteBuffer?)?
 
         init(initialResponsePromise: EventLoopPromise<AMQPResponse>) {
             pendingRequests = .init([initialResponsePromise])
@@ -53,6 +53,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
     private var context: ChannelHandlerContext!
     private var channels: [Frame.ChannelID: ChannelState] = [:]
     private var channelMax: UInt16 = 0
+    private var frameMax: UInt32 = 0
     private var state: State = .unblocked
 
     private let config: AMQPConnectionConfiguration.Server
@@ -131,6 +132,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                     context.writeAndFlush(wrapOutboundOut(.frame(startOk)), promise: nil)
                 case let .tune(channelMax, frameMax, heartbeat):
                     self.channelMax = channelMax
+                    self.frameMax = frameMax
 
                     let tuneOk = Frame(channelID: frame.channelID,
                                        payload: .method(.connection(.tuneOk(channelMax: channelMax, frameMax: frameMax, heartbeat: heartbeat))))
@@ -138,7 +140,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
 
                     context.writeAndFlush(wrapOutboundOut(.bulk([tuneOk, open])), promise: nil)
                 case .openOk:
-                    channel.fulfilNextPendingRequest(with: .connection(.connected(.init(channelMax: channelMax))))
+                    channel.fulfilNextPendingRequest(with: .connection(.connected(.init(channelMax: channelMax, frameMax: frameMax))))
                 case let .close(close):
                     let closeOk = Frame(channelID: frame.channelID, payload: .method(.connection(.closeOk)))
                     context.writeAndFlush(wrapOutboundOut(.frame(closeOk)), promise: nil)
@@ -205,7 +207,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                     channel.fulfilNextPendingRequest(with: .channel(.message(.get())))
                 case .deliver, .getOk, .return:
                     // TODO: wrap this away more nicely, assert message must be nil
-                    channel.nextMessage = (frame: basic, nil)
+                    channel.nextMessage = (frame: basic, nil, nil, nil)
                 case .recoverOk:
                     channel.fulfilNextPendingRequest(with: .channel(.basic(.recovered)))
                 case let .consumeOk(consumerTag):
@@ -265,10 +267,32 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             }
         case let .header(header):
             channel.nextMessage?.properties = header.properties
+            channel.nextMessage?.bodySize = header.bodySize
         case let .body(body):
-            guard let msg = channel.nextMessage, let properties = msg.properties else {
+            guard let msg = channel.nextMessage, let properties = msg.properties, let bodySize = msg.bodySize else {
                 // TODO: take down channel
                 return
+            }
+
+            let prevSize = msg.prevBody?.readableBytes ?? 0
+            if (prevSize + body.readableBytes < bodySize) {
+                if var prevBody = msg.prevBody  {
+                    prevBody.writeImmutableBuffer(body)
+                    channel.nextMessage?.prevBody = prevBody
+                } else {
+                    channel.nextMessage?.prevBody = body
+                }
+
+                return
+            }
+            
+            let completeBody: ByteBuffer
+            
+            if var prevBody = msg.prevBody {
+                prevBody.writeImmutableBuffer(body)
+                completeBody = prevBody
+            } else {
+                completeBody = body
             }
 
             switch msg.frame {
@@ -280,7 +304,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                         deliveryTag: getOk.deliveryTag,
                         properties: properties,
                         redelivered: getOk.redelivered,
-                        body: body
+                        body: completeBody
                     ),
                     messageCount: getOk.messageCount
                 )))))
@@ -292,7 +316,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                         deliveryTag: deliver.deliveryTag,
                         properties: properties,
                         redelivered: deliver.redelivered,
-                        body: body
+                        body: completeBody
                     ),
                     for: deliver.consumerTag
                 )
@@ -303,7 +327,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                     exchange: `return`.exchange,
                     routingKey: `return`.routingKey,
                     properties: properties,
-                    body: body
+                    body: completeBody
                 ))
             default:
                 // TODO: take down channel

@@ -31,6 +31,7 @@ public final class AMQPConnection: Sendable {
 
     public var closeFuture: NIOCore.EventLoopFuture<Void> { connectionHandler.channel.closeFuture }
     public var eventLoop: EventLoop { return connectionHandler.channel.eventLoop }
+    private let frameMax: UInt32
 
     private let connectionHandler: AMQPConnectionHandler
     private var channel: NIOCore.Channel { connectionHandler.channel }
@@ -38,8 +39,9 @@ public final class AMQPConnection: Sendable {
     private let state = NIOLockedValueBox(ConnectionState.open)
     private let channels: NIOLockedValueBox<AMQPChannels>
 
-    init(connectionHandler: AMQPConnectionHandler, channelMax: UInt16) {
+    init(connectionHandler: AMQPConnectionHandler, channelMax: UInt16, frameMax: UInt32) {
         self.connectionHandler = connectionHandler
+        self.frameMax = frameMax
         channels = .init(AMQPChannels(channelMax: channelMax))
     }
 
@@ -54,7 +56,8 @@ public final class AMQPConnection: Sendable {
                 connectionHandler.startConnection().map {
                     AMQPConnection(
                         connectionHandler: connectionHandler,
-                        channelMax: $0.channelMax
+                        channelMax: $0.channelMax,
+                        frameMax: $0.frameMax
                     )
                 }
             }
@@ -79,7 +82,7 @@ public final class AMQPConnection: Sendable {
         future.whenFailure { _ in self.channels.withLockedValue { $0.remove(id: channelID) } }
 
         return future.map { channel in
-            let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel)
+            let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel, frameMax: self.frameMax)
             self.channels.withLockedValue { $0.add(channel: amqpChannel) }
             return amqpChannel
         }
