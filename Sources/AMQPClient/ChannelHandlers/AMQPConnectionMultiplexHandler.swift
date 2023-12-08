@@ -42,7 +42,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
         // NOTE: this can be extended to keep some state of the open request so a response can be verified against its request
         var pendingRequests: Deque<EventLoopPromise<AMQPResponse>>
         weak var eventHandler: AMQPChannelHandler?
-        var nextMessage: (frame: Frame.Method.Basic, properties: Properties?, bodySize: UInt64?, prevBody: ByteBuffer?)?
+        var nextMessage: PartialDelivery?
 
         init(initialResponsePromise: EventLoopPromise<AMQPResponse>) {
             pendingRequests = .init([initialResponsePromise])
@@ -207,7 +207,7 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                     channel.fulfilNextPendingRequest(with: .channel(.message(.get())))
                 case .deliver, .getOk, .return:
                     // TODO: wrap this away more nicely, assert message must be nil
-                    channel.nextMessage = (frame: basic, nil, nil, nil)
+                    channel.nextMessage = PartialDelivery(method: basic)
                 case .recoverOk:
                     channel.fulfilNextPendingRequest(with: .channel(.basic(.recovered)))
                 case let .consumeOk(consumerTag):
@@ -266,72 +266,56 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                 }
             }
         case let .header(header):
-            channel.nextMessage?.properties = header.properties
-            channel.nextMessage?.bodySize = header.bodySize
+            channel.nextMessage?.setHeader(header)
         case let .body(body):
-            guard let msg = channel.nextMessage, let properties = msg.properties, let bodySize = msg.bodySize else {
-                // TODO: take down channel
-                return
-            }
+            // TODO: take down channel
+            guard channel.nextMessage != nil else { return }
 
-            let prevSize = msg.prevBody?.readableBytes ?? 0
-            if (prevSize + body.readableBytes < bodySize) {
-                if var prevBody = msg.prevBody  {
-                    prevBody.writeImmutableBuffer(body)
-                    channel.nextMessage?.prevBody = prevBody
-                } else {
-                    channel.nextMessage?.prevBody = body
+            // written like this to avoid unnecessary copies
+            channel.nextMessage!.addBody(body)
+
+            if channel.nextMessage!.isComplete {
+                let (method, properties, completeBody) = channel.nextMessage!.asCompletedMessage()
+                channel.nextMessage = nil
+
+                switch method {
+                case let .getOk(getOk):
+                    channel.fulfilNextPendingRequest(with: .channel(.message(.get(.init(
+                        message: .init(
+                            exchange: getOk.exchange,
+                            routingKey: getOk.routingKey,
+                            deliveryTag: getOk.deliveryTag,
+                            properties: properties,
+                            redelivered: getOk.redelivered,
+                            body: completeBody
+                        ),
+                        messageCount: getOk.messageCount
+                    )))))
+                case let .deliver(deliver):
+                    channel.eventHandler?.receiveDelivery(
+                        .init(
+                            exchange: deliver.exchange,
+                            routingKey: deliver.routingKey,
+                            deliveryTag: deliver.deliveryTag,
+                            properties: properties,
+                            redelivered: deliver.redelivered,
+                            body: completeBody
+                        ),
+                        for: deliver.consumerTag
+                    )
+                case let .return(`return`):
+                    channel.eventHandler?.receiveReturn(.init(
+                        replyCode: `return`.replyCode,
+                        replyText: `return`.replyText,
+                        exchange: `return`.exchange,
+                        routingKey: `return`.routingKey,
+                        properties: properties,
+                        body: completeBody
+                    ))
+                default:
+                    // TODO: take down channel
+                    preconditionUnexpectedFrame(frame)
                 }
-
-                return
-            }
-            
-            let completeBody: ByteBuffer
-            
-            if var prevBody = msg.prevBody {
-                prevBody.writeImmutableBuffer(body)
-                completeBody = prevBody
-            } else {
-                completeBody = body
-            }
-
-            switch msg.frame {
-            case let .getOk(getOk):
-                channel.fulfilNextPendingRequest(with: .channel(.message(.get(.init(
-                    message: .init(
-                        exchange: getOk.exchange,
-                        routingKey: getOk.routingKey,
-                        deliveryTag: getOk.deliveryTag,
-                        properties: properties,
-                        redelivered: getOk.redelivered,
-                        body: completeBody
-                    ),
-                    messageCount: getOk.messageCount
-                )))))
-            case let .deliver(deliver):
-                channel.eventHandler?.receiveDelivery(
-                    .init(
-                        exchange: deliver.exchange,
-                        routingKey: deliver.routingKey,
-                        deliveryTag: deliver.deliveryTag,
-                        properties: properties,
-                        redelivered: deliver.redelivered,
-                        body: completeBody
-                    ),
-                    for: deliver.consumerTag
-                )
-            case let .return(`return`):
-                channel.eventHandler?.receiveReturn(.init(
-                    replyCode: `return`.replyCode,
-                    replyText: `return`.replyText,
-                    exchange: `return`.exchange,
-                    routingKey: `return`.routingKey,
-                    properties: properties,
-                    body: completeBody
-                ))
-            default:
-                // TODO: take down channel
-                preconditionUnexpectedFrame(frame)
             }
         case .heartbeat:
             let heartbeat = Frame(channelID: frame.channelID, payload: .heartbeat)
@@ -398,5 +382,43 @@ extension AMQPConnectionMultiplexHandler.ChannelState {
     func reportAsClosed(error: Error? = nil) {
         pendingRequests.forEach { $0.fail(error ?? AMQPConnectionError.channelClosed()) }
         eventHandler?.reportAsClosed(error: error)
+    }
+}
+
+private struct PartialDelivery {
+    let method: Frame.Method.Basic
+    private var header: Frame.Header?
+    private var payload: ByteBuffer?
+
+    init(method: Frame.Method.Basic) {
+        self.method = method
+    }
+
+    var isComplete: Bool { header != nil && header!.bodySize <= (payload?.readableBytes ?? 0) }
+
+    // NOTE: should be made throwing with validation for a more restrictive protocol implementation
+    mutating func setHeader(_ header: consuming Frame.Header) {
+        // validate that self.header == nil
+        self.header = header
+    }
+
+    // NOTE: should be made throwing with validation for a more restrictive protocol implementation
+    mutating func addBody(_ buffer: consuming ByteBuffer) {
+        guard let header else { return } // probably should take channel down
+
+        if payload == nil {
+            buffer.reserveCapacity(Int(header.bodySize))
+            payload = consume buffer
+        } else {
+            payload!.writeBuffer(&buffer)
+        }
+    }
+
+    func asCompletedMessage() -> (Frame.Method.Basic, Properties, ByteBuffer) {
+        // NOTE: this could be made a consuming func once partial is possible I think
+        assert(isComplete)
+
+        // header and payloads are guaranteed to be non-nil after isComplete
+        return (method, header!.properties, payload!)
     }
 }
