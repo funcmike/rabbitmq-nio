@@ -32,13 +32,13 @@ public final class AMQPChannel: Sendable {
     private let isConfirmMode = ManagedAtomic(false)
     private let isTxMode = ManagedAtomic(false)
     private let deliveryTag = ManagedAtomic(UInt64(1))
-    private let frameMax: UInt32
+    private let frameMax: Int
 
     init(channelID: Frame.ChannelID, eventLoop: EventLoop, channel: AMQPChannelHandler, frameMax: UInt32) {
         ID = channelID
         self.eventLoop = eventLoop
         self.channel = channel
-        self.frameMax = frameMax
+        self.frameMax = Int(frameMax)
     }
 
     /// Close the channel
@@ -90,22 +90,19 @@ public final class AMQPChannel: Sendable {
 
         let header = Frame.Payload.header(.init(classID: classID, weight: 0, bodySize: UInt64(body.readableBytes), properties: properties))
 
-        let payloads: [Frame.Payload]
+        var payloads: [Frame.Payload]
 
         if body.readableBytes <= frameMax {
             payloads = [publish, header, .body(body)]
         } else {
-            var parts = [publish, header]
-            var buffer = body
+            payloads = [publish, header]
+            var body = body
 
-            while(buffer.readableBytes > 0) {
-                guard let bytes = buffer.readBytes(length: frameMax < buffer.readableBytes ? Int(frameMax) : buffer.readableBytes) else {
-                    preconditionFailure("invalid bytes read")
-                }
-                parts.append(.body(.init(bytes: bytes)))
+            while body.readableBytes > 0 {
+                // slice is always valid
+                let slice = body.readSlice(length: min(frameMax, body.readableBytes))!
+                payloads.append(Frame.Payload.body(slice))
             }
-
-            payloads = parts
         }
 
         let result: EventLoopFuture<Void> = channel.send(payloads: payloads)
