@@ -85,7 +85,7 @@ public extension AMQPConnectionConfiguration {
         var vhost = url.path.isEmpty ? nil : String(url.path.removingPercentEncoding?.dropFirst() ?? "")
 
         // workaround: "/%f" is interpreted as / by URL (this restores %f as /)
-        if url.absoluteString.hasSuffix("%2f") {
+        if url.absoluteString.lowercased().hasSuffix("%2f") {
             if let vh = vhost  {
                 vhost = vh + "/"
             } else {
