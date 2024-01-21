@@ -71,12 +71,12 @@ public extension AMQPConnectionConfiguration {
         }
     }
     
-    init(url: String) throws {
+    init(url: String, tls: TLSConfiguration? = nil) throws {
         guard let url = URL(string: url) else { throw AMQPConnectionError.invalidUrl }
-        try self.init(url: url)
+        try self.init(url: url, tls: tls)
     }
-    
-    init(url: URL) throws {
+
+    init(url: URL, tls: TLSConfiguration? = nil) throws {
         guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPConnectionError.invalidUrlScheme }
         
         // there is no such thing as a "" host
@@ -97,7 +97,7 @@ public extension AMQPConnectionConfiguration {
         
         switch scheme {
         case .amqp: self = .init(connection: .plain, server: server)
-        case .amqps: self = .init(connection: .tls(nil, sniServerName: nil), server: server)
+        case .amqps: self = .init(connection: .tls(tls, sniServerName: nil), server: server)
         }
     }
 }
