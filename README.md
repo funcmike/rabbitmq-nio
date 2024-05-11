@@ -122,7 +122,7 @@ do {
     let consumer = try await channel.basicConsume(queue: "test")
 
     for try await msg in consumer {
-        print("Succesfully consumed a message", delivery)
+        print("Succesfully consumed a message", msg)
         break
     }
 } catch {
