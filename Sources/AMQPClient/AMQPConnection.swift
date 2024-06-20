@@ -82,6 +82,8 @@ public final class AMQPConnection: Sendable {
         future.whenFailure { _ in self.channels.withLockedValue { $0.remove(id: channelID) } }
 
         return future.map { channel in
+            channel.closeFuture.whenComplete { _ in self.channels.withLockedValue { $0.remove(id: channelID) } }
+
             let amqpChannel = AMQPChannel(channelID: channelID, eventLoop: self.eventLoop, channel: channel, frameMax: self.frameMax)
             self.channels.withLockedValue { $0.add(channel: amqpChannel) }
             return amqpChannel
