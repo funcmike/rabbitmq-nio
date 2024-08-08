@@ -86,11 +86,7 @@ public extension AMQPConnectionConfiguration {
 
         // workaround: "/%f" is interpreted as / by URL (this restores %f as /)
         if url.absoluteString.lowercased().hasSuffix("%2f") {
-            if let vh = vhost  {
-                vhost = vh + "/"
-            } else {
-                vhost = "/"
-            }
+            vhost = "/"
         }
 
         let server = Server(host: host, port: url.port ?? scheme.defaultPort, user: url.user, password: url.password?.removingPercentEncoding, vhost: vhost)
