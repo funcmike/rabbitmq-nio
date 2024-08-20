@@ -1,6 +1,6 @@
 # RabbitMQNIO
 [<img src="https://img.shields.io/badge/platform-macOS | Linux-brightgreen.svg" alt="Platform macOS | Linux" />](https://swift.org)
-[<img src="https://img.shields.io/badge/swift-5.7-brightgreen.svg" alt="Swift 5.7" />](https://swift.org)
+[<img src="https://img.shields.io/badge/swift-5.10-brightgreen.svg" alt="Swift 5.10" />](https://swift.org)
 
 
 A Swift implementation of AMQP 0.9.1 protocol: decoder + encoder (AMQPProtocol) and non-blocking client (AMQPClient).
@@ -13,21 +13,19 @@ Swift-NIO related code is based on other NIO projects like:
 * https://gitlab.com/swift-server-community/RediStack
 
 ## State of the project
+This project is in beta stage - API still can change before the first stable release.<br>
+It's been used in production for more than a year now.<br>
 
-**!!! WARNING !!!** <br>
-This project is in alpha stage and still under development - API can change in the near future before 1.0 release. <br>
-Please do extensive tests of Your use case before using it on production! <br>
-Nevertheless, current client operations are tested and appears to be stable so do not be afraid to use it. <br>
-Please report bugs or missing features. <br>
-**!!! WARNING !!!**
-
-AMQPProtocol library currently should cover all of AMQP 0.9.1 specification.
-
-AMQPClient library's architecture using NIO Channels is already done and all of AMQP operations (without WebSockets) should be supported.
-Current work is focused on testing, finding bugs, API stabilization and code refactoring / polishing (based on Swift Server Side Community feedback).
+AMQPProtocol library covers all of AMQP 0.9.1 specification.
+AMQPClient library's architecture using NIO Channels is already done, and all of the common AMQP operations are working (without WebSockets support).<br>
+The main goal of the project is now to release the first stable version. To do this project needs:
+* API stabilization.
+* Closing the issues (most of them are quality improvements to the project),
+* Refactoring swift-nio code with the newest async stuff.
+* Writing proper documentation.
+* Polishing based on Swift Server Side Community feedback (please use it and report bugs and suggestions!).
 
 ## Basic usage
-
 Create a connection and connect to the AMQP broker using connection string.
 ```swift
 let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -149,7 +147,6 @@ do {
 ```
 
 ## Connection recovery patterns.
-
 Handling broker closing channel or connection disconnects.
 Connection to AMQP broker is sustained by answering to heartbeat messages, however on network problem or broker restart connection can be broken.
 Broker can also close channel or connection on bad command or other error.
