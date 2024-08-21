@@ -50,6 +50,7 @@ public final class AMQPConnection: Sendable {
     ///     - eventLoop: EventLoop on which to connect.
     ///     - config: Configuration data.
     /// - Returns:  EventLoopFuture with AMQP Connection.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public static func connect(use eventLoop: EventLoop, from config: AMQPConnectionConfiguration) -> EventLoopFuture<AMQPConnection> {
         eventLoop.flatSubmit {
             self.boostrapChannel(use: eventLoop, from: config).flatMap { connectionHandler in
@@ -68,6 +69,7 @@ public final class AMQPConnection: Sendable {
     /// Can be used only when connection is connected.
     /// Channel ID is automatically assigned (next free one).
     /// - Returns: EventLoopFuture with AMQP Channel.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func openChannel() -> EventLoopFuture<AMQPChannel> {
         guard isConnected else { return eventLoop.makeFailedFuture(AMQPConnectionError.connectionClosed()) }
 
@@ -95,6 +97,7 @@ public final class AMQPConnection: Sendable {
     ///     - reason: Reason that can be logged by broker.
     ///     - code: Code that can be logged by broker.
     /// - Returns: EventLoopFuture that is resolved when connection is closed.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         let shouldClose = state.withLockedValue { state in
             if state == .open {

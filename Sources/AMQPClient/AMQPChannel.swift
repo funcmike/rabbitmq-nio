@@ -47,6 +47,7 @@ public final class AMQPChannel: Sendable {
     ///     - code: Any number - might be logged by the server.
     /// - Returns: EventLoopFuture waiting for close response.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func close(reason: String = "", code: UInt16 = 200) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.channel(.close(.init(replyCode: code, replyText: reason, classID: 0, methodID: 0)))))
             .flatMapThrowing { response in
@@ -76,6 +77,7 @@ public final class AMQPChannel: Sendable {
     ///     DeliveryTag is 0 when channel is not in confirm mode.
     ///     DeliveryTag is > 0 (monotonically increasing) when channel is in confirm mode.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicPublish(
         from body: ByteBuffer,
         exchange: String,
@@ -121,6 +123,7 @@ public final class AMQPChannel: Sendable {
     ///     - queue: Name of the queue.
     ///     - noAck: Controls whether message will be acked or nacked automatically (true) or manually (false).
     /// - Returns: EventLoopFuture with optional message when queue is not empty.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicGet(queue: String, noAck: Bool = false) -> EventLoopFuture<AMQPResponse.Channel.Message.Get?> {
         return channel.send(payload: .method(.basic(.get(.init(reserved1: 0, queue: queue, noAck: noAck)))))
             .flatMapThrowing { response in
@@ -141,6 +144,7 @@ public final class AMQPChannel: Sendable {
     ///     - listener: Callback when Delivery arrives - automatically registered.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted consume request.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicConsume(
         queue: String,
         consumerTag: String = "",
@@ -184,6 +188,7 @@ public final class AMQPChannel: Sendable {
     /// - Parameters:
     ///     - consumerTag: Identifer of the consumer.
     /// - Returns: EventLoopFuture waiting for cancel response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicCancel(consumerTag: String) -> EventLoopFuture<Void> {
         let found: Bool
 
@@ -216,6 +221,7 @@ public final class AMQPChannel: Sendable {
     ///     - deliveryTag: Number (identifier) of the message..
     ///     - multiple: Controls whether only this message is acked (false) or additionally all other up to it (true).
     /// - Returns: EventLoopFuture that will be resolved when ack is sent.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicAck(deliveryTag: UInt64, multiple: Bool = false) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.basic(.ack(deliveryTag: deliveryTag, multiple: multiple))))
     }
@@ -225,6 +231,7 @@ public final class AMQPChannel: Sendable {
     ///     - message: Received message.
     ///     - multiple: Controls whether only this message is acked (false) or additionally all other up to it (true).
     /// - Returns: EventLoopFuture that will be resolved when ack is sent.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicAck(message: AMQPResponse.Channel.Message.Delivery, multiple: Bool = false) -> EventLoopFuture<Void> {
         return basicAck(deliveryTag: message.deliveryTag, multiple: multiple)
     }
@@ -235,6 +242,7 @@ public final class AMQPChannel: Sendable {
     ///     - multiple: Controls whether only this message is rejected (false) or additionally all other up to it (true).
     ///     - requeue: Controls whether to requeue message after reject.
     /// - Returns: EventLoopFuture that will be resolved when nack is sent.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicNack(deliveryTag: UInt64, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.basic(.nack(.init(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue)))))
     }
@@ -245,6 +253,7 @@ public final class AMQPChannel: Sendable {
     ///     - multiple: Controls whether only this message is rejected (false) or additionally all other up to it (true).
     ///     - requeue: Controls whether to requeue message after reject.
     /// - Returns: EventLoopFuture that will be resolved when nack is sent.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicNack(message: AMQPResponse.Channel.Message.Delivery, multiple: Bool = false, requeue: Bool = false) -> EventLoopFuture<Void> {
         return basicNack(deliveryTag: message.deliveryTag, multiple: multiple, requeue: requeue)
     }
@@ -254,6 +263,7 @@ public final class AMQPChannel: Sendable {
     ///     - deliveryTag: Number ((identifier) of the message.
     ///     - requeue: Controls whether to requeue message after reject.
     /// - Returns: EventLoopFuture that will be resolved when reject is sent.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicReject(deliveryTag: UInt64, requeue: Bool = false) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.basic(.reject(deliveryTag: deliveryTag, requeue: requeue))))
     }
@@ -263,6 +273,7 @@ public final class AMQPChannel: Sendable {
     ///     - message: Received Message.
     ///     - requeue: Controls whether to requeue message after reject.
     /// - Returns: EventLoopFuture that will be resolved when reject is sent.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicReject(message: AMQPResponse.Channel.Message.Delivery, requeue: Bool = false) -> EventLoopFuture<Void> {
         return basicReject(deliveryTag: message.deliveryTag, requeue: requeue)
     }
@@ -272,6 +283,7 @@ public final class AMQPChannel: Sendable {
     /// - Parameters:
     ///     - requeue: Controls whether to requeue all messages after rejecting them.
     /// - Returns: EventLoopFuture waiting for recover response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicRecover(requeue: Bool) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.basic(.recover(requeue: requeue))))
             .flatMapThrowing { response in
@@ -288,6 +300,7 @@ public final class AMQPChannel: Sendable {
     ///     - count: Size of the limit.
     ///     - global: Whether the limit will be shared across all consumers on the channel.
     /// - Returns: EventLoopFuture waiting for qos response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func basicQos(count: UInt16, global: Bool = false) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.basic(.qos(prefetchSize: 0, prefetchCount: count, global: global))))
             .flatMapThrowing { response in
@@ -305,6 +318,7 @@ public final class AMQPChannel: Sendable {
     ///     - active: Flow enabled or disabled.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a flow request.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func flow(active: Bool) -> EventLoopFuture<AMQPResponse.Channel.Flowed> {
         return channel.send(payload: .method(.channel(.flow(active: active))))
             .flatMapThrowing { response in
@@ -326,6 +340,7 @@ public final class AMQPChannel: Sendable {
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a request.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func queueDeclare(
         name: String,
         passive: Bool = false,
@@ -357,6 +372,7 @@ public final class AMQPChannel: Sendable {
     ///     - ifEmpty: If enabled queue will be deleted only when it's empty.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a delete request.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func queueDelete(name: String, ifUnused: Bool = false, ifEmpty: Bool = false) -> EventLoopFuture<AMQPResponse.Channel.Queue.Deleted> {
         return channel.send(payload: .method(.queue(.delete(.init(reserved1: 0, queueName: name, ifUnused: ifUnused, ifEmpty: ifEmpty, noWait: false)))))
             .flatMapThrowing { response in
@@ -372,6 +388,7 @@ public final class AMQPChannel: Sendable {
     ///     - name: Name of the queue.
     /// - Returns: EventLoopFuture with response confirming that broker has accepted a delete request.
     @discardableResult
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func queuePurge(name: String) -> EventLoopFuture<AMQPResponse.Channel.Queue.Purged> {
         return channel.send(payload: .method(.queue(.purge(.init(reserved1: 0, queueName: name, noWait: false)))))
             .flatMapThrowing { response in
@@ -389,6 +406,7 @@ public final class AMQPChannel: Sendable {
     ///     - routingKey: Bind only to messages matching routingKey.
     ///     - arguments: Bind only to message matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func queueBind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.queue(.bind(.init(reserved1: 0,
                                                                 queueName: queue,
@@ -411,6 +429,7 @@ public final class AMQPChannel: Sendable {
     ///     - routingKey: Unbind only from messages matching routingKey.
     ///     - arguments: Unbind only from messages matching given options.
     /// - Returns: EventLoopFuturewaiting for bind response unbind response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func queueUnbind(queue: String, exchange: String, routingKey: String = "", args arguments: Table = Table()) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.queue(.unbind(.init(reserved1: 0,
                                                                   queueName: queue,
@@ -434,6 +453,7 @@ public final class AMQPChannel: Sendable {
     ///     - internal: Whether the exchange cannot be directly published to client.
     ///     - arguments: Additional arguments (check rabbitmq documentation).
     /// - Returns: EventLoopFuture waiting for declare response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func exchangeDeclare(
         name: String,
         type: String,
@@ -465,6 +485,7 @@ public final class AMQPChannel: Sendable {
     ///     - name: Name of the queue.
     ///     - ifUnused: If enabled exchange will be deleted only when it's not used.
     /// - Returns: EventLoopFuture waiting for delete response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func exchangeDelete(name: String, ifUnused: Bool = false) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.exchange(.delete(.init(reserved1: 0, exchangeName: name, ifUnused: ifUnused, noWait: false)))))
             .flatMapThrowing { response in
@@ -482,6 +503,7 @@ public final class AMQPChannel: Sendable {
     ///     - routingKey: Bind only to messages matching routingKey.
     ///     - arguments: Bind only to messages matching given options.
     /// - Returns: EventLoopFuture waiting for bind response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func exchangeBind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.exchange(.bind(.init(reserved1: 0,
                                                                    destination: destination,
@@ -504,6 +526,7 @@ public final class AMQPChannel: Sendable {
     ///     - routingKey: Unbind only from messages matching routingKey.
     ///     - arguments: Unbind only from messages matching given options.
     /// - Returns: EventLoopFuture waiting for unbind response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func exchangeUnbind(destination: String, source: String, routingKey: String, args arguments: Table = Table()) -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.exchange(.unbind(.init(reserved1: 0,
                                                                      destination: destination,
@@ -521,6 +544,7 @@ public final class AMQPChannel: Sendable {
 
     /// Set channel in publish confirm mode, each published message will be acked or nacked.
     /// - Returns: EventLoopFuture waiting for confirm select response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func confirmSelect() -> EventLoopFuture<Void> {
         guard !isConfirmMode.load(ordering: .relaxed) else {
             return eventLoop.makeSucceededFuture(())
@@ -540,6 +564,7 @@ public final class AMQPChannel: Sendable {
 
     /// Set channel in transaction mode.
     /// - Returns: EventLoopFuture waiting for tx select response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func txSelect() -> EventLoopFuture<Void> {
         guard !isTxMode.load(ordering: .relaxed) else {
             return eventLoop.makeSucceededFuture(())
@@ -559,6 +584,7 @@ public final class AMQPChannel: Sendable {
 
     /// Commit a transaction.
     /// - Returns: EventLoopFuture waiting for commit response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func txCommit() -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.tx(.commit)))
             .flatMapThrowing { response in
@@ -571,6 +597,7 @@ public final class AMQPChannel: Sendable {
 
     /// Rollback a transaction.
     /// - Returns: EventLoopFuture waiting for rollback response.
+    @available(*, deprecated, message: "EventLoopFuture based public API will be removed in first stable release, please use Async API")
     public func txRollback() -> EventLoopFuture<Void> {
         return channel.send(payload: .method(.tx(.rollback)))
             .flatMapThrowing { response in
