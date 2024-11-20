@@ -1,5 +1,7 @@
 import XCTest
 import AMQPClient
+import NIOSSL
+
 @testable import AMQPClient
 
 @available(macOS 13.0, *)
@@ -14,7 +16,7 @@ final class AMQPClientConfigurationTest: XCTestCase {
         XCTAssertEqual(config.server.password, "myPass")
         XCTAssertEqual(config.server.vhost, "myVHost")
     }
-    
+
     func testFromPlainURLWithDefaults() throws {
         let config = try AMQPConnectionConfiguration(url: "amqp://myHost")
         guard case .plain = config.connection else { return XCTFail("plain expected") }
@@ -25,7 +27,7 @@ final class AMQPClientConfigurationTest: XCTestCase {
         XCTAssertEqual(config.server.password, "guest")
         XCTAssertEqual(config.server.vhost, "/")
     }
-    
+
     func testFromTlsURLWithOnlyUserAndPassword() throws {
         let config = try AMQPConnectionConfiguration(url: "amqps://top:secret@")
 
@@ -37,7 +39,7 @@ final class AMQPClientConfigurationTest: XCTestCase {
         XCTAssertEqual(config.server.password, "secret")
         XCTAssertEqual(config.server.vhost, "/")
     }
-    
+
     func testWithEmpties() throws {
         let c = try AMQPConnectionConfiguration(url: "amqp://@:/")
 
@@ -47,7 +49,7 @@ final class AMQPClientConfigurationTest: XCTestCase {
         XCTAssertEqual(c.server.password, "")
         XCTAssertEqual(c.server.vhost, "")
     }
-    
+
     func testWithUrlEncodedVHost() throws {
         let c = try AMQPConnectionConfiguration(url: "amqps://hello@host:1234/%2f")
 
@@ -57,7 +59,7 @@ final class AMQPClientConfigurationTest: XCTestCase {
         XCTAssertEqual(c.server.password, "")
         XCTAssertEqual(c.server.vhost, "/")
     }
-    
+
     func testWithUrlEncodedEverything() throws {
         let c = try AMQPConnectionConfiguration(url: "amqp://user%61:%61pass@ho%61st:10000/v%2fhost")
 
@@ -66,5 +68,22 @@ final class AMQPClientConfigurationTest: XCTestCase {
         XCTAssertEqual(c.server.user, "usera")
         XCTAssertEqual(c.server.password, "apass")
         XCTAssertEqual(c.server.vhost, "v/host")
+    }
+
+    func testWithTlsConfigurationPassed() throws {
+        let tls = TLSConfiguration.makeClientConfiguration()
+        let c = try AMQPConnectionConfiguration(url: "amqps://myHost", tls: tls, sniServerName: "wow")
+
+        if case let .tls(tls, sniServerName) = c.connection {
+            XCTAssertNotNil(tls)
+            XCTAssertEqual(sniServerName, "wow")
+        }
+    }
+
+    func testWithOtherConfigurationPassed() throws {
+        let c = try AMQPConnectionConfiguration(url: "amqp://myHost", timeout: .seconds(10), connectionName: "MyConnection")
+
+        XCTAssertEqual(c.server.timeout, .seconds(10))
+        XCTAssertEqual(c.server.connectionName, "MyConnection")
     }
 }

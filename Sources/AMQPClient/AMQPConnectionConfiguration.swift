@@ -32,7 +32,7 @@ public struct AMQPConnectionConfiguration: Sendable {
         public var vhost: String
         public var timeout: TimeAmount
         public var connectionName: String
-        
+
         public init(host: String? = nil,
                     port: Int? = nil,
                     user: String? = nil,
@@ -40,7 +40,7 @@ public struct AMQPConnectionConfiguration: Sendable {
                     vhost: String? = nil,
                     timeout: TimeAmount? = nil,
                     connectionName: String? = nil) {
-            
+
             self.host = host ?? Defaults.host
             self.port = port ?? Defaults.port
             self.user = user ?? Defaults.user
@@ -62,7 +62,7 @@ public extension AMQPConnectionConfiguration {
     enum UrlScheme: String {
         case amqp = "amqp"
         case amqps = "amqps"
-        
+
         var defaultPort: Int {
             switch self {
             case .amqp: return Server.Defaults.port
@@ -70,15 +70,33 @@ public extension AMQPConnectionConfiguration {
             }
         }
     }
-    
-    init(url: String, tls: TLSConfiguration? = nil) throws {
+
+    /// Convenience init to create connection configuration from a URL string + key options.
+    ///
+    /// - Parameters:
+    ///   - url: A string that contains the URL to create configuration from.
+    ///   - tls: Optional TLS configuration. If `nil`, default will be used.
+    ///   - sniServerName: Server name to use for TLS connection. If `nil`, default will be used.
+    ///   - timeout: Optional connection timeout. If `nil`, default timeout will be used.
+    ///   - connectionName: Optional connection name. If `nil`, default connection name will be used.
+    /// - Throws: `AMQPConnectionError.invalidUrl` if URL is invalid, or `AMQPConnectionError.invalidUrlScheme` if URL scheme is not supported.
+    init(url: String, tls: TLSConfiguration? = nil, sniServerName: String? = nil, timeout: TimeAmount? = nil, connectionName: String? = nil) throws {
         guard let url = URL(string: url) else { throw AMQPConnectionError.invalidUrl }
-        try self.init(url: url, tls: tls)
+        try self.init(url: url, tls: tls, sniServerName: sniServerName, timeout: timeout, connectionName: connectionName)
     }
 
-    init(url: URL, tls: TLSConfiguration? = nil) throws {
+    /// Convenience init to create connection configuration from a URL + key options.
+    ///
+    /// - Parameters:
+    ///   - url: A URL to create the configuration from.
+    ///   - tls: Optional TLS configuration. If `nil`, default will be used.
+    ///   - sniServerName: Server name to use for TLS connection. If `nil`, default will be used.
+    ///   - timeout: Optional connection timeout. If `nil`, default timeout will be used.
+    ///   - connectionName: Optional connection name. If `nil`, default connection name will be used.
+    /// - Throws: `AMQPConnectionError.invalidUrlScheme` if URL scheme is not supported.
+    init(url: URL, tls: TLSConfiguration? = nil, sniServerName: String? = nil, timeout: TimeAmount? = nil, connectionName: String? = nil) throws {
         guard let scheme = UrlScheme(rawValue: url.scheme ?? "") else { throw AMQPConnectionError.invalidUrlScheme }
-        
+
         // there is no such thing as a "" host
         let host = url.host?.isEmpty == true ? nil : url.host
         //special path magic for vhost interpretation (see https://www.rabbitmq.com/uri-spec.html)
@@ -89,11 +107,15 @@ public extension AMQPConnectionConfiguration {
             vhost = "/"
         }
 
-        let server = Server(host: host, port: url.port ?? scheme.defaultPort, user: url.user, password: url.password?.removingPercentEncoding, vhost: vhost)
-        
+        let server = Server(
+            host: host, port: url.port ?? scheme.defaultPort,
+            user: url.user, password: url.password?.removingPercentEncoding,
+            vhost: vhost, timeout: timeout, connectionName: connectionName
+        )
+
         switch scheme {
         case .amqp: self = .init(connection: .plain, server: server)
-        case .amqps: self = .init(connection: .tls(tls, sniServerName: nil), server: server)
+        case .amqps: self = .init(connection: .tls(tls, sniServerName: sniServerName), server: server)
         }
     }
 }
