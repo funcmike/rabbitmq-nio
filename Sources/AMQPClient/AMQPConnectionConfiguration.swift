@@ -109,7 +109,7 @@ public extension AMQPConnectionConfiguration {
 
         let server = Server(
             host: host, port: url.port ?? scheme.defaultPort,
-            user: url.user, password: url.password?.removingPercentEncoding,
+            user: url.user?.removingPercentEncoding,password: url.password?.removingPercentEncoding,
             vhost: vhost, timeout: timeout, connectionName: connectionName
         )
 
