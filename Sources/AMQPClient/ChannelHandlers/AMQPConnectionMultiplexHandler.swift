@@ -220,8 +220,10 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
                 case let .cancel(cancel):
                     channel.eventHandler?.handleCancellation(consumerTag: cancel.consumerTag)
 
-                    let cancelOk = Frame(channelID: frame.channelID, payload: .method(.basic(.cancelOk(consumerTag: cancel.consumerTag))))
-                    context.writeAndFlush(wrapOutboundOut(.frame(cancelOk)), promise: nil)
+                    if !cancel.noWait {
+                        let cancelOk = Frame(channelID: frame.channelID, payload: .method(.basic(.cancelOk(consumerTag: cancel.consumerTag))))
+                        context.writeAndFlush(wrapOutboundOut(.frame(cancelOk)), promise: nil)
+                    }
                 case let .ack(deliveryTag, multiple):
                     channel.eventHandler?.receivePublishConfirm(.ack(deliveryTag: deliveryTag, multiple: multiple))
                 case let .nack(nack):
