@@ -94,7 +94,9 @@ public final class AMQPChannel: Sendable {
 
         var payloads: [Frame.Payload]
 
-        if body.readableBytes <= frameMax {
+        if body.readableBytes == 0 {
+            payloads = [publish, header]
+        } else if body.readableBytes <= frameMax {
             payloads = [publish, header, .body(body)]
         } else {
             payloads = [publish, header]
