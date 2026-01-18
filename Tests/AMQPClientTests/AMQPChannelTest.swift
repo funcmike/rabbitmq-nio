@@ -113,6 +113,40 @@ final class AMQPChannelTest: XCTestCase {
 
         try await channel.close()
     }
+    
+    func testBasicGetWithZeroBytesPayload() async throws {
+        let channel = try await connection.openChannel()
+
+        try await channel.queueDeclare(name: "test", durable: true)
+
+        let body = ByteBufferAllocator().buffer(string: "")
+
+        try await channel.basicPublish(from: body, exchange: "", routingKey: "test")
+
+        guard let msg = try await channel.basicGet(queue: "test") else {
+            return  XCTFail()
+        }
+
+        XCTAssertEqual(msg.messageCount, 0)
+        XCTAssertEqual(msg.message.body.getString(at: 0, length: msg.message.body.readableBytes), "")
+
+        try await channel.queueDelete(name: "test")
+
+        try await channel.close()
+    }
+    
+    func testBasicGetEmpty() async throws {
+        let channel = try await connection.openChannel()
+
+        try await channel.queueDeclare(name: "test", durable: true)
+
+        let msg = try await channel.basicGet(queue: "test")
+        XCTAssertNil(msg)
+
+        try await channel.queueDelete(name: "test")
+
+        try await channel.close()
+    }
 
     func testBasicTx() async throws {
         let channel = try await connection.openChannel()

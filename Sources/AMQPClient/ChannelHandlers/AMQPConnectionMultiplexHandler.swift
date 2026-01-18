@@ -269,56 +269,14 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
             }
         case let .header(header):
             channel.nextMessage?.setHeader(header)
+            if channel.nextMessage?.isComplete ?? false { channel.nextMessage!.emitOnChannel(channel: channel) }
         case let .body(body):
             // TODO: take down channel
             guard channel.nextMessage != nil else { return }
 
             // written like this to avoid unnecessary copies
             channel.nextMessage!.addBody(body)
-
-            if channel.nextMessage!.isComplete {
-                let (method, properties, completeBody) = channel.nextMessage!.asCompletedMessage()
-                channel.nextMessage = nil
-
-                switch method {
-                case let .getOk(getOk):
-                    channel.fulfilNextPendingRequest(with: .channel(.message(.get(.init(
-                        message: .init(
-                            exchange: getOk.exchange,
-                            routingKey: getOk.routingKey,
-                            deliveryTag: getOk.deliveryTag,
-                            properties: properties,
-                            redelivered: getOk.redelivered,
-                            body: completeBody
-                        ),
-                        messageCount: getOk.messageCount
-                    )))))
-                case let .deliver(deliver):
-                    channel.eventHandler?.receiveDelivery(
-                        .init(
-                            exchange: deliver.exchange,
-                            routingKey: deliver.routingKey,
-                            deliveryTag: deliver.deliveryTag,
-                            properties: properties,
-                            redelivered: deliver.redelivered,
-                            body: completeBody
-                        ),
-                        for: deliver.consumerTag
-                    )
-                case let .return(`return`):
-                    channel.eventHandler?.receiveReturn(.init(
-                        replyCode: `return`.replyCode,
-                        replyText: `return`.replyText,
-                        exchange: `return`.exchange,
-                        routingKey: `return`.routingKey,
-                        properties: properties,
-                        body: completeBody
-                    ))
-                default:
-                    // TODO: take down channel
-                    preconditionUnexpectedFrame(frame)
-                }
-            }
+            if channel.nextMessage!.isComplete { channel.nextMessage!.emitOnChannel(channel: channel) }
         case .heartbeat:
             let heartbeat = Frame(channelID: frame.channelID, payload: .heartbeat)
             context.writeAndFlush(wrapOutboundOut(.frame(heartbeat)), promise: nil)
@@ -421,6 +379,50 @@ private struct PartialDelivery {
         assert(isComplete)
 
         // header and payloads are guaranteed to be non-nil after isComplete
-        return (method, header!.properties, payload!)
+        return (method, header!.properties, payload ?? .init())
+    }
+    
+    func emitOnChannel(channel: AMQPConnectionMultiplexHandler.ChannelState) {
+        let (method, properties, completeBody) = asCompletedMessage()
+        channel.nextMessage = nil
+
+        switch method {
+        case let .getOk(getOk):
+            channel.fulfilNextPendingRequest(with: .channel(.message(.get(.init(
+                message: .init(
+                    exchange: getOk.exchange,
+                    routingKey: getOk.routingKey,
+                    deliveryTag: getOk.deliveryTag,
+                    properties: properties,
+                    redelivered: getOk.redelivered,
+                    body: completeBody
+                ),
+                messageCount: getOk.messageCount
+            )))))
+        case let .deliver(deliver):
+            channel.eventHandler?.receiveDelivery(
+                .init(
+                    exchange: deliver.exchange,
+                    routingKey: deliver.routingKey,
+                    deliveryTag: deliver.deliveryTag,
+                    properties: properties,
+                    redelivered: deliver.redelivered,
+                    body: completeBody
+                ),
+                for: deliver.consumerTag
+            )
+        case let .return(`return`):
+            channel.eventHandler?.receiveReturn(.init(
+                replyCode: `return`.replyCode,
+                replyText: `return`.replyText,
+                exchange: `return`.exchange,
+                routingKey: `return`.routingKey,
+                properties: properties,
+                body: completeBody
+            ))
+        default:
+            // TODO: take down channel
+            preconditionUnexpectedPayload(.method(.basic(method)))
+        }
     }
 }
