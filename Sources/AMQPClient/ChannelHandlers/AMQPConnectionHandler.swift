@@ -16,11 +16,9 @@ import NIOCore
 
 struct AMQPConnectionHandler: Sendable {
     let channel: Channel
-    let multiplexer: NIOLoopBound<AMQPConnectionMultiplexHandler>
 
-    init(channel: Channel, multiplexer: AMQPConnectionMultiplexHandler) {
+    init(channel: Channel) {
         self.channel = channel
-        self.multiplexer = NIOLoopBound(multiplexer, eventLoop: channel.eventLoop)
     }
 
     func write(
@@ -42,8 +40,9 @@ struct AMQPConnectionHandler: Sendable {
 
         return promise.futureResult.flatMapThrowing { response in
             guard case let .connection(.connected(connected)) = response else {
-                multiplexer.value.failAllPendingRequestsAndChannels(because: AMQPConnectionError.invalidResponse(response))
-                throw AMQPConnectionError.invalidResponse(response)
+                let error = AMQPConnectionError.invalidResponse(response)
+                channel.triggerUserOutboundEvent(AMQPConnectionMultiplexHandler.UserEvent.invalidResponse(error), promise: nil)
+                throw error
             }
             return connected
         }
@@ -56,15 +55,21 @@ struct AMQPConnectionHandler: Sendable {
               responsePromise: promise,
               writePromise: nil)
 
-        return promise.futureResult.flatMapThrowing { response in
+        return promise.futureResult.flatMap { response in
             guard case let .channel(.opened(channelId)) = response, channelId == id else {
-                throw AMQPConnectionError.invalidResponse(response)
+                return channel.eventLoop.makeFailedFuture(AMQPConnectionError.invalidResponse(response))
             }
 
             let channelHandler = AMQPChannelHandler(parent: self, channelID: channelId)
-            multiplexer.value.addChannelHandler(channelHandler, forId: id)
+            let promise = channel.eventLoop.makePromise(of: Void.self)
+            channel
+                .triggerUserOutboundEvent(
+                    AMQPConnectionMultiplexHandler.UserEvent
+                        .channelOpen(id, channelHandler),
+                    promise: promise
+                )
 
-            return channelHandler
+            return promise.futureResult.map { channelHandler }
         }
     }
 
