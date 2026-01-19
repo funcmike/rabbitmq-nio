@@ -305,6 +305,22 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
         }
     }
 
+    func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
+        guard let event = event as? UserEvent else {
+            context.triggerUserOutboundEvent(event, promise: promise)
+            return
+        }
+
+        switch event {
+        case let .invalidResponse(error):
+            failAllPendingRequestsAndChannels(because: error)
+            promise?.succeed()
+        case let .channelOpen(id, handler):
+            addChannelHandler(handler, forId: id)
+            promise?.succeed()
+        }
+    }
+
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         failAllPendingRequestsAndChannels(because: error)
         return context.close(promise: nil)
@@ -324,6 +340,11 @@ internal final class AMQPConnectionMultiplexHandler: ChannelDuplexHandler {
         if !allPending.isEmpty {
             assertionFailure("Queue is not empty! Queue size: \(allPending.count)")
         }
+    }
+
+    enum UserEvent: Sendable {
+        case channelOpen(Frame.ChannelID, AMQPChannelHandler)
+        case invalidResponse(AMQPConnectionError)
     }
 }
 

@@ -142,9 +142,6 @@ public final class AMQPConnection: Sendable {
     ) -> EventLoopFuture<AMQPConnectionHandler> {
         do {
             let bootstrap = try boostrapClient(use: eventLoop, from: config)
-            let multiplexer = NIOLoopBound(
-                AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server),
-                eventLoop: eventLoop)
 
             return bootstrap
                 .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -152,13 +149,13 @@ public final class AMQPConnection: Sendable {
                 .connectTimeout(config.server.timeout)
                 .channelInitializer { channel in
                     channel.pipeline.addHandlers([
-                        MessageToByteHandler(AMQPFrameEncoder()),
                         ByteToMessageHandler(AMQPFrameDecoder()),
-                        multiplexer.value,
+                        MessageToByteHandler(AMQPFrameEncoder()),
+                        AMQPConnectionMultiplexHandler(eventLoop: eventLoop, config: config.server)
                     ])
                 }
                 .connect(host: config.server.host, port: config.server.port)
-                .map { AMQPConnectionHandler(channel: $0, multiplexer: multiplexer.value) }
+                .map { AMQPConnectionHandler(channel: $0) }
         } catch {
             return eventLoop.makeFailedFuture(error)
         }
